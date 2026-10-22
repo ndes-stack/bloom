@@ -4382,6 +4382,11 @@ unsafe extern "system" fn display_monitor_proc(
                     }
                 };
                 let _ = app_handle.emit("system-accent-changed", color_hex);
+
+                // Windows sends WM_SETTINGCHANGE ("ImmersiveColorSet") when the
+                // light/dark app mode flips, so tell the frontend the new mode.
+                let system_theme = crate::commands::get_system_theme();
+                let _ = app_handle.emit("system-theme-changed", system_theme);
             }
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }

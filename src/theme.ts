@@ -107,6 +107,36 @@ function hslToHex(h: number, s: number, l: number): string {
 	return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+type SystemTheme = "light" | "dark";
+
+// Last Windows light/dark app mode we saw. Lets "system" mode paint instantly
+// on later calls instead of waiting for the backend round trip.
+let cachedSystemTheme: SystemTheme | null = null;
+
+// Best synchronous guess at the Windows app mode. WebView2 mirrors the
+// Windows setting through prefers-color-scheme, so it is right in practice.
+function guessSystemTheme(): SystemTheme {
+	if (cachedSystemTheme) return cachedSystemTheme;
+	try {
+		if (window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
+	} catch {
+		// matchMedia unavailable, fall through to dark
+	}
+	return "dark";
+}
+
+// Ask the backend, which reads the Windows registry directly.
+async function resolveSystemTheme(): Promise<SystemTheme> {
+	try {
+		const theme = await invoke<string>("get_system_theme");
+		cachedSystemTheme = theme === "light" ? "light" : "dark";
+	} catch (e) {
+		console.error("Failed to read system theme:", e);
+		cachedSystemTheme = guessSystemTheme();
+	}
+	return cachedSystemTheme;
+}
+
 export async function applyTheme(
 	mode: string,
 	customColor: string,
@@ -115,6 +145,20 @@ export async function applyTheme(
 	brightness?: number
 ) {
 	const root = document.documentElement;
+
+	// "system" follows the Windows light/dark app mode. Paint the best guess
+	// right away so there is no flash, then confirm with the backend and
+	// repaint only if the guess was wrong.
+	if (mode === "system") {
+		const guess = guessSystemTheme();
+		applyTheme(guess, customColor, opacity, saturation, brightness);
+		const actual = await resolveSystemTheme();
+		const stillSystem = (localStorage.getItem("bloom-theme-mode") || "dark") === "system";
+		if (actual !== guess && stillSystem) {
+			applyTheme(actual, customColor, opacity, saturation, brightness);
+		}
+		return;
+	}
 
 	if (opacity === undefined || opacity === null) {
 		const cachedOpacity = localStorage.getItem("bloom-theme-opacity");
@@ -329,6 +373,29 @@ export function initTheme() {
 		}
 	});
 
+	// Windows switched between light and dark app mode. Only matters in "system" mode.
+	const systemThemePromise = listen<string>("system-theme-changed", (event) => {
+		cachedSystemTheme = event.payload === "light" ? "light" : "dark";
+		if ((localStorage.getItem("bloom-theme-mode") || "dark") === "system") {
+			applyThemeFromStorage();
+		}
+	});
+
+	// Backup trigger: the webview also reports the OS colour scheme changing.
+	let colorSchemeQuery: MediaQueryList | null = null;
+	const onColorSchemeChange = () => {
+		if ((localStorage.getItem("bloom-theme-mode") || "dark") === "system") {
+			cachedSystemTheme = null;
+			applyThemeFromStorage();
+		}
+	};
+	try {
+		colorSchemeQuery = window.matchMedia("(prefers-color-scheme: light)");
+		colorSchemeQuery.addEventListener("change", onColorSchemeChange);
+	} catch {
+		colorSchemeQuery = null;
+	}
+
 	// Listen to external edits (e.g. settings.json edited outside the app)
 	// localStorage sync is handled by useSettingsSync hook; we just apply the theme
 	const externalPromise = listen<{ key: string; value: any }>(
@@ -345,5 +412,7 @@ export function initTheme() {
 		settingsPromise.then((f) => f());
 		accentPromise.then((f) => f());
 		externalPromise.then((f) => f());
+		systemThemePromise.then((f) => f());
+		colorSchemeQuery?.removeEventListener("change", onColorSchemeChange);
 	};
 }

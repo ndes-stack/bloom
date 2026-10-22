@@ -3684,6 +3684,55 @@ pub fn get_system_accent_color() -> Result<String, String> {
     }
 }
 
+/// Reads the Windows "Choose your app mode" setting (Settings > Personalization
+/// > Colors). Returns `Some(true)` for light, `Some(false)` for dark, and
+/// `None` if the value is missing (older Windows builds), so callers can fall
+/// back to a default.
+pub fn get_windows_apps_use_light_theme() -> Option<bool> {
+    unsafe {
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ, REG_DWORD,
+        };
+
+        let subkey =
+            windows::core::w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+        let mut hkey = windows::Win32::System::Registry::HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, subkey, Some(0), KEY_READ, &mut hkey).is_err() {
+            return None;
+        }
+
+        let mut value_type = REG_DWORD;
+        let mut value = 0u32;
+        let mut value_size = std::mem::size_of::<u32>() as u32;
+        let val_name = windows::core::w!("AppsUseLightTheme");
+        let result = RegQueryValueExW(
+            hkey,
+            val_name,
+            None,
+            Some(&mut value_type),
+            Some(&mut value as *mut u32 as *mut u8),
+            Some(&mut value_size),
+        );
+        let _ = RegCloseKey(hkey);
+
+        if result.is_ok() {
+            Some(value != 0)
+        } else {
+            None
+        }
+    }
+}
+
+/// Returns `"light"` or `"dark"` to match the current Windows app mode.
+/// Used by the `system` theme mode so Bloom switches automatically.
+#[tauri::command]
+pub fn get_system_theme() -> String {
+    match get_windows_apps_use_light_theme() {
+        Some(true) => "light".to_string(),
+        _ => "dark".to_string(),
+    }
+}
+
 /// Export and import both pick their file in a native dialog opened from
 /// Rust, so the path a webview can influence never reaches the filesystem
 /// commands. A script injection in any Bloom window would otherwise turn
