@@ -548,27 +548,42 @@ function compareEvents(a: CalendarEvent, b: CalendarEvent): number {
 	return a.start.getTime() - b.start.getTime() || a.title.localeCompare(b.title);
 }
 
-/** Events for each day (1-based) of a month, in local time, sorted for display. */
-export function eventsByDay(cal: ParsedCalendar, year: number, month: number): Map<number, CalendarEvent[]> {
-	const monthStart = new Date(year, month, 1);
-	const monthEnd = new Date(year, month + 1, 1);
-	const byDay = new Map<number, CalendarEvent[]>();
-	const total = new Date(year, month + 1, 0).getDate();
+/**
+ * Events for `count` consecutive local days starting on `start`'s date, one
+ * sorted list per day. Multi-day events appear on every day they touch.
+ */
+export function eventsForDays(cal: ParsedCalendar, start: Date, count: number): CalendarEvent[][] {
+	const y = start.getFullYear();
+	const m = start.getMonth();
+	const d0 = start.getDate();
+	const days: CalendarEvent[][] = Array.from({ length: count }, () => []);
+	const bounds = Array.from({ length: count + 1 }, (_, i) => new Date(y, m, d0 + i).getTime());
 
-	for (const ev of eventsInRange(cal, monthStart, monthEnd)) {
+	for (const ev of eventsInRange(cal, new Date(bounds[0]), new Date(bounds[count]))) {
 		const s = ev.start.getTime();
 		const e = ev.end.getTime();
-		for (let d = 1; d <= total; d++) {
-			const dayStart = new Date(year, month, d).getTime();
-			const dayEnd = new Date(year, month, d + 1).getTime();
-			const hit = e > s ? s < dayEnd && e > dayStart : s >= dayStart && s < dayEnd;
-			if (!hit) continue;
-			if (!byDay.has(d)) byDay.set(d, []);
-			byDay.get(d)!.push(ev);
+		for (let i = 0; i < count; i++) {
+			const hit = e > s ? s < bounds[i + 1] && e > bounds[i] : s >= bounds[i] && s < bounds[i + 1];
+			if (hit) days[i].push(ev);
 		}
 	}
-	for (const list of byDay.values()) list.sort(compareEvents);
+	for (const list of days) list.sort(compareEvents);
+	return days;
+}
+
+/** Events for each day (1-based) of a month, in local time, sorted for display. */
+export function eventsByDay(cal: ParsedCalendar, year: number, month: number): Map<number, CalendarEvent[]> {
+	const total = new Date(year, month + 1, 0).getDate();
+	const byDay = new Map<number, CalendarEvent[]>();
+	eventsForDays(cal, new Date(year, month, 1), total).forEach((list, i) => {
+		if (list.length > 0) byDay.set(i + 1, list);
+	});
 	return byDay;
+}
+
+/** Tests, exams and similar get a stronger highlight in the calendar. */
+export function isImportantEvent(ev: CalendarEvent): boolean {
+	return /\b(test|exam|examination|quiz|assessment|presentation|deadline|due)\b/i.test(ev.title);
 }
 
 /** "All day", "09:00 – 10:30", "Until 11:00" or "From 22:00", relative to one day. */

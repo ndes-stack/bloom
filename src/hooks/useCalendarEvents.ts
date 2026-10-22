@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { eventsByDay, parseIcs, type CalendarEvent, type ParsedCalendar } from "../calendarIcs";
+import {
+	eventsByDay,
+	eventsForDays,
+	parseIcs,
+	type CalendarEvent,
+	type ParsedCalendar
+} from "../calendarIcs";
 
 export const CALENDAR_URL_KEY = "bloom-calendar-ics-url";
 
@@ -84,11 +90,8 @@ function watchCalendarSetting() {
 	listen<{ key: string }>("settings-external-changed", onChange);
 }
 
-/**
- * Events from the user's linked calendar, grouped by day of the given month.
- * Returns an empty map when no calendar is linked.
- */
-export function useCalendarEvents(year: number, month: number) {
+/** The linked calendar feed, refreshed while any calendar view is on screen. */
+function useCalendarFeed(): FeedState {
 	const [state, setState] = useState<FeedState>(feed);
 
 	useEffect(() => {
@@ -103,10 +106,32 @@ export function useCalendarEvents(year: number, month: number) {
 		};
 	}, []);
 
+	return state;
+}
+
+/**
+ * Events from the user's linked calendar, grouped by day of the given month.
+ * Returns an empty map when no calendar is linked.
+ */
+export function useCalendarEvents(year: number, month: number) {
+	const state = useCalendarFeed();
 	const byDay = useMemo<Map<number, CalendarEvent[]>>(
 		() => (state.calendar ? eventsByDay(state.calendar, year, month) : new Map()),
 		[state.calendar, year, month]
 	);
-
 	return { status: state.status, error: state.error, byDay };
+}
+
+/** Events for `count` days from `start` (one list per day; empty when no calendar). */
+export function useCalendarDays(start: Date, count: number) {
+	const state = useCalendarFeed();
+	const startMs = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+	const days = useMemo<CalendarEvent[][]>(
+		() =>
+			state.calendar
+				? eventsForDays(state.calendar, new Date(startMs), count)
+				: Array.from({ length: count }, () => []),
+		[state.calendar, startMs, count]
+	);
+	return { status: state.status, error: state.error, days };
 }

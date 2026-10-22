@@ -921,11 +921,441 @@ img {
 	margin-bottom: 3px;
 }
 
-/* Clips the month sliding in/out; relative so the leaving month can be
-   laid over the arriving one during the flip. */
-.calendar-grid-viewport {
+/* Clips the month/week sliding in and out; relative so the leaving period
+   can be laid over the arriving one during the flip. */
+.calendar-period-viewport {
 	position: relative;
 	overflow: hidden;
+}
+
+/* Month | day list | columns | timetable picker */
+.calendar-view-picker {
+	display: flex;
+	padding: 2px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bloom-text, white) 7%, transparent);
+}
+
+.calendar-view-picker button {
+	width: 26px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.calendar-view-picker button:hover {
+	color: var(--bloom-text, white);
+}
+
+.calendar-view-picker button.active {
+	background: color-mix(in srgb, var(--bloom-text, white) 16%, transparent);
+	color: var(--bloom-text, white);
+}
+
+/* Tests, exams and deadlines stand out in every view */
+.calendar-chip.important.all-day,
+.week-column-chip.important,
+.week-grid-block.important,
+.week-grid-allday.important {
+	background: color-mix(in srgb, #ff9f0a 38%, transparent);
+}
+
+.calendar-chip.important.timed {
+	border-left-color: #ff9f0a;
+}
+
+.calendar-event-row.important .calendar-event-bar,
+.week-agenda-row.important .week-agenda-bar {
+	background: #ff9f0a;
+}
+
+/* ── Week A: day strip + agenda ── */
+.week-agenda {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.week-strip {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.week-strip-day {
+	height: 50px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	padding: 0;
+	border: none;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, white) 7%, transparent);
+	color: var(--bloom-text, white);
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.week-strip-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 12%, transparent);
+}
+
+.week-strip-day.past {
+	opacity: 0.55;
+}
+
+.week-strip-day.today .week-strip-name {
+	color: var(--bloom-accent, #007aff);
+}
+
+.week-strip-day.selected {
+	background: var(--bloom-accent, #007aff);
+	color: #fff;
+	opacity: 1;
+}
+
+.week-strip-day.selected .week-strip-name {
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.week-strip-name {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.week-strip-date {
+	font-size: 15px;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.week-strip-dots {
+	display: flex;
+	gap: 2px;
+	height: 4px;
+}
+
+.week-strip-dots span {
+	width: 4px;
+	height: 4px;
+	border-radius: 2px;
+	background: var(--bloom-accent, #007aff);
+}
+
+.week-strip-dots span.important {
+	background: #ff9f0a;
+}
+
+.week-strip-day.selected .week-strip-dots span {
+	background: #fff;
+}
+
+.week-agenda-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--bloom-scrollbar-thumb, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+.week-agenda-row {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 40px;
+	padding: 0 10px;
+	border-radius: 10px;
+}
+
+.week-agenda-row.finished {
+	opacity: 0.5;
+}
+
+.week-agenda-row.ongoing,
+.week-agenda-row.up-next {
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+}
+
+.week-agenda-time {
+	width: 112px;
+	white-space: nowrap;
+	flex-shrink: 0;
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.week-agenda-bar {
+	flex-shrink: 0;
+	width: 3px;
+	height: 26px;
+	border-radius: 2px;
+	background: var(--bloom-accent, #007aff);
+}
+
+.week-agenda-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.week-agenda-title {
+	font-size: 12.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.week-agenda-meta {
+	font-size: 10.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.week-agenda-empty {
+	padding: 12px 10px;
+	font-size: 12px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+/* ── Week B: seven columns ── */
+.week-columns {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 5px;
+}
+
+.week-column {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 5px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--bloom-text, white) 5%, transparent);
+	overflow: hidden;
+}
+
+.week-column.past {
+	opacity: 0.5;
+}
+
+.week-column.today {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 14%, transparent);
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bloom-accent, #007aff) 70%, transparent);
+}
+
+.week-column:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 9%, transparent);
+}
+
+.week-column-head {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+	padding: 0 2px 2px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.week-column-head strong {
+	font-size: 13px;
+	color: var(--bloom-text, white);
+}
+
+.week-column.today .week-column-head span {
+	color: var(--bloom-accent, #007aff);
+}
+
+.week-column-chip {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 3px 5px;
+	border-radius: 5px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 26%, transparent);
+	pointer-events: none;
+}
+
+.week-column-chip.finished {
+	opacity: 0.6;
+}
+
+.week-column-time {
+	font-size: 9.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-variant-numeric: tabular-nums;
+}
+
+.week-column-title {
+	font-size: 10.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.week-column-more,
+.week-column-free {
+	padding: 0 4px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.week-column-free {
+	font-weight: 400;
+}
+
+/* ── Week C: timetable grid ── */
+.week-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.week-grid-head,
+.week-grid-body {
+	display: grid;
+	grid-template-columns: 34px repeat(7, minmax(0, 1fr));
+	column-gap: 4px;
+}
+
+.week-grid-head span {
+	font-size: 10px;
+	font-weight: 600;
+	text-align: center;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+}
+
+.week-grid-head span.past {
+	opacity: 0.6;
+}
+
+.week-grid-head span.today {
+	color: var(--bloom-accent, #007aff);
+	font-weight: 700;
+}
+
+.week-grid-hours {
+	position: relative;
+	font-size: 9px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-variant-numeric: tabular-nums;
+}
+
+.week-grid-hours span {
+	position: absolute;
+	left: 0;
+}
+
+.week-grid-day {
+	position: relative;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--bloom-text, white) 5%, transparent);
+}
+
+.week-grid-day.past {
+	opacity: 0.55;
+}
+
+.week-grid-day.today {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 12%, transparent);
+}
+
+.week-grid-day:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 9%, transparent);
+}
+
+.week-grid-allday {
+	position: absolute;
+	top: 1px;
+	left: 2px;
+	right: 2px;
+	height: 12px;
+	padding: 0 3px;
+	border-radius: 3px;
+	box-sizing: border-box;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 30%, transparent);
+	font-size: 8px;
+	font-weight: 600;
+	line-height: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.week-grid-block {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	padding: 1px 3px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 50%, transparent);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.week-grid-block.finished {
+	opacity: 0.6;
+}
+
+.week-grid-block-title {
+	font-size: 8.5px;
+	font-weight: 600;
+	line-height: 1.15;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.week-grid-block-time {
+	font-size: 8px;
+	opacity: 0.8;
+	font-variant-numeric: tabular-nums;
+}
+
+.week-grid-now {
+	position: absolute;
+	left: -2px;
+	right: -2px;
+	height: 2px;
+	border-radius: 1px;
+	background: #ff9f0a;
+	pointer-events: none;
+}
+
+.week-grid-now::before {
+	content: "";
+	position: absolute;
+	left: -3px;
+	top: -3px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #ff9f0a;
 }
 
 .calendar-container.wide .calendar-grid {

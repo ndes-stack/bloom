@@ -64,6 +64,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | --------------------------- | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
 | `bloom-calendar-enabled`    | `"true"` / `"false"`              | `"true"` | Enable calendar/timer mode in the notch.                                                                 |
 | `bloom-calendar-ics-url`   | https URL (or `webcal://`)        | unset    | Google Calendar "Secret address in iCal format" (any iCal feed works). Events appear as dots in the notch calendar with a hover popup. Treat it like a password. |
+| `bloom-calendar-view`     | `"month"` / `"agenda"` / `"columns"` / `"grid"` | `"month"` | Notch calendar layout, picked with the buttons in the calendar header and remembered: month grid, week day-list, week columns, or week timetable. |
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
 | `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Click opens the last-used panel when on; when off, click opens `bloom-notch-default-panel`. |

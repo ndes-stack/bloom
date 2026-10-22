@@ -28,7 +28,13 @@ import { CompactMediaPlayer } from "./CompactMediaPlayer";
 import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
-import { NotchCalendar, monthRowCount } from "./components/NotchCalendar";
+import {
+	NotchCalendar,
+	CALENDAR_VIEW_KEY,
+	calendarPanelHeight,
+	parseCalendarView,
+	type CalendarViewMode
+} from "./components/NotchCalendar";
 import {
 	clampScrollSpeed,
 	createScrollFlipper,
@@ -1000,6 +1006,7 @@ function App() {
 				);
 				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
 				setScrollSpeed(clampScrollSpeed(getVal(SCROLL_SPEED_KEY)));
+				if (getVal(CALENDAR_VIEW_KEY)) setCalendarViewMode(parseCalendarView(getVal(CALENDAR_VIEW_KEY)));
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
 				setLastPanel(asNotchPanel(getVal("bloom-notch-last-panel")));
@@ -1115,6 +1122,7 @@ function App() {
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
+			[CALENDAR_VIEW_KEY]: (v: unknown) => setCalendarViewMode(parseCalendarView(v)),
 			"bloom-notch-default-panel": (v: unknown) =>
 				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
 			"bloom-shelf-persist": setShelfPersist,
@@ -1802,19 +1810,29 @@ function App() {
 			// Storage unavailable; the tab just won't be remembered.
 		}
 	}, [calendarTab]);
-	const [calendarView, setCalendarView] = useState(() => {
-		const now = new Date();
-		return { year: now.getFullYear(), month: now.getMonth() };
-	});
-	const shiftCalendarMonth = (delta: number) =>
-		setCalendarView(({ year, month }) => {
-			const d = new Date(year, month + delta, 1);
-			return { year: d.getFullYear(), month: d.getMonth() };
-		});
-	const showCurrentMonth = () => {
-		const now = new Date();
-		setCalendarView({ year: now.getFullYear(), month: now.getMonth() });
+	// Layout (month or one of three week views), remembered across restarts in
+	// settings.json as bloom-calendar-view.
+	const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>(() =>
+		parseCalendarView(localStorage.getItem(CALENDAR_VIEW_KEY))
+	);
+	const changeCalendarView = (mode: CalendarViewMode) => {
+		setCalendarViewMode(mode);
+		try {
+			localStorage.setItem(CALENDAR_VIEW_KEY, mode);
+		} catch {
+			// The settings file below still remembers it.
+		}
+		invoke("save_setting", { key: CALENDAR_VIEW_KEY, value: mode }).catch(console.error);
 	};
+	// Any date inside the month or week on screen.
+	const [calendarDate, setCalendarDate] = useState(() => new Date());
+	const shiftCalendar = (delta: number) =>
+		setCalendarDate((d) =>
+			calendarViewMode === "month"
+				? new Date(d.getFullYear(), d.getMonth() + delta, 1)
+				: new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta * 7)
+		);
+	const showCalendarToday = () => setCalendarDate(new Date());
 
 	// Timer state
 	const [timerSeconds, setTimerSeconds] = useState(0);
@@ -2786,7 +2804,7 @@ function App() {
 		// keeps the same size so switching tabs never moves the panel's edges
 		// out from under the mouse (which would close the notch).
 		if (bloomMode === "calendar") {
-			return 36 + 76 + monthRowCount(calendarView.year, calendarView.month) * 47;
+			return calendarPanelHeight(calendarViewMode, calendarDate);
 		}
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
@@ -2813,7 +2831,7 @@ function App() {
 
 	// Each time the calendar is reopened it starts on the current month.
 	useEffect(() => {
-		if (!isCalendarMode || !isOpen) showCurrentMonth();
+		if (!isCalendarMode || !isOpen) showCalendarToday();
 	}, [isCalendarMode, isOpen]);
 
 	// A finished timer brings its view forward so "Time's up" is never missed.
@@ -3898,10 +3916,11 @@ function App() {
 										>
 											{calendarTab === "calendar" ? (
 												<NotchCalendar
-													year={calendarView.year}
-													month={calendarView.month}
-													onChangeMonth={shiftCalendarMonth}
-													onToday={showCurrentMonth}
+													view={calendarViewMode}
+													onViewChange={changeCalendarView}
+													date={calendarDate}
+													onShift={shiftCalendar}
+													onToday={showCalendarToday}
 													use24h={timeFormat24h}
 													headerExtra={calendarTabSwitch}
 												/>
