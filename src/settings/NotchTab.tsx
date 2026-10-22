@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
 	PanelTop,
+	Hourglass,
 	MousePointer2,
 	CalendarSync,
 	Calendar,
@@ -17,7 +18,8 @@ import {
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
-import type { WidgetConfig } from "./types";
+import { parseNotchPanelChoice, type NotchPanelChoice, type WidgetConfig } from "./types";
+import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -29,12 +31,14 @@ interface NotchTabProps {
 	handleNotchEdgeDelayChange: (val: number) => void;
 	scrollSpeed: number;
 	handleScrollSpeedChange: (val: number) => void;
+	pageSwitchGrace: number;
+	handlePageSwitchGraceChange: (val: number) => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	notchRememberPanel: boolean;
 	toggleNotchRememberPanel: () => void;
-	notchDefaultPanel: "calendar" | "command-center";
-	changeNotchDefaultPanel: (panel: "calendar" | "command-center") => void;
+	notchDefaultPanel: NotchPanelChoice;
+	changeNotchDefaultPanel: (panel: NotchPanelChoice) => void;
 	timerSoundEnabled: boolean;
 	toggleTimerSound: () => void;
 	calendarIcsUrl: string;
@@ -79,6 +83,8 @@ export function NotchTab({
 	handleNotchEdgeDelayChange,
 	scrollSpeed,
 	handleScrollSpeedChange,
+	pageSwitchGrace,
+	handlePageSwitchGraceChange,
 	calendarEnabled,
 	toggleCalendar,
 	notchRememberPanel,
@@ -186,6 +192,27 @@ export function NotchTab({
 				</SettingRow>
 
 				<SettingRow
+					icon={Hourglass}
+					label="Page Switch Grace"
+					desc={
+						pageSwitchGrace === 0
+							? "Close as soon as the pointer is outside after switching pages"
+							: `Stay open ${(pageSwitchGrace / 1000).toFixed(1)} s if switching pages leaves the pointer outside`
+					}
+				>
+					<input
+						type="range"
+						min="0"
+						max={MAX_PAGE_SWITCH_GRACE_MS}
+						step="100"
+						value={pageSwitchGrace}
+						aria-label="Page switch grace period"
+						onChange={(e) => handlePageSwitchGraceChange(parseInt(e.target.value))}
+						className="settings-slider"
+					/>
+				</SettingRow>
+
+				<SettingRow
 					icon={PanelTop}
 					label="Remember Last Panel"
 					desc="Reopen the panel you last used; turn off to choose a fixed default"
@@ -200,18 +227,22 @@ export function NotchTab({
 					<SettingRow icon={PanelTop} label="Default Panel" desc="Open this panel when you click the notch">
 						<select
 							className="settings-select"
-							value={calendarEnabled ? notchDefaultPanel : "command-center"}
-							onChange={(e) =>
-								changeNotchDefaultPanel(e.target.value as "calendar" | "command-center")
+							value={
+								calendarEnabled || (notchDefaultPanel !== "calendar" && notchDefaultPanel !== "timer")
+									? notchDefaultPanel
+									: "command-center"
 							}
+							onChange={(e) => changeNotchDefaultPanel(parseNotchPanelChoice(e.target.value))}
 						>
 							<option value="calendar" disabled={!calendarEnabled}>Calendar</option>
+							<option value="timer" disabled={!calendarEnabled}>Timer</option>
+							<option value="launcher">Quick Launcher</option>
 							<option value="command-center">Command Center</option>
 						</select>
 					</SettingRow>
 				)}
 
-				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Month calendar with a Pomodoro timer tab">
+				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Calendar and Pomodoro timer pages">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={calendarEnabled} onChange={toggleCalendar} />
 						<span className="slider"></span>

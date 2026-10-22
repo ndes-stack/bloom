@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseIcs } from "../calendarIcs";
 import { clampScrollSpeed, SCROLL_SPEED_KEY } from "../scrollFlip";
+import { clampPageSwitchGrace, PAGE_SWITCH_GRACE_KEY } from "../pageSwitchGrace";
+import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -39,9 +41,11 @@ export function useSettings() {
 		() => (localStorage.getItem("bloom-notch-remember-panel") ??
 			localStorage.getItem("bloom-notch-click-to-open")) !== "false"
 	);
-	const [notchDefaultPanel, setNotchDefaultPanel] = useState<"calendar" | "command-center">(
-		() => localStorage.getItem("bloom-notch-default-panel") === "command-center"
-			? "command-center" : "calendar"
+	const [notchDefaultPanel, setNotchDefaultPanel] = useState<NotchPanelChoice>(() =>
+		parseNotchPanelChoice(localStorage.getItem("bloom-notch-default-panel"))
+	);
+	const [pageSwitchGrace, setPageSwitchGrace] = useState(() =>
+		clampPageSwitchGrace(localStorage.getItem(PAGE_SWITCH_GRACE_KEY))
 	);
 	const [musicCompactNotch, setMusicCompactNotch] = useState(true);
 	const [shelfPersist, setShelfPersist] = useState(
@@ -209,7 +213,7 @@ export function useSettings() {
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
 				setNotchRememberPanel, readBool);
 			apply(getVal("bloom-notch-default-panel"), setNotchDefaultPanel,
-				(v) => v === "command-center" ? "command-center" : "calendar");
+				parseNotchPanelChoice);
 			apply(getVal("bloom-music-compact-notch"), setMusicCompactNotch, readBool);
 			apply(getVal("bloom-shelf-persist"), setShelfPersist, readBool);
 			apply(getVal("bloom-volume-overlay-enabled"), setVolumeOverlayEnabled, readBool);
@@ -244,6 +248,7 @@ export function useSettings() {
 			apply(getVal("bloom-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-notch-edge-delay"), setNotchEdgeDelay, parseInt);
 			apply(getVal(SCROLL_SPEED_KEY), setScrollSpeed, clampScrollSpeed);
+			apply(getVal(PAGE_SWITCH_GRACE_KEY), setPageSwitchGrace, clampPageSwitchGrace);
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -378,7 +383,8 @@ export function useSettings() {
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
 		"bloom-notch-default-panel": (v: unknown) =>
-			setNotchDefaultPanel(v === "command-center" ? "command-center" : "calendar"),
+			setNotchDefaultPanel(parseNotchPanelChoice(v)),
+		[PAGE_SWITCH_GRACE_KEY]: (v) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 		"bloom-music-compact-notch": setMusicCompactNotch,
 		"bloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"bloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
@@ -555,7 +561,13 @@ export function useSettings() {
 		saveSetting("bloom-notch-remember-panel", String(next));
 	};
 
-	const changeNotchDefaultPanel = (panel: "calendar" | "command-center") => {
+	const handlePageSwitchGraceChange = (val: number) => {
+		const ms = clampPageSwitchGrace(val);
+		setPageSwitchGrace(ms);
+		saveSetting(PAGE_SWITCH_GRACE_KEY, String(ms));
+	};
+
+	const changeNotchDefaultPanel = (panel: NotchPanelChoice) => {
 		setNotchDefaultPanel(panel);
 		saveSetting("bloom-notch-default-panel", panel);
 	};
@@ -995,6 +1007,8 @@ export function useSettings() {
 		handleNotchEdgeDelayChange,
 		scrollSpeed,
 		handleScrollSpeedChange,
+		pageSwitchGrace,
+		handlePageSwitchGraceChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,

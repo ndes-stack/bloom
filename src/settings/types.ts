@@ -17,3 +17,10 @@ export interface SettingRowProps {
 	onClick?: () => void;
 	children?: React.ReactNode;
 }
+
+/** Panels the notch can open to by default. */
+export type NotchPanelChoice = "calendar" | "timer" | "launcher" | "command-center";
+
+export function parseNotchPanelChoice(value: unknown): NotchPanelChoice {
+	return value === "timer" || value === "launcher" || value === "command-center" ? value : "calendar";
+}

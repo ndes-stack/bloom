@@ -870,49 +870,6 @@ img {
 	min-width: 0;
 }
 
-/* Calendar | Timer segmented switch */
-.calendar-tab-switch {
-	display: flex;
-	padding: 2px;
-	border-radius: 8px;
-	background: color-mix(in srgb, var(--bloom-text, white) 7%, transparent);
-}
-
-.calendar-tab-switch button {
-	min-width: 64px;
-	height: 22px;
-	padding: 0 10px;
-	border: none;
-	border-radius: 6px;
-	background: transparent;
-	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
-	font-size: 11px;
-	font-weight: 600;
-	font-variant-numeric: tabular-nums;
-	cursor: pointer;
-	transition:
-		background 0.15s ease,
-		color 0.15s ease;
-}
-
-.calendar-tab-switch button:hover {
-	color: var(--bloom-text, white);
-}
-
-.calendar-tab-switch button.active {
-	background: color-mix(in srgb, var(--bloom-text, white) 16%, transparent);
-	color: var(--bloom-text, white);
-}
-
-/* Time left on a timer running in the background */
-.calendar-tab-switch button.has-badge {
-	color: var(--bloom-accent, #007aff);
-}
-
-.calendar-tab-switch button.has-badge.state-finished {
-	color: #ff9f0a;
-}
-
 .calendar-container.wide .calendar-weekdays {
 	display: grid;
 	grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1473,28 +1430,421 @@ img {
 	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
 }
 
-/* Timer tab */
-.timer-view {
-	height: 100%;
+/* Timer page */
+.calendar-timer-content.timer-page {
+	padding: 14px 18px 18px;
 	display: flex;
-	flex-direction: column;
+	color: var(--bloom-text, white);
+	overflow: hidden;
+	border-radius: 0 0 28px 28px;
 }
 
-/* Same height and spacing as the calendar header, so the Calendar | Timer
-   switch sits in exactly the same spot on both tabs. */
-.timer-view-header {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	height: 26px;
-	margin-bottom: 8px;
-	flex-shrink: 0;
-}
-
-.calendar-timer-content.tabbed .timer-column {
+.calendar-timer-content.timer-page .timer-column {
 	flex: 1;
 	border-left: none;
 	padding-left: 0;
+}
+
+/* Running-timer chip in the calendar header: jumps to the timer page */
+.calendar-timer-chip {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 18%, transparent);
+	color: var(--bloom-accent, #007aff);
+	font-size: 11px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+
+.calendar-timer-chip:hover {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 28%, transparent);
+}
+
+.calendar-timer-chip.state-paused {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+}
+
+.calendar-timer-chip.state-finished {
+	color: #ff9f0a;
+	background: color-mix(in srgb, #ff9f0a 18%, transparent);
+}
+
+/* ── Quick Launcher page ── */
+.calendar-timer-content.launcher-page {
+	padding: 12px 14px 14px;
+	color: var(--bloom-text, white);
+	overflow: hidden;
+	border-radius: 0 0 28px 28px;
+}
+
+.launcher {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.launcher-top {
+	display: flex;
+	gap: 8px;
+	height: 34px;
+}
+
+.launcher-search {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px;
+	border-radius: 11px;
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: text;
+}
+
+.launcher-search:focus-within {
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bloom-accent, #007aff) 70%, transparent);
+}
+
+.launcher-search input {
+	flex: 1;
+	min-width: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--bloom-text, white);
+	font: inherit;
+	font-size: 12.5px;
+}
+
+.launcher-search input::placeholder {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.launcher-clear {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--bloom-text, white) 12%, transparent);
+	color: var(--bloom-text, white);
+	cursor: pointer;
+}
+
+.launcher-edit-btn {
+	height: 34px;
+	padding: 0 14px;
+	border: none;
+	border-radius: 11px;
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+	color: var(--bloom-text, white);
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.launcher-edit-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 14%, transparent);
+}
+
+.launcher-edit-btn.done {
+	background: var(--bloom-accent, #007aff);
+	color: #fff;
+}
+
+.launcher-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	grid-auto-rows: 74px;
+	gap: 8px;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--bloom-scrollbar-thumb, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+.launcher-tile {
+	position: relative;
+	min-width: 0;
+}
+
+.launcher-tile.dragging {
+	z-index: 2;
+	opacity: 0.85;
+}
+
+.launcher-tile-btn {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 4px 2px;
+	border: none;
+	border-radius: 12px;
+	background: transparent;
+	color: var(--bloom-text, white);
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.launcher-tile-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+}
+
+.launcher-tile.editing .launcher-tile-btn {
+	cursor: grab;
+	animation: launcher-wiggle 0.32s ease-in-out infinite alternate;
+}
+
+.launcher-tile.editing:nth-child(2n) .launcher-tile-btn {
+	animation-delay: -0.16s;
+}
+
+.launcher-tile.dragging .launcher-tile-btn {
+	cursor: grabbing;
+	animation: none;
+}
+
+@keyframes launcher-wiggle {
+	from {
+		transform: rotate(-1.2deg);
+	}
+	to {
+		transform: rotate(1.2deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.launcher-tile.editing .launcher-tile-btn {
+		animation: none;
+	}
+}
+
+.launcher-tile-label {
+	max-width: 100%;
+	font-size: 11px;
+	line-height: 14px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.launcher-icon-img {
+	object-fit: contain;
+	pointer-events: none;
+	user-select: none;
+}
+
+.launcher-icon-fallback {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 28%;
+	background: color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+	color: var(--bloom-text, white);
+}
+
+.launcher-icon-fallback.kind-folder {
+	color: #e8b04a;
+}
+
+.launcher-icon-fallback.kind-url {
+	color: var(--bloom-accent, #007aff);
+}
+
+.launcher-icon-letter {
+	font-weight: 700;
+	line-height: 1;
+}
+
+.launcher-add-icon {
+	width: 46px;
+	height: 46px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	border-radius: 13px;
+	border: 1.5px dashed color-mix(in srgb, var(--bloom-text, white) 30%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.launcher-remove {
+	position: absolute;
+	top: -2px;
+	left: 6px;
+	width: 20px;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 2px solid var(--bloom-bg-expanded, #000);
+	border-radius: 10px;
+	background: #6b7180;
+	color: #fff;
+	cursor: pointer;
+	z-index: 1;
+}
+
+.launcher-remove:hover {
+	background: #ff453a;
+}
+
+.launcher-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+}
+
+.launcher-hint {
+	flex: 1;
+	min-width: 0;
+	font-size: 10.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.launcher-actions button,
+.launcher-url-form button {
+	height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 13px;
+	background: color-mix(in srgb, var(--bloom-text, white) 9%, transparent);
+	color: var(--bloom-text, white);
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.launcher-actions button:hover,
+.launcher-url-form button:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--bloom-text, white) 15%, transparent);
+}
+
+.launcher-url-form {
+	display: flex;
+	gap: 8px;
+	height: 34px;
+	align-items: center;
+}
+
+.launcher-url-form input {
+	flex: 1;
+	min-width: 0;
+	height: 30px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 9px;
+	outline: none;
+	background: color-mix(in srgb, var(--bloom-text, white) 8%, transparent);
+	color: var(--bloom-text, white);
+	font: inherit;
+	font-size: 12px;
+}
+
+.launcher-url-form button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.launcher-results {
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.launcher-result {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 40px;
+	padding-right: 6px;
+	border-radius: 10px;
+}
+
+.launcher-result.selected {
+	background: color-mix(in srgb, var(--bloom-text, white) 9%, transparent);
+}
+
+.launcher-result-open {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0 8px;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text, white);
+	text-align: left;
+	cursor: pointer;
+}
+
+.launcher-result-name {
+	flex: 1;
+	min-width: 0;
+	font-size: 12.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.launcher-result-detail {
+	flex-shrink: 0;
+	font-size: 10.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.launcher-pin-btn {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 9px;
+	border: none;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 20%, transparent);
+	color: var(--bloom-accent, #007aff);
+	font-size: 10.5px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.launcher-pin-btn:hover {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 32%, transparent);
+}
+
+.launcher-empty {
+	height: 40px;
+	display: flex;
+	align-items: center;
+	padding: 0 10px;
+	font-size: 12px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
 }
 
 /* Hover popup listing a day's events. Lives inside the calendar panel so the

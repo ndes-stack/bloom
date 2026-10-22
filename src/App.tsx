@@ -35,6 +35,12 @@ import {
 	parseCalendarView,
 	type CalendarViewMode
 } from "./components/NotchCalendar";
+import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
+import {
+	clampPageSwitchGrace,
+	DEFAULT_PAGE_SWITCH_GRACE_MS,
+	PAGE_SWITCH_GRACE_KEY
+} from "./pageSwitchGrace";
 import {
 	clampScrollSpeed,
 	createScrollFlipper,
@@ -67,7 +73,8 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Inbox,
-	Music
+	Music,
+	Timer as TimerIcon
 } from "lucide-react";
 
 /**
@@ -80,10 +87,14 @@ import {
  *   Dragging files onto the notch also opens the shelf. Wheel/swipe switches
  *   between tool panels, including when a live activity occupies the pill.
  */
-type NotchPanel = "calendar" | "command-center";
-const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "command-center"];
+type NotchPanel = "calendar" | "timer" | "launcher" | "command-center";
+const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "timer", "launcher", "command-center"];
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
+
+// Sizes of the timer and launcher pages.
+const TIMER_PAGE_WIDTH = 360;
+const TIMER_PAGE_HEIGHT = 272;
 
 // Pomodoro timer limit.
 const MAX_TIMER_SECONDS = 180 * 60;
@@ -436,6 +447,8 @@ interface ShelfItem {
 type BloomMode =
 	| "music"
 	| "calendar"
+	| "timer"
+	| "launcher"
 	| "command-center"
 	| "announcement"
 	| "status"
@@ -934,6 +947,10 @@ function App() {
 	);
 	const rememberPanelEnabledRef = useRef(rememberPanelEnabled);
 	rememberPanelEnabledRef.current = rememberPanelEnabled;
+	// How long the notch stays open after a page switch leaves the pointer outside.
+	const [pageSwitchGrace, setPageSwitchGrace] = useState(() =>
+		clampPageSwitchGrace(localStorage.getItem(PAGE_SWITCH_GRACE_KEY))
+	);
 	// Scroll speed setting (1 slow … 5 fast) for flipping between panels.
 	const [scrollSpeed, setScrollSpeed] = useState(() =>
 		clampScrollSpeed(localStorage.getItem(SCROLL_SPEED_KEY))
@@ -1006,6 +1023,7 @@ function App() {
 				);
 				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
 				setScrollSpeed(clampScrollSpeed(getVal(SCROLL_SPEED_KEY)));
+				setPageSwitchGrace(clampPageSwitchGrace(getVal(PAGE_SWITCH_GRACE_KEY)));
 				if (getVal(CALENDAR_VIEW_KEY)) setCalendarViewMode(parseCalendarView(getVal(CALENDAR_VIEW_KEY)));
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
@@ -1122,6 +1140,7 @@ function App() {
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
+			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 			[CALENDAR_VIEW_KEY]: (v: unknown) => setCalendarViewMode(parseCalendarView(v)),
 			"bloom-notch-default-panel": (v: unknown) =>
 				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
@@ -1488,6 +1507,11 @@ function App() {
 	const rememberPanelRef = useRef<(panel: NotchPanel) => void>(() => {});
 	const notchPinnedRef = useRef(false);
 	const releaseDeferredRef = useRef(false);
+	// Page-switch grace period (see releaseNotchHover).
+	const pageSwitchAtRef = useRef(0);
+	const pageSwitchGraceRef = useRef(DEFAULT_PAGE_SWITCH_GRACE_MS);
+	const graceTimerRef = useRef<number | null>(null);
+	const pointerBackRef = useRef(false);
 
 	// Shared hover-release, called on DOM hover end and when the backend
 	// reports the pointer left the (now click-through) notch window. Closes an
@@ -1497,6 +1521,20 @@ function App() {
 		// release happens once it lets go, if the pointer is still away.
 		if (notchPinnedRef.current) {
 			releaseDeferredRef.current = true;
+			return;
+		}
+		// Right after switching pages the notch may have shrunk out from under
+		// the pointer. Wait out the grace period (Settings > Notch); if the
+		// pointer comes back in the meantime, stay open.
+		const graceLeft = pageSwitchAtRef.current + pageSwitchGraceRef.current - performance.now();
+		if (isOpenRef.current && graceLeft > 0) {
+			pointerBackRef.current = false;
+			if (graceTimerRef.current === null) {
+				graceTimerRef.current = window.setTimeout(() => {
+					graceTimerRef.current = null;
+					if (!pointerBackRef.current) releaseNotchHover();
+				}, graceLeft + 10);
+			}
 			return;
 		}
 		setIsHovered(false);
@@ -1510,6 +1548,8 @@ function App() {
 			prev === "music" ||
 			prev === "command-center" ||
 			prev === "calendar" ||
+			prev === "timer" ||
+			prev === "launcher" ||
 			prev === "status" ||
 			prev === "shelf" ||
 			prev === "wifi" ||
@@ -1759,6 +1799,7 @@ function App() {
 			target.closest(".calendar-body") ||
 			target.closest(".timer-column") ||
 			target.closest(".shelf-content") ||
+			target.closest(".launcher-scroll") ||
 			target.closest(".qp-list")
 		) {
 			return;
@@ -1772,7 +1813,8 @@ function App() {
 	};
 
 	function panelAvailable(panel: NotchPanel) {
-		if (panel === "calendar") return settingsCalendarEnabled;
+		// The timer shares the "Calendar & Timer" setting.
+		if (panel === "calendar" || panel === "timer") return settingsCalendarEnabled;
 		return true;
 	}
 
@@ -1798,18 +1840,6 @@ function App() {
 		setBloomMode(panels[(index + direction + panels.length) % panels.length]);
 	};
 
-	// Calendar panel: which half is showing (the timer now has its own view so
-	// the calendar can use the full width) and which month is on screen.
-	const [calendarTab, setCalendarTab] = useState<"calendar" | "timer">(() =>
-		localStorage.getItem("bloom-calendar-tab") === "timer" ? "timer" : "calendar"
-	);
-	useEffect(() => {
-		try {
-			localStorage.setItem("bloom-calendar-tab", calendarTab);
-		} catch {
-			// Storage unavailable; the tab just won't be remembered.
-		}
-	}, [calendarTab]);
 	// Layout (month or one of three week views), remembered across restarts in
 	// settings.json as bloom-calendar-view.
 	const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>(() =>
@@ -1824,6 +1854,14 @@ function App() {
 		}
 		invoke("save_setting", { key: CALENDAR_VIEW_KEY, value: mode }).catch(console.error);
 	};
+	useEffect(() => {
+		pageSwitchGraceRef.current = pageSwitchGrace;
+	}, [pageSwitchGrace]);
+
+	// The launcher reports its height (it grows with pinned rows, search results
+	// and edit mode).
+	const [launcherHeight, setLauncherHeight] = useState(LAUNCHER_DEFAULT_HEIGHT);
+
 	// Any date inside the month or week on screen.
 	const [calendarDate, setCalendarDate] = useState(() => new Date());
 	const shiftCalendar = (delta: number) =>
@@ -2075,7 +2113,7 @@ function App() {
 
 	// Reset bloom mode when calendar setting is disabled
 	useEffect(() => {
-		if (!settingsCalendarEnabled && bloomMode === "calendar") {
+		if (!settingsCalendarEnabled && (bloomMode === "calendar" || bloomMode === "timer")) {
 			setBloomMode(isOpen ? openingPanel() : collapsedMode);
 		}
 	}, [settingsCalendarEnabled, bloomMode, isOpen]);
@@ -2610,7 +2648,8 @@ function App() {
 		if (!isOpen) {
 			openNotch(openingPanel());
 		} else if (settingsCalendarEnabled) {
-			setBloomMode("calendar");
+			// With a timer set, the clock shows its countdown: open the timer page.
+			setBloomMode(timerSeconds > 0 || isTimerRunning ? "timer" : "calendar");
 		}
 	};
 
@@ -2768,8 +2807,9 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
-		// Same size for both tabs, so the switch (and the mouse) stays inside the notch.
 		if (isCalendarMode) return 640;
+		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
+		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 350;
@@ -2806,6 +2846,8 @@ function App() {
 		if (bloomMode === "calendar") {
 			return calendarPanelHeight(calendarViewMode, calendarDate);
 		}
+		if (bloomMode === "timer") return TIMER_PAGE_HEIGHT;
+		if (bloomMode === "launcher") return launcherHeight;
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
 		// plus room for the scrollbar once the tiles overflow it.
@@ -2834,43 +2876,39 @@ function App() {
 		if (!isCalendarMode || !isOpen) showCalendarToday();
 	}, [isCalendarMode, isOpen]);
 
-	// A finished timer brings its view forward so "Time's up" is never missed.
+	// Switching page or calendar layout while already open starts the grace
+	// period; simply opening the notch does not.
+	const wasOpenRef = useRef(false);
 	useEffect(() => {
-		if (isTimerFinished) setCalendarTab("timer");
+		if (isOpen && wasOpenRef.current) pageSwitchAtRef.current = performance.now();
+	}, [bloomMode, calendarViewMode]);
+	useEffect(() => {
+		wasOpenRef.current = isOpen;
+	}, [isOpen]);
+
+	// A finished timer brings its page forward if the calendar is showing, so
+	// "Time's up" is never missed.
+	useEffect(() => {
+		if (isTimerFinished && isOpen && bloomMode === "calendar") setBloomMode("timer");
 	}, [isTimerFinished]);
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
 		isOpen && asNotchPanel(bloomMode) !== null && NOTCH_PANELS.filter(panelAvailable).length > 1;
 
-	// Calendar | Timer switch shown in the calendar panel header. While a timer
-	// runs in the background, its button shows the time left.
-	const timerBadge =
-		calendarTab === "calendar" && (isTimerRunning || isTimerFinished || timerSeconds > 0)
-			? isTimerFinished
-				? "Time's up"
-				: formatTimerTime(timerSeconds)
-			: null;
-	const calendarTabSwitch = (
-		<div className="calendar-tab-switch" role="tablist">
+	// While a timer is set, the calendar header shows its time left; clicking it
+	// jumps to the timer page.
+	const timerChip =
+		isTimerRunning || isTimerFinished || timerSeconds > 0 ? (
 			<button
-				role="tab"
-				aria-selected={calendarTab === "calendar"}
-				className={calendarTab === "calendar" ? "active" : ""}
-				onClick={() => setCalendarTab("calendar")}
+				className={`calendar-timer-chip state-${timerState}`}
+				onClick={() => setBloomMode("timer")}
+				title="Open the timer"
 			>
-				Calendar
+				<TimerIcon size={12} strokeWidth={2.4} />
+				{isTimerFinished ? "Time's up" : formatTimerTime(timerSeconds)}
 			</button>
-			<button
-				role="tab"
-				aria-selected={calendarTab === "timer"}
-				className={`${calendarTab === "timer" ? "active" : ""} ${timerBadge ? `has-badge state-${timerState}` : ""}`}
-				onClick={() => setCalendarTab("timer")}
-			>
-				{timerBadge ?? "Timer"}
-			</button>
-		</div>
-	);
+		) : null;
 
 	// Close compact media player expansions when notch is unhovered or mode changes
 	useEffect(() => {
@@ -2966,8 +3004,8 @@ function App() {
 						scaleY: 1,
 						borderTopLeftRadius: isImpacted ? 0 : 18,
 						borderTopRightRadius: isImpacted ? 0 : 18,
-						borderBottomLeftRadius: isCalendarMode ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode ? 28 : 18,
+						borderBottomLeftRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" ? 28 : 18,
+						borderBottomRightRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
@@ -2977,6 +3015,7 @@ function App() {
 					}}
 					onHoverStart={() => {
 						releaseDeferredRef.current = false;
+						pointerBackRef.current = true;
 						setIsHovered(true);
 						// Hovering the shelf cancels its post-drop auto-close.
 						if (bloomMode === "shelf") clearShelfCollapse();
@@ -3905,7 +3944,7 @@ function App() {
 								<AnimatePresence>
 									{settingsCalendarEnabled && isCalendarMode && (
 										<motion.div
-											className={`calendar-timer-content tabbed show-${calendarTab}`}
+											className="calendar-timer-content tabbed"
 											onClick={(e) =>
 												e.stopPropagation()
 											} /* Block mode switches when clicking inside */
@@ -3914,7 +3953,6 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											{calendarTab === "calendar" ? (
 												<NotchCalendar
 													view={calendarViewMode}
 													onViewChange={changeCalendarView}
@@ -3922,11 +3960,23 @@ function App() {
 													onShift={shiftCalendar}
 													onToday={showCalendarToday}
 													use24h={timeFormat24h}
-													headerExtra={calendarTabSwitch}
+													headerExtra={timerChip}
 												/>
-											) : (
-											<div className="timer-view">
-											<div className="timer-view-header">{calendarTabSwitch}</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Timer page */}
+								<AnimatePresence>
+									{settingsCalendarEnabled && bloomMode === "timer" && (
+										<motion.div
+											className="calendar-timer-content timer-page"
+											onClick={(e) => e.stopPropagation()}
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+										>
 											<div className="timer-column">
 												<div className={`timer-section-new state-${timerState}`}>
 													<div className="timer-main">
@@ -4016,8 +4066,22 @@ function App() {
 													</div>
 												</div>
 											</div>
-											</div>
-											)}
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Quick Launcher page */}
+								<AnimatePresence>
+									{bloomMode === "launcher" && (
+										<motion.div
+											className="calendar-timer-content launcher-page"
+											onClick={(e) => e.stopPropagation()}
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+										>
+											<QuickLauncher onHeightChange={setLauncherHeight} onPinChange={setNotchPinned} />
 										</motion.div>
 									)}
 								</AnimatePresence>

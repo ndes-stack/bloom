@@ -45,6 +45,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. Same modes as dock. **peek** shows the notch briefly on media events and notifications.   |
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
 | `bloom-scroll-speed`     | `"1"`–`"5"`                       | `"3"`     | How fast scrolling over the notch flips between panels. The first flip is instant; holding the scroll keeps flipping, at most once per 900 / 650 / 450 / 320 / 220 ms for 1–5. Touchpad momentum is ignored. |
+| `bloom-page-switch-grace` | milliseconds `"0"`–`"2000"`     | `"800"`   | After switching notch pages (which can shrink the notch out from under the pointer), how long it stays open while the pointer is outside. Coming back within this time keeps it open. `"0"` turns it off. |
+| `bloom-launcher-items`   | JSON array                        | `[]`      | Quick Launcher pins, in order: `{"id","kind":"app"|"folder"|"file"|"url","name","target"}`. |
 
 ### Weather
 
@@ -68,7 +70,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
 | `bloom-notch-remember-panel` | `"true"` / `"false"` | `"true"` | Click opens the last-used panel when on; when off, click opens `bloom-notch-default-panel`. |
-| `bloom-notch-default-panel` | `"calendar"` / `"command-center"` | `"calendar"` | Fixed panel opened on click when panel memory is off. If calendar is disabled, Command Center opens instead. |
+| `bloom-notch-default-panel` | `"calendar"` / `"timer"` / `"launcher"` / `"command-center"` | `"calendar"` | Fixed panel opened on click when panel memory is off. If calendar is disabled, Command Center opens instead. |
 | `bloom-notch-last-panel`    | `"calendar"` / `"command-center"` | (unset)  | Last panel the notch was left on, saved by Bloom while panel memory is on. |
 | `bloom-notch-click-to-open` | `"true"` / `"false"` | (legacy) | Old setting read only when `bloom-notch-remember-panel` is absent; `"false"` now selects fixed-panel behavior. |
 
