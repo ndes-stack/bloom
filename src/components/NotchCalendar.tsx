@@ -84,15 +84,25 @@ export function NotchCalendar({
 		if (!panel) return;
 		const p = panel.getBoundingClientRect();
 		const c = cell.getBoundingClientRect();
+		// The notch applies the Scale setting as CSS zoom. Bounding rects come
+		// back zoomed while `left`/`top` are in unzoomed CSS px, so convert;
+		// without this the popup drifts right and gets clipped at Scale > 100%.
+		const cssWidth = parseFloat(getComputedStyle(panel).width);
+		const zoom = cssWidth > 0 ? p.width / cssWidth : 1;
+		const panelW = p.width / zoom;
+		const panelH = p.height / zoom;
+		const cellLeft = (c.left - p.left) / zoom;
+		const cellTop = (c.top - p.top) / zoom;
+		const cellW = c.width / zoom;
+		const cellH = c.height / zoom;
+		const cellBottom = cellTop + cellH;
 		const margin = 6;
-		const centered = c.left - p.left + c.width / 2 - POPUP_WIDTH / 2;
-		const left = Math.max(margin, Math.min(centered, p.width - POPUP_WIDTH - margin));
-		const cellTop = c.top - p.top;
-		const cellBottom = c.bottom - p.top;
-		if (cellTop + c.height / 2 > p.height / 2) {
-			setPopup({ day, left, bottom: p.height - cellTop + 4, maxHeight: cellTop - 4 - margin });
+		const centered = cellLeft + cellW / 2 - POPUP_WIDTH / 2;
+		const left = Math.max(margin, Math.min(centered, panelW - POPUP_WIDTH - margin));
+		if (cellTop + cellH / 2 > panelH / 2) {
+			setPopup({ day, left, bottom: panelH - cellTop + 4, maxHeight: cellTop - 4 - margin });
 		} else {
-			setPopup({ day, left, top: cellBottom + 4, maxHeight: p.height - cellBottom - 4 - margin });
+			setPopup({ day, left, top: cellBottom + 4, maxHeight: panelH - cellBottom - 4 - margin });
 		}
 	};
 
