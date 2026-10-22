@@ -913,9 +913,23 @@ img {
 	color: #ff9f0a;
 }
 
+.calendar-container.wide .calendar-weekdays {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 3px;
+	height: 14px;
+	margin-bottom: 3px;
+}
+
+/* Clips the month sliding in/out; relative so the leaving month can be
+   laid over the arriving one during the flip. */
+.calendar-grid-viewport {
+	position: relative;
+	overflow: hidden;
+}
+
 .calendar-container.wide .calendar-grid {
 	grid-template-columns: repeat(7, minmax(0, 1fr));
-	grid-template-rows: 14px;
 	grid-auto-rows: 44px;
 	gap: 3px;
 }
@@ -1036,10 +1050,15 @@ img {
 	flex-direction: column;
 }
 
+/* Same height and spacing as the calendar header, so the Calendar | Timer
+   switch sits in exactly the same spot on both tabs. */
 .timer-view-header {
 	display: flex;
+	align-items: center;
 	justify-content: flex-end;
-	margin-bottom: 4px;
+	height: 26px;
+	margin-bottom: 8px;
+	flex-shrink: 0;
 }
 
 .calendar-timer-content.tabbed .timer-column {

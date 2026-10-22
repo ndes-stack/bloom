@@ -1726,7 +1726,7 @@ function App() {
 	const handleWheel = (e: React.WheelEvent) => {
 		const target = e.target as HTMLElement;
 		if (
-			target.closest(".calendar-grid") ||
+			target.closest(".calendar-body") ||
 			target.closest(".timer-column") ||
 			target.closest(".shelf-content") ||
 			target.closest(".qp-list")
@@ -2731,7 +2731,8 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
-		if (isCalendarMode) return calendarTab === "timer" ? 420 : 640;
+		// Same size for both tabs, so the switch (and the mouse) stays inside the notch.
+		if (isCalendarMode) return 640;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 350;
@@ -2762,10 +2763,10 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
 			return announcement.url ? 168 : 148;
 		}
-		// Calendar: sized to the shown month's week rows (4 to 6). The timer view
-		// has fixed content.
+		// Calendar: sized to the shown month's week rows (4 to 6). The timer tab
+		// keeps the same size so switching tabs never moves the panel's edges
+		// out from under the mouse (which would close the notch).
 		if (bloomMode === "calendar") {
-			if (calendarTab === "timer") return 300;
 			return 36 + 76 + monthRowCount(calendarView.year, calendarView.month) * 47;
 		}
 		// Shelf expands on mode alone (no hover needed: there is no cursor

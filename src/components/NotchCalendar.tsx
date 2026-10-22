@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCalendarEvents } from "../hooks/useCalendarEvents";
@@ -23,6 +23,14 @@ interface DayPopup {
 }
 
 const POPUP_WIDTH = 220;
+
+// Month flip: the new month slides in from the side you're moving towards
+// while the old one slides out the other way.
+const monthSlide = {
+	enter: (dir: number) => ({ x: dir * 48, opacity: 0 }),
+	center: { x: 0, opacity: 1 },
+	exit: (dir: number) => ({ x: dir * -48, opacity: 0 })
+};
 const POPUP_MAX_EVENTS = 5;
 /** Event names shown inside a day box before switching to "+N more". */
 const MAX_CHIPS = 2;
@@ -55,6 +63,14 @@ export function NotchCalendar({
 }: NotchCalendarProps) {
 	const [popup, setPopup] = useState<DayPopup | null>(null);
 	const { byDay, status, error } = useCalendarEvents(year, month);
+
+	// Which way the month moved, for the slide direction.
+	const monthIndex = year * 12 + month;
+	const lastMonthIndex = useRef(monthIndex);
+	const direction = monthIndex >= lastMonthIndex.current ? 1 : -1;
+	useEffect(() => {
+		lastMonthIndex.current = monthIndex;
+	}, [monthIndex]);
 
 	const now = new Date();
 	const isCurrentMonth = now.getMonth() === month && now.getFullYear() === year;
@@ -173,13 +189,33 @@ export function NotchCalendar({
 					{headerExtra}
 				</div>
 			</div>
-			<div className="calendar-grid">
-				{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-					<div key={d} className="day-name">
-						{d}
-					</div>
-				))}
-				{days}
+			<div className="calendar-body">
+				<div className="calendar-weekdays">
+					{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+						<div key={d} className="day-name">
+							{d}
+						</div>
+					))}
+				</div>
+				<div className="calendar-grid-viewport">
+					<AnimatePresence initial={false} custom={direction} mode="popLayout">
+						<motion.div
+							key={monthIndex}
+							className="calendar-grid"
+							custom={direction}
+							variants={monthSlide}
+							initial="enter"
+							animate="center"
+							exit="exit"
+							transition={{
+								x: { type: "spring", stiffness: 420, damping: 38 },
+								opacity: { duration: 0.16 }
+							}}
+						>
+							{days}
+						</motion.div>
+					</AnimatePresence>
+				</div>
 			</div>
 
 			<AnimatePresence>
