@@ -979,12 +979,13 @@ img {
 
 .week-strip-day.selected {
 	background: var(--bloom-accent, #007aff);
-	color: #fff;
+	color: var(--bloom-on-accent, #fff);
 	opacity: 1;
 }
 
 .week-strip-day.selected .week-strip-name {
-	color: rgba(255, 255, 255, 0.9);
+	color: var(--bloom-on-accent, #fff);
+	opacity: 0.85;
 }
 
 .week-strip-name {
@@ -1017,7 +1018,7 @@ img {
 }
 
 .week-strip-day.selected .week-strip-dots span {
-	background: #fff;
+	background: var(--bloom-on-accent, #fff);
 }
 
 .week-agenda-list {
@@ -1376,7 +1377,7 @@ img {
 
 .calendar-day.today .calendar-day-number {
 	background: var(--bloom-accent, #007aff);
-	color: #fff;
+	color: var(--bloom-on-accent, #fff);
 }
 
 .calendar-day-chips {
@@ -1560,7 +1561,7 @@ img {
 
 .launcher-edit-btn.done {
 	background: var(--bloom-accent, #007aff);
-	color: #fff;
+	color: var(--bloom-on-accent, #fff);
 }
 
 .launcher-grid {
@@ -3518,4 +3519,407 @@ img {
 .cmp-output-check {
 	font-size: 11px;
 	opacity: 0.6;
+}
+
+/* ── Command Center dashboard (controls | live stats) ── */
+.command-center-content-minimal:has(.cc-dash) {
+	padding: 8px 16px 16px;
+	align-items: stretch;
+	justify-content: flex-start;
+	border-radius: 0 0 26px 26px;
+}
+
+.cc-dash {
+	width: 100%;
+	display: grid;
+	grid-template-columns: 250px minmax(0, 1fr);
+	gap: 14px;
+}
+
+.cc-dash-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.cc-dash-label {
+	font-size: 10.5px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-dash-pct {
+	width: 32px;
+	flex-shrink: 0;
+	text-align: right;
+	font-size: 11px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Wi-Fi / Bluetooth */
+.cc-dash-conn {
+	height: 46px;
+	display: flex;
+	align-items: center;
+	padding-right: 6px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+}
+
+.cc-dash-conn-main {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 0 0 0 10px;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text, #fff);
+	text-align: left;
+	cursor: pointer;
+}
+
+.cc-dash-conn-icon {
+	width: 26px;
+	height: 26px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 13px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.cc-dash-conn-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.cc-dash-conn.on .cc-dash-conn-icon {
+	background: var(--bloom-accent, #007aff);
+	color: var(--bloom-on-accent, #fff);
+}
+
+.cc-dash-conn-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.cc-dash-conn-title {
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.cc-dash-conn-status {
+	font-size: 10px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-dash-conn-more {
+	width: 26px;
+	height: 26px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	border-radius: 13px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	color: var(--bloom-text, #fff);
+	cursor: pointer;
+}
+
+.cc-dash-conn-more:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 18%, transparent);
+}
+
+/* Focus / Energy Saver */
+.cc-dash-toggles {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.cc-dash-toggle {
+	height: 34px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 0 6px;
+	border: none;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.cc-dash-toggle svg {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.cc-dash-toggle:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.cc-dash-toggle.on {
+	background: var(--bloom-accent, #007aff);
+	color: var(--bloom-on-accent, #fff);
+}
+
+/* Sliders (native range input over a drawn track) */
+.cc-dash-sliders {
+	display: flex;
+	flex-direction: column;
+	gap: 9px;
+	padding: 4px 2px 2px;
+}
+
+.cc-dash-slider {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	color: var(--bloom-text, #fff);
+}
+
+.cc-dash-slider > svg {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+	opacity: 0.8;
+}
+
+.cc-dash-track {
+	position: relative;
+	flex: 1;
+	height: 10px;
+	border-radius: 5px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.cc-dash-fill {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	border-radius: 5px;
+	background: var(--bloom-text, #fff);
+	pointer-events: none;
+}
+
+.cc-dash-track input {
+	position: absolute;
+	inset: -6px 0;
+	width: 100%;
+	height: calc(100% + 12px);
+	margin: 0;
+	opacity: 0;
+	cursor: pointer;
+	z-index: 1;
+}
+
+/* Tray / notifications / settings / restart */
+.cc-dash-actions {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 6px;
+	margin-top: auto;
+}
+
+.cc-dash-actions button {
+	height: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	cursor: pointer;
+}
+
+.cc-dash-actions button:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 13%, transparent);
+}
+
+.cc-dash-actions svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* Stats panel */
+.cc-dash-stats {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 11px;
+	padding: 12px 14px;
+	border-radius: 18px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+}
+
+.cc-dash-battery {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.cc-dash-ring {
+	position: relative;
+	width: 54px;
+	height: 54px;
+	flex-shrink: 0;
+}
+
+.cc-dash-ring span {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.cc-dash-ring-track,
+.cc-dash-ring-fill {
+	fill: none;
+	stroke-width: 6;
+}
+
+.cc-dash-ring-track {
+	stroke: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+}
+
+.cc-dash-ring-fill {
+	stroke: var(--bloom-text, #fff);
+	stroke-linecap: round;
+	transition: stroke-dasharray 0.4s ease;
+}
+
+.cc-dash-battery-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.cc-dash-battery-main {
+	font-size: 13px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-dash-bars {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.cc-dash-bar-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.cc-dash-bar-row .cc-dash-label {
+	width: 52px;
+	flex-shrink: 0;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.cc-dash-bar {
+	flex: 1;
+	height: 6px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	overflow: hidden;
+}
+
+.cc-dash-bar > div {
+	height: 100%;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 85%, transparent);
+	transition: width 0.4s ease;
+}
+
+.cc-dash-facts {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px 12px;
+}
+
+.cc-dash-facts > div {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.cc-dash-weather {
+	grid-column: span 2;
+}
+
+.cc-dash-fact {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 12px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-dash-upnext {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding-top: 10px;
+	border-top: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+	margin-top: auto;
+}
+
+.cc-dash-upnext-bar {
+	width: 3px;
+	height: 28px;
+	flex-shrink: 0;
+	border-radius: 2px;
+	background: var(--bloom-accent, #007aff);
+}
+
+.cc-dash-upnext-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.cc-dash-upnext-title {
+	font-size: 12.5px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }

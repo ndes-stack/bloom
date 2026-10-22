@@ -1,4 +1,4 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Square, Maximize2 } from "lucide-react";
+import { Palette, Droplet, Contrast, Droplets, Sun, Square, Maximize2, Sparkles, Check } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 
 interface AppearanceTabProps {
@@ -16,7 +16,22 @@ interface AppearanceTabProps {
 	toggleCorners: () => void;
 	scale: number;
 	handleScaleChange: (val: number) => void;
+	/** Hex accent, or null to use the theme's own accent. */
+	accentColor: string | null;
+	handleAccentColorChange: (color: string | null) => void;
 }
+
+// Accent presets (Settings > Appearance > Accent Colour).
+const ACCENT_PRESETS: { name: string; hex: string }[] = [
+	{ name: "Blue", hex: "#0a84ff" },
+	{ name: "Indigo", hex: "#5e5ce6" },
+	{ name: "Purple", hex: "#bf5af2" },
+	{ name: "Pink", hex: "#ff375f" },
+	{ name: "Orange", hex: "#ff9f0a" },
+	{ name: "Yellow", hex: "#ffd60a" },
+	{ name: "Green", hex: "#30d158" },
+	{ name: "Teal", hex: "#40c8e0" }
+];
 
 export function AppearanceTab({
 	themeMode,
@@ -32,8 +47,11 @@ export function AppearanceTab({
 	cornersEnabled,
 	toggleCorners,
 	scale,
-	handleScaleChange
+	handleScaleChange,
+	accentColor,
+	handleAccentColorChange
 }: AppearanceTabProps) {
+	const isPreset = accentColor !== null && ACCENT_PRESETS.some((p) => p.hex === accentColor);
 	const showCustomColor = themeMode === "custom";
 	const showAdvancedSliders = themeMode === "custom" || themeMode === "adaptive";
 
@@ -53,6 +71,54 @@ export function AppearanceTab({
 						<option value="custom">Custom Color</option>
 						<option value="adaptive">Adaptive Accent</option>
 					</select>
+				</SettingRow>
+
+				<SettingRow
+					icon={Sparkles}
+					label="Accent Colour"
+					desc={
+						accentColor === null
+							? "Highlights for things that are on · following the theme"
+							: "Highlights for things that are on · works with any theme mode"
+					}
+				>
+					<div className="accent-swatches" role="radiogroup" aria-label="Accent colour">
+						<button
+							role="radio"
+							aria-checked={accentColor === null}
+							title="Theme default"
+							className={`accent-swatch theme-default ${accentColor === null ? "selected" : ""}`}
+							onClick={() => handleAccentColorChange(null)}
+						>
+							{accentColor === null && <Check size={11} strokeWidth={3} />}
+						</button>
+						{ACCENT_PRESETS.map((p) => (
+							<button
+								key={p.hex}
+								role="radio"
+								aria-checked={accentColor === p.hex}
+								title={p.name}
+								aria-label={p.name}
+								className={`accent-swatch ${accentColor === p.hex ? "selected" : ""}`}
+								style={{ background: p.hex }}
+								onClick={() => handleAccentColorChange(p.hex)}
+							>
+								{accentColor === p.hex && <Check size={11} strokeWidth={3} className="accent-check" />}
+							</button>
+						))}
+						<label
+							className={`accent-swatch custom ${accentColor !== null && !isPreset ? "selected" : ""}`}
+							title="Custom colour"
+							style={accentColor !== null && !isPreset ? { background: accentColor } : undefined}
+						>
+							<input
+								type="color"
+								aria-label="Custom accent colour"
+								value={accentColor ?? "#0a84ff"}
+								onChange={(e) => handleAccentColorChange(e.target.value)}
+							/>
+						</label>
+					</div>
 				</SettingRow>
 
 				{showCustomColor && (

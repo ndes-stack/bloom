@@ -159,6 +159,8 @@ function SettingsApp() {
 							toggleCorners={settings.toggleCorners}
 							scale={settings.scale}
 							handleScaleChange={settings.handleScaleChange}
+							accentColor={settings.accentColor}
+							handleAccentColorChange={settings.handleAccentColorChange}
 						/>
 					)}
 					{activeTab === "notch" && (

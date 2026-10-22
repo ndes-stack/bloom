@@ -284,6 +284,55 @@ export async function applyTheme(
 		root.classList.add("theme-dark");
 		root.classList.remove("theme-light", "theme-custom", "theme-adaptive");
 	}
+
+	applyAccentOverride(root);
+}
+
+// ── Accent colour ───────────────────────────────────────────────────────
+// Settings > Appearance > Accent Colour. Independent of the theme mode, so
+// it works with Automatic (Match Windows) as well as dark/light/custom.
+// Empty = keep the theme's own accent.
+
+export const ACCENT_COLOR_KEY = "bloom-accent-color";
+
+export function parseAccentColor(value: unknown): string | null {
+	const v = typeof value === "string" ? value.trim() : "";
+	return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null;
+}
+
+/** Dark text on light accents (yellow, mint), white on the rest. */
+export function textOnAccent(hex: string): string {
+	const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
+	if (!m) return "#ffffff";
+	const lin = (c: string) => {
+		const v = parseInt(c, 16) / 255;
+		return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+	};
+	const lum = 0.2126 * lin(m[1]) + 0.7152 * lin(m[2]) + 0.0722 * lin(m[3]);
+	return lum > 0.45 ? "#1c1c1e" : "#ffffff";
+}
+
+/** Copies an accent value from a settings event into localStorage. */
+function mirrorAccent(value: unknown) {
+	try {
+		const accent = parseAccentColor(value);
+		if (accent) localStorage.setItem(ACCENT_COLOR_KEY, accent);
+		else localStorage.removeItem(ACCENT_COLOR_KEY);
+	} catch {
+		// Storage unavailable: the theme keeps its own accent.
+	}
+}
+
+function applyAccentOverride(root: HTMLElement) {
+	let override: string | null = null;
+	try {
+		override = parseAccentColor(localStorage.getItem(ACCENT_COLOR_KEY));
+	} catch {
+		override = null;
+	}
+	if (override) root.style.setProperty("--bloom-accent", override);
+	const accent = root.style.getPropertyValue("--bloom-accent").trim() || "#007aff";
+	root.style.setProperty("--bloom-on-accent", textOnAccent(accent));
 }
 
 export function initTheme() {
@@ -318,7 +367,16 @@ export function initTheme() {
 				? parseFloat(String(settings["bloom-theme-brightness"]))
 				: syncBrightness;
 
+			// Accent colour lives in settings.json as well; mirror it before drawing.
+			const storedAccent = parseAccentColor(settings[ACCENT_COLOR_KEY]) ?? "";
+			const accentChanged = storedAccent !== (localStorage.getItem(ACCENT_COLOR_KEY) ?? "");
+			if (accentChanged) {
+				if (storedAccent) localStorage.setItem(ACCENT_COLOR_KEY, storedAccent);
+				else localStorage.removeItem(ACCENT_COLOR_KEY);
+			}
+
 			if (
+				accentChanged ||
 				mode !== syncMode ||
 				color !== syncColor ||
 				opacityVal !== syncOpacity ||
@@ -350,13 +408,15 @@ export function initTheme() {
 		"bloom-theme-color",
 		"bloom-theme-opacity",
 		"bloom-theme-saturation",
-		"bloom-theme-brightness"
+		"bloom-theme-brightness",
+		ACCENT_COLOR_KEY
 	];
 
 	// Listen to setting changes broadcasted from settings window
 	// (localStorage sync is handled by saveAndLocal in Settings.tsx; we just apply the theme)
 	const settingsPromise = listen<{ key: string; value: any }>("settings-changed", (event) => {
-		const { key } = event.payload;
+		const { key, value } = event.payload;
+		if (key === ACCENT_COLOR_KEY) mirrorAccent(value);
 		if (bloomThemeKeys.includes(key)) {
 			applyThemeFromStorage();
 		}
@@ -401,7 +461,8 @@ export function initTheme() {
 	const externalPromise = listen<{ key: string; value: any }>(
 		"settings-external-changed",
 		(event) => {
-			const { key } = event.payload;
+			const { key, value } = event.payload;
+			if (key === ACCENT_COLOR_KEY) mirrorAccent(value);
 			if (bloomThemeKeys.includes(key)) {
 				applyThemeFromStorage();
 			}

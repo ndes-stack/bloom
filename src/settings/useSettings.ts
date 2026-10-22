@@ -4,6 +4,7 @@ import { clampScrollSpeed, SCROLL_SPEED_KEY } from "../scrollFlip";
 import { clampPageSwitchGrace, PAGE_SWITCH_GRACE_KEY } from "../pageSwitchGrace";
 import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
 import { parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "../notchPanels";
+import { ACCENT_COLOR_KEY, parseAccentColor, applyTheme } from "../theme";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -44,6 +45,9 @@ export function useSettings() {
 	);
 	const [notchDefaultPanel, setNotchDefaultPanel] = useState<NotchPanelChoice>(() =>
 		parseNotchPanelChoice(localStorage.getItem("bloom-notch-default-panel"))
+	);
+	const [accentColor, setAccentColor] = useState<string | null>(() =>
+		parseAccentColor(localStorage.getItem(ACCENT_COLOR_KEY))
 	);
 	const [panelOrder, setPanelOrder] = useState<NotchPanel[]>(() =>
 		parsePanelOrder(localStorage.getItem(PANEL_ORDER_KEY))
@@ -254,6 +258,7 @@ export function useSettings() {
 			apply(getVal(SCROLL_SPEED_KEY), setScrollSpeed, clampScrollSpeed);
 			apply(getVal(PAGE_SWITCH_GRACE_KEY), setPageSwitchGrace, clampPageSwitchGrace);
 			apply(getVal(PANEL_ORDER_KEY), setPanelOrder, parsePanelOrder);
+			apply(getVal(ACCENT_COLOR_KEY), setAccentColor, parseAccentColor);
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -391,6 +396,7 @@ export function useSettings() {
 			setNotchDefaultPanel(parseNotchPanelChoice(v)),
 		[PAGE_SWITCH_GRACE_KEY]: (v) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 		[PANEL_ORDER_KEY]: (v) => setPanelOrder(parsePanelOrder(v)),
+		[ACCENT_COLOR_KEY]: (v) => setAccentColor(parseAccentColor(v)),
 		"bloom-music-compact-notch": setMusicCompactNotch,
 		"bloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"bloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
@@ -565,6 +571,27 @@ export function useSettings() {
 		const next = !notchRememberPanel;
 		setNotchRememberPanel(next);
 		saveSetting("bloom-notch-remember-panel", String(next));
+	};
+
+	const applyThemeFromLocalStorage = () => {
+		applyTheme(
+			localStorage.getItem("bloom-theme-mode") || "dark",
+			localStorage.getItem("bloom-theme-color") || "#007aff"
+		);
+	};
+
+	// Accent colour: null = follow the theme. Applied in every window by theme.ts.
+	const handleAccentColorChange = (color: string | null) => {
+		const next = parseAccentColor(color);
+		setAccentColor(next);
+		try {
+			if (next) localStorage.setItem(ACCENT_COLOR_KEY, next);
+			else localStorage.removeItem(ACCENT_COLOR_KEY);
+		} catch {
+			// settings.json below still records it.
+		}
+		applyThemeFromLocalStorage();
+		saveSetting(ACCENT_COLOR_KEY, next);
 	};
 
 	const handlePanelOrderChange = (order: NotchPanel[]) => {
@@ -1023,6 +1050,8 @@ export function useSettings() {
 		handlePageSwitchGraceChange,
 		panelOrder,
 		handlePanelOrderChange,
+		accentColor,
+		handleAccentColorChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,
