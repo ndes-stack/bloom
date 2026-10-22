@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "./updater";
-import { batteryTooltip, formatDuration, type BatteryDetails } from "./batteryTooltip";
+import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
 	measureElements,
@@ -36,7 +36,7 @@ import {
 	type CalendarViewMode
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
-import { UpNextLine } from "./components/UpNextLine";
+import { TodayCard } from "./components/TodayCard";
 import { isNotchPanel, parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "./notchPanels";
 import {
 	clampPageSwitchGrace,
@@ -111,12 +111,12 @@ function canScrollWithin(target: HTMLElement, root: HTMLElement, dx: number, dy:
 }
 
 // The Command Center dashboard (controls | live stats).
-const COMMAND_CENTER_WIDTH = 620;
-const COMMAND_CENTER_HEIGHT = 330;
+const COMMAND_CENTER_WIDTH = 340;
+const COMMAND_CENTER_HEIGHT = 140;
 
 // Sizes of the timer and launcher pages.
-const TIMER_PAGE_WIDTH = 360;
-const TIMER_PAGE_HEIGHT = 272;
+const TIMER_PAGE_WIDTH = 440;
+const TIMER_PAGE_HEIGHT = 114;
 
 // Pomodoro timer limit.
 const MAX_TIMER_SECONDS = 180 * 60;
@@ -2010,6 +2010,12 @@ function App() {
 					: "idle";
 	const timerDisplaySeconds =
 		timerSeconds > 0 || isTimerFinished ? timerSeconds : lastDurationSeconds;
+	// Share of the current duration still to go, for the timer page's bar.
+	const timerProgress = isTimerFinished
+		? 0
+		: timerSeconds > 0 && lastDurationSeconds > 0
+			? Math.min(1, timerSeconds / lastDurationSeconds)
+			: 1;
 	const primaryTimerLabel = isTimerRunning
 		? "Pause"
 		: timerSeconds > 0
@@ -2797,13 +2803,6 @@ function App() {
 			default:
 				return null;
 		}
-	};
-
-	// "2.4 MB/s", "120 KB/s" for the dashboard.
-	const formatSpeed = (bytesPerSec: number) => {
-		if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
-		if (bytesPerSec < 1024 * 1024) return `${Math.round(bytesPerSec / 1024)} KB/s`;
-		return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
 	};
 
 	const formatBytes = (bytes: number) => {
@@ -3672,121 +3671,79 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											{/* Dashboard: controls on the left, live stats on the right */}
-											<div className="cc-dash">
-												<div className="cc-dash-controls">
-													<div
-														className={`cc-dash-conn ${wifiEnabled ? "on" : ""}`}
-														onContextMenu={handleWifiRightClick}
-													>
+											{/* Compact dashboard: toggles + sliders, then today + quick actions */}
+											<div className="cc-mini">
+												<div className="cc-mini-top">
+													<div className="cc-mini-toggles">
 														<button
-															className="cc-dash-conn-main"
+															className={`cc-mini-toggle ${wifiEnabled ? "on" : ""}`}
 															onClick={(e) => {
 																e.stopPropagation();
 																toggleWifi();
 															}}
-															title="Click to turn Wi-Fi on or off, right-click for networks"
+															onContextMenu={handleWifiRightClick}
+															aria-pressed={wifiEnabled}
+															aria-label="Wi-Fi"
+															title={`Wi-Fi: ${
+																wifiStatus === null
+																	? "…"
+																	: !wifiEnabled
+																		? "Off"
+																		: wifiConnected
+																			? (wifiStatus?.ssid ?? "Connected")
+																			: "Not connected"
+															} (right-click for networks)`}
 														>
-															<span className="cc-dash-conn-icon">
-																<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
-															</span>
-															<span className="cc-dash-conn-text">
-																<span className="cc-dash-conn-title">Wi-Fi</span>
-																<span className="cc-dash-conn-status">
-																	{wifiStatus === null
-																		? "…"
-																		: !wifiEnabled
-																			? "Off"
-																			: wifiConnected
-																				? (wifiStatus?.ssid ?? "Connected")
-																				: "Not connected"}
-																</span>
-															</span>
+															<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
 														</button>
 														<button
-															className="cc-dash-conn-more"
-															aria-label="Wi-Fi networks"
-															title="Wi-Fi networks"
-															onClick={(e) => {
-																e.stopPropagation();
-																setBloomMode("wifi");
-															}}
-														>
-															<ChevronRight size={12} strokeWidth={2.8} />
-														</button>
-													</div>
-
-													<div
-														className={`cc-dash-conn ${bluetoothEnabled ? "on" : ""}`}
-														onContextMenu={handleBluetoothRightClick}
-													>
-														<button
-															className="cc-dash-conn-main"
+															className={`cc-mini-toggle ${bluetoothEnabled ? "on" : ""}`}
 															onClick={(e) => {
 																e.stopPropagation();
 																toggleBluetooth();
 															}}
-															title="Click to turn Bluetooth on or off, right-click for devices"
+															onContextMenu={handleBluetoothRightClick}
+															aria-pressed={bluetoothEnabled}
+															aria-label="Bluetooth"
+															title={`Bluetooth: ${
+																!bluetoothEnabled
+																	? "Off"
+																	: btConnectedNames.length > 0
+																		? btConnectedNames.join(", ")
+																		: "On"
+															} (right-click for devices)`}
 														>
-															<span className="cc-dash-conn-icon">
-																<BluetoothIcon />
-															</span>
-															<span className="cc-dash-conn-text">
-																<span className="cc-dash-conn-title">Bluetooth</span>
-																<span className="cc-dash-conn-status">
-																	{!bluetoothEnabled
-																		? "Off"
-																		: btConnectedNames.length === 1
-																			? btConnectedNames[0]
-																			: btConnectedNames.length > 1
-																				? `${btConnectedNames.length} connected`
-																				: "On"}
-																</span>
-															</span>
+															<BluetoothIcon />
 														</button>
 														<button
-															className="cc-dash-conn-more"
-															aria-label="Bluetooth devices"
-															title="Bluetooth devices"
-															onClick={(e) => {
-																e.stopPropagation();
-																setBloomMode("bluetooth");
-															}}
-														>
-															<ChevronRight size={12} strokeWidth={2.8} />
-														</button>
-													</div>
-
-													<div className="cc-dash-toggles">
-														<button
-															className={`cc-dash-toggle ${dndActive ? "on" : ""}`}
+															className={`cc-mini-toggle ${dndActive ? "on" : ""}`}
 															onClick={(e) => {
 																e.stopPropagation();
 																setDndActive((prev) => !prev);
 															}}
 															aria-pressed={dndActive}
+															aria-label="Focus"
 															title={`Focus / Do Not Disturb: ${dndActive ? "On" : "Off"}`}
 														>
 															<MoonIcon />
-															<span>{dndActive ? "Focus on" : "Focus"}</span>
 														</button>
 														<button
-															className={`cc-dash-toggle ${batterySaverEnabled ? "on" : ""}`}
+															className={`cc-mini-toggle ${batterySaverEnabled ? "on" : ""}`}
 															onClick={(e) => {
 																e.stopPropagation();
 																openBatterySaverSettings();
 															}}
+															aria-label="Energy Saver"
 															title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"}. Click to open its settings`}
 														>
 															<BatterySaverIcon />
-															<span>Energy Saver</span>
 														</button>
 													</div>
 
-													<div className="cc-dash-sliders">
-														<div className="cc-dash-slider">
+													<div className="cc-mini-sliders">
+														<div className="cc-mini-slider" title={`Volume ${Math.round(displayVolume * 100)}%`}>
 															<VolumeLowIcon />
-															<div className="cc-dash-track">
+															<div className="cc-mini-track">
 																<input
 																	type="range"
 																	min="0"
@@ -3798,13 +3755,12 @@ function App() {
 																	onPointerDown={(e) => e.stopPropagation()}
 																	onClick={(e) => e.stopPropagation()}
 																/>
-																<div className="cc-dash-fill" style={{ width: `${displayVolume * 100}%` }} />
+																<div className="cc-mini-fill" style={{ width: `${displayVolume * 100}%` }} />
 															</div>
-															<span className="cc-dash-pct">{Math.round(displayVolume * 100)}%</span>
 														</div>
-														<div className="cc-dash-slider">
-															<BrightnessLowIcon />
-															<div className="cc-dash-track">
+														<div className="cc-mini-slider" title={`Brightness ${currentBrightness}%`}>
+															<SunIcon />
+															<div className="cc-mini-track">
 																<input
 																	type="range"
 																	min="0"
@@ -3816,13 +3772,21 @@ function App() {
 																	onPointerDown={(e) => e.stopPropagation()}
 																	onClick={(e) => e.stopPropagation()}
 																/>
-																<div className="cc-dash-fill" style={{ width: `${currentBrightness}%` }} />
+																<div className="cc-mini-fill" style={{ width: `${currentBrightness}%` }} />
 															</div>
-															<span className="cc-dash-pct">{currentBrightness}%</span>
 														</div>
 													</div>
+												</div>
 
-													<div className="cc-dash-actions">
+												<div className="cc-mini-bottom">
+													<TodayCard
+														use24h={timeFormat24h}
+														fallback={`CPU ${Math.round(cpuUsage)}% · RAM ${Math.round(ramUsage)}%`}
+														onOpenCalendar={
+															settingsCalendarEnabled ? () => setBloomMode("calendar") : undefined
+														}
+													/>
+													<div className="cc-mini-actions">
 														<button
 															onClick={(e) => {
 																e.stopPropagation();
@@ -3849,108 +3813,11 @@ function App() {
 																openSettingsWindow();
 															}}
 															aria-label="Bloom Settings"
-															title="Bloom Settings"
+															title="Bloom Settings (Restart Bloom is under General)"
 														>
 															<SettingsIcon />
 														</button>
-														<button
-															onClick={(e) => {
-																e.stopPropagation();
-																invoke("restart_bloom");
-															}}
-															aria-label="Restart Bloom"
-															title="Restart Bloom"
-														>
-															<ReloadIcon />
-														</button>
 													</div>
-												</div>
-
-												<div className="cc-dash-stats">
-													{(batteryDetails?.present ?? true) && (
-														<div className="cc-dash-battery">
-															<div className="cc-dash-ring">
-																<svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true">
-																	<circle cx="27" cy="27" r="22" className="cc-dash-ring-track" />
-																	<circle
-																		cx="27"
-																		cy="27"
-																		r="22"
-																		className="cc-dash-ring-fill"
-																		strokeDasharray={`${(2 * Math.PI * 22 * (batteryDetails?.percent ?? batteryLevel)) / 100} ${2 * Math.PI * 22}`}
-																		transform="rotate(-90 27 27)"
-																	/>
-																</svg>
-																<span>{batteryDetails?.percent ?? batteryLevel}%</span>
-															</div>
-															<div className="cc-dash-battery-text">
-																<span className="cc-dash-battery-main">
-																	{batteryDetails?.charging || (isCharging && !batteryDetails)
-																		? batteryDetails?.seconds_to_full
-																			? `Full in about ${formatDuration(batteryDetails.seconds_to_full)}`
-																			: "Charging"
-																		: batteryDetails?.plugged_in
-																			? "Plugged in"
-																			: batteryDetails?.seconds_left
-																				? `About ${formatDuration(batteryDetails.seconds_left)} left`
-																				: "On battery"}
-																</span>
-																<span className="cc-dash-label">
-																	{[
-																		batteryDetails?.plugged_in ? "Plugged in" : "On battery",
-																		batteryDetails?.health_percent != null
-																			? `health ${batteryDetails.health_percent}%`
-																			: null,
-																		batteryDetails?.power_mode ?? null
-																	]
-																		.filter(Boolean)
-																		.join(" · ")}
-																</span>
-															</div>
-														</div>
-													)}
-
-													<div className="cc-dash-bars">
-														<div className="cc-dash-bar-row">
-															<span className="cc-dash-label">CPU</span>
-															<div className="cc-dash-bar">
-																<div style={{ width: `${Math.min(100, Math.round(cpuUsage))}%` }} />
-															</div>
-															<span className="cc-dash-pct">{Math.round(cpuUsage)}%</span>
-														</div>
-														<div className="cc-dash-bar-row">
-															<span className="cc-dash-label">Memory</span>
-															<div className="cc-dash-bar">
-																<div style={{ width: `${Math.min(100, Math.round(ramUsage))}%` }} />
-															</div>
-															<span className="cc-dash-pct">{Math.round(ramUsage)}%</span>
-														</div>
-													</div>
-
-													<div className="cc-dash-facts">
-														<div>
-															<span className="cc-dash-label">Network</span>
-															<span className="cc-dash-fact">
-																↓ {formatSpeed(netDownSpeed)} · ↑ {formatSpeed(netUpSpeed)}
-															</span>
-														</div>
-														<div>
-															<span className="cc-dash-label">Disk C:</span>
-															<span className="cc-dash-fact">{diskSpace} GB free</span>
-														</div>
-														{settingsWeatherEnabled && temperature !== null && (
-															<div className="cc-dash-weather">
-																<span className="cc-dash-label">{cityName || "Weather"}</span>
-																<span className="cc-dash-fact">
-																	<WeatherIcon size={13} strokeWidth={2.2} />
-																	{temperature}°{tempUnit === "fahrenheit" ? "F" : "C"}
-																	{weatherCondition ? ` · ${weatherCondition}` : ""}
-																</span>
-															</div>
-														)}
-													</div>
-
-													{settingsCalendarEnabled && <UpNextLine use24h={timeFormat24h} />}
 												</div>
 											</div>
 										</motion.div>
@@ -4037,93 +3904,107 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											<div className="timer-column">
-												<div className={`timer-section-new state-${timerState}`}>
-													<div className="timer-main">
-														<div className="timer-status">
-															{isEditingTimer
-																? "Set duration"
-																: isTimerFinished
-																	? "Time's up"
-																	: timerEndTime
-																		? `${timerState === "paused" ? "Paused · " : ""}ends ${timerEndTime}`
-																		: "Click to edit"}
+											<div className={`timer-slim state-${timerState}`}>
+												<div className="timer-slim-time">
+													<div className={`timer-clock-row ${isEditingTimer ? "editing" : ""}`}>
+														<div
+															className={`timer-clock ${isEditingTimer && !timerEditValid ? "invalid" : ""}`}
+															onClick={beginTimerEdit}
+															title={isTimerRunning ? undefined : "Click to set a duration"}
+														>
+															{minuteDigitItems.map(({ digit, key }) => (
+																<RollDigit key={key} value={digit} compact={clockCompact} />
+															))}
+															<span className="timer-colon">:</span>
+															{secondDigitItems.map(({ digit, key }) => (
+																<RollDigit key={key} value={digit} compact={clockCompact} />
+															))}
 														</div>
-
-														<div className={`timer-clock-row ${isEditingTimer ? "editing" : ""}`}>
-															<div
-																className={`timer-clock ${isEditingTimer && !timerEditValid ? "invalid" : ""}`}
-																onClick={beginTimerEdit}
-																title={isTimerRunning ? undefined : "Click to set a duration"}
-															>
-																{minuteDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-																<span className="timer-colon">:</span>
-																{secondDigitItems.map(({ digit, key }) => (
-																	<RollDigit key={key} value={digit} compact={clockCompact} />
-																))}
-															</div>
-															<span className="timer-edit-underline" aria-hidden="true" />
-															{isEditingTimer && (
-																<input
-																	ref={timerInputRef}
-																	className="timer-edit-input"
-																	type="text"
-																	inputMode="numeric"
-																	aria-label="Set timer duration"
-																	value={formatTimerDigits(timerEditDigits)}
-																	onChange={(e) =>
-																		setTimerEditDigits(
-																			e.target.value.replace(/\D/g, "").slice(0, 5)
-																		)
+														<span className="timer-edit-underline" aria-hidden="true" />
+														{isEditingTimer && (
+															<input
+																ref={timerInputRef}
+																className="timer-edit-input"
+																type="text"
+																inputMode="numeric"
+																aria-label="Set timer duration"
+																value={formatTimerDigits(timerEditDigits)}
+																onChange={(e) =>
+																	setTimerEditDigits(e.target.value.replace(/\D/g, "").slice(0, 5))
+																}
+																onKeyDown={(e) => {
+																	if (e.key === "Enter") commitTimerEdit(true);
+																	if (e.key === "Escape") {
+																		timerEditActiveRef.current = false;
+																		setIsEditingTimer(false);
 																	}
-																	onKeyDown={(e) => {
-																		if (e.key === "Enter") commitTimerEdit(true);
-																	}}
-																	onBlur={() => commitTimerEdit(false)}
-																	onWheel={(e) => e.stopPropagation()}
-																/>
-															)}
-														</div>
+																}}
+																onBlur={() => commitTimerEdit(false)}
+																onWheel={(e) => e.stopPropagation()}
+															/>
+														)}
 													</div>
-
-													<div className="timer-controls-row">
-														<span className="timer-controls-spacer" aria-hidden="true" />
-														<button
-															onClick={handlePrimaryTimerAction}
-															onMouseDown={(e) => e.preventDefault()}
-															className="timer-btn-play"
-															title={primaryTimerLabel}
-														>
-															{isTimerRunning ? (
-																<Pause size={14} strokeWidth={2} fill="currentColor" />
-															) : (
-																<Play size={14} strokeWidth={2} fill="currentColor" />
-															)}
-															<span>{primaryTimerLabel}</span>
-														</button>
-														<button
-															onClick={resetTimer}
-															className="timer-btn-reset"
-															disabled={timerSeconds === 0 && !isTimerFinished}
-															title="Reset"
-														>
-															<RotateCcw size={14} strokeWidth={2.5} />
-														</button>
+													<div className="timer-slim-status">
+														{isEditingTimer
+															? "Type, then Enter"
+															: isTimerFinished
+																? "Time's up"
+																: timerEndTime
+																	? `${timerState === "paused" ? "Paused · " : ""}ends ${timerEndTime}`
+																	: "Click time to edit"}
 													</div>
+												</div>
 
-													<div className="timer-preset-group">
+												<div className="timer-slim-middle">
+													<div
+														className="timer-slim-progress"
+														role="progressbar"
+														aria-label="Time left"
+														aria-valuemin={0}
+														aria-valuemax={100}
+														aria-valuenow={Math.round(timerProgress * 100)}
+													>
+														<div style={{ width: `${timerProgress * 100}%` }} />
+													</div>
+													<div className="timer-slim-presets">
 														{[5, 15, 25, 50].map((mins) => (
 															<button
 																key={mins}
 																onClick={() => startTimer(mins * 60)}
-																className={`timer-preset-segment ${lastDurationSeconds === mins * 60 && !isTimerFinished ? "active" : ""}`}
+																className={
+																	lastDurationSeconds === mins * 60 && !isTimerFinished ? "active" : ""
+																}
+																title={`Start a ${mins} minute timer`}
 															>
 																{mins}m
 															</button>
 														))}
 													</div>
+												</div>
+
+												<div className="timer-slim-buttons">
+													<button
+														onClick={resetTimer}
+														className="timer-slim-reset"
+														disabled={timerSeconds === 0 && !isTimerFinished}
+														aria-label="Reset"
+														title="Reset"
+													>
+														<RotateCcw size={15} strokeWidth={2.4} />
+													</button>
+													<button
+														onClick={handlePrimaryTimerAction}
+														onMouseDown={(e) => e.preventDefault()}
+														className="timer-slim-play"
+														aria-label={primaryTimerLabel}
+														title={primaryTimerLabel}
+													>
+														{isTimerRunning ? (
+															<Pause size={15} strokeWidth={2} fill="currentColor" />
+														) : (
+															<Play size={15} strokeWidth={2} fill="currentColor" />
+														)}
+													</button>
 												</div>
 											</div>
 										</motion.div>
@@ -4375,7 +4256,7 @@ function SettingsIcon() {
 	);
 }
 
-function BrightnessLowIcon() {
+function SunIcon() {
 	return (
 		<svg
 			width="12"
@@ -4383,12 +4264,12 @@ function BrightnessLowIcon() {
 			viewBox="0 0 24 24"
 			fill="none"
 			stroke="currentColor"
-			strokeWidth="2"
+			strokeWidth="2.3"
 			strokeLinecap="round"
-			strokeLinejoin="round"
-			style={{ opacity: 0.5 }}
+			aria-hidden="true"
 		>
-			<circle cx="12" cy="12" r="5" fill="currentColor" />
+			<circle cx="12" cy="12" r="4" />
+			<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
 		</svg>
 	);
 }
@@ -4430,22 +4311,6 @@ function BellIcon() {
 	);
 }
 
-function ReloadIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2.5"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-		</svg>
-	);
-}
 
 function BatterySaverIcon() {
 	return (
