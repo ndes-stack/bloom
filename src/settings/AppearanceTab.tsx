@@ -1,4 +1,25 @@
-import { Palette, Droplet, Contrast, Droplets, Sun, Square, Maximize2, Sparkles, Check } from "lucide-react";
+import {
+	Palette,
+	Droplet,
+	Contrast,
+	Droplets,
+	Sun,
+	Square,
+	Maximize2,
+	Sparkles,
+	Check,
+	Layers,
+	Aperture,
+	SunDim
+} from "lucide-react";
+import {
+	MAX_NOTCH_BLUR,
+	MAX_NOTCH_TINT,
+	MIN_NOTCH_BLUR,
+	MIN_NOTCH_TINT,
+	materialLook,
+	type NotchMaterial
+} from "../notchMaterial";
 import { SettingRow } from "./SettingRow";
 
 interface AppearanceTabProps {
@@ -19,7 +40,20 @@ interface AppearanceTabProps {
 	/** Hex accent, or null to use the theme's own accent. */
 	accentColor: string | null;
 	handleAccentColorChange: (color: string | null) => void;
+	notchMaterial: NotchMaterial;
+	handleNotchMaterialChange: (material: NotchMaterial) => void;
+	notchBlur: number;
+	handleNotchBlurChange: (val: number) => void;
+	notchTint: number;
+	handleNotchTintChange: (val: number) => void;
 }
+
+const MATERIAL_OPTIONS: { value: NotchMaterial; label: string; hint: string }[] = [
+	{ value: "solid", label: "Solid", hint: "The theme colour, no blur" },
+	{ value: "frosted", label: "Frosted", hint: "Dark tint, strong blur" },
+	{ value: "glass", label: "Glass", hint: "Light tint, more see-through" },
+	{ value: "custom", label: "Custom", hint: "Pick your own blur and tint" }
+];
 
 // Accent presets (Settings > Appearance > Accent Colour).
 const ACCENT_PRESETS: { name: string; hex: string }[] = [
@@ -49,7 +83,13 @@ export function AppearanceTab({
 	scale,
 	handleScaleChange,
 	accentColor,
-	handleAccentColorChange
+	handleAccentColorChange,
+	notchMaterial,
+	handleNotchMaterialChange,
+	notchBlur,
+	handleNotchBlurChange,
+	notchTint,
+	handleNotchTintChange
 }: AppearanceTabProps) {
 	const isPreset = accentColor !== null && ACCENT_PRESETS.some((p) => p.hex === accentColor);
 	const showCustomColor = themeMode === "custom";
@@ -187,6 +227,82 @@ export function AppearanceTab({
 								step="0.02"
 								value={themeBrightness}
 								onChange={(e) => handleBrightnessChange(parseFloat(e.target.value))}
+								className="settings-slider"
+							/>
+						</SettingRow>
+					</>
+				)}
+			</div>
+
+			<div className="setting-group-label">Notch Material</div>
+			<div className="setting-group">
+				<SettingRow
+					icon={Layers}
+					label="Material"
+					desc="Blur what's behind the open notch. Needs Windows 10 (2004) or later."
+					divider={false}
+				/>
+				<div className="material-options" role="radiogroup" aria-label="Notch material">
+					{MATERIAL_OPTIONS.map((opt) => {
+						const look = materialLook(opt.value, notchBlur, notchTint);
+						const selected = notchMaterial === opt.value;
+						return (
+							<button
+								key={opt.value}
+								role="radio"
+								aria-checked={selected}
+								className={`material-option ${selected ? "selected" : ""}`}
+								onClick={() => handleNotchMaterialChange(opt.value)}
+								title={opt.hint}
+							>
+								<span className="material-preview" aria-hidden="true">
+									<span className="material-blob one" />
+									<span className="material-blob two" />
+									<span className="material-blob three" />
+									<span
+										className="material-pill"
+										style={
+											look
+												? {
+														background: `rgba(16, 16, 20, ${look.tint})`,
+														backdropFilter: `blur(${look.blur / 4}px) saturate(${look.saturate}%)`
+													}
+												: undefined
+										}
+									/>
+								</span>
+								<span className="material-label">{opt.label}</span>
+							</button>
+						);
+					})}
+				</div>
+				{notchMaterial === "custom" && (
+					<>
+						<div className="setting-divider" />
+						<SettingRow icon={Aperture} label="Blur" desc={`How soft the background looks (${notchBlur}px)`}>
+							<input
+								type="range"
+								min={MIN_NOTCH_BLUR}
+								max={MAX_NOTCH_BLUR}
+								step="1"
+								value={notchBlur}
+								onChange={(e) => handleNotchBlurChange(parseInt(e.target.value))}
+								className="settings-slider"
+							/>
+						</SettingRow>
+						<SettingRow
+							icon={SunDim}
+							label="Tint"
+							desc={`How much of the background shows through (${notchTint}% tint)`}
+							divider={false}
+						>
+							<input
+								type="range"
+								min={MIN_NOTCH_TINT}
+								max={MAX_NOTCH_TINT}
+								step="1"
+								value={notchTint}
+								onChange={(e) => handleNotchTintChange(parseInt(e.target.value))}
 								className="settings-slider"
 							/>
 						</SettingRow>

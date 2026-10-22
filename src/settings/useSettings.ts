@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { parseIcs } from "../calendarIcs";
 import { clampScrollSpeed, SCROLL_SPEED_KEY } from "../scrollFlip";
 import { clampPageSwitchGrace, PAGE_SWITCH_GRACE_KEY } from "../pageSwitchGrace";
+import {
+	NOTCH_BLUR_KEY,
+	NOTCH_MATERIAL_KEY,
+	NOTCH_TINT_KEY,
+	clampNotchBlur,
+	clampNotchTint,
+	parseNotchMaterial,
+	type NotchMaterial
+} from "../notchMaterial";
 import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
 import { parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "../notchPanels";
 import { ACCENT_COLOR_KEY, parseAccentColor, applyTheme } from "../theme";
@@ -49,6 +58,11 @@ export function useSettings() {
 	const [accentColor, setAccentColor] = useState<string | null>(() =>
 		parseAccentColor(localStorage.getItem(ACCENT_COLOR_KEY))
 	);
+	const [notchMaterial, setNotchMaterial] = useState<NotchMaterial>(() =>
+		parseNotchMaterial(localStorage.getItem(NOTCH_MATERIAL_KEY))
+	);
+	const [notchBlur, setNotchBlur] = useState(() => clampNotchBlur(localStorage.getItem(NOTCH_BLUR_KEY)));
+	const [notchTint, setNotchTint] = useState(() => clampNotchTint(localStorage.getItem(NOTCH_TINT_KEY)));
 	const [panelOrder, setPanelOrder] = useState<NotchPanel[]>(() =>
 		parsePanelOrder(localStorage.getItem(PANEL_ORDER_KEY))
 	);
@@ -259,6 +273,9 @@ export function useSettings() {
 			apply(getVal(PAGE_SWITCH_GRACE_KEY), setPageSwitchGrace, clampPageSwitchGrace);
 			apply(getVal(PANEL_ORDER_KEY), setPanelOrder, parsePanelOrder);
 			apply(getVal(ACCENT_COLOR_KEY), setAccentColor, parseAccentColor);
+			apply(getVal(NOTCH_MATERIAL_KEY), setNotchMaterial, parseNotchMaterial);
+			apply(getVal(NOTCH_BLUR_KEY), setNotchBlur, clampNotchBlur);
+			apply(getVal(NOTCH_TINT_KEY), setNotchTint, clampNotchTint);
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -397,6 +414,9 @@ export function useSettings() {
 		[PAGE_SWITCH_GRACE_KEY]: (v) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 		[PANEL_ORDER_KEY]: (v) => setPanelOrder(parsePanelOrder(v)),
 		[ACCENT_COLOR_KEY]: (v) => setAccentColor(parseAccentColor(v)),
+		[NOTCH_MATERIAL_KEY]: (v) => setNotchMaterial(parseNotchMaterial(v)),
+		[NOTCH_BLUR_KEY]: (v) => setNotchBlur(clampNotchBlur(v)),
+		[NOTCH_TINT_KEY]: (v) => setNotchTint(clampNotchTint(v)),
 		"bloom-music-compact-notch": setMusicCompactNotch,
 		"bloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"bloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
@@ -598,6 +618,24 @@ export function useSettings() {
 		const next = parsePanelOrder(order);
 		setPanelOrder(next);
 		saveSetting(PANEL_ORDER_KEY, JSON.stringify(next));
+	};
+
+	const handleNotchMaterialChange = (material: NotchMaterial) => {
+		const next = parseNotchMaterial(material);
+		setNotchMaterial(next);
+		saveSetting(NOTCH_MATERIAL_KEY, next);
+	};
+
+	const handleNotchBlurChange = (val: number) => {
+		const next = clampNotchBlur(val);
+		setNotchBlur(next);
+		saveSetting(NOTCH_BLUR_KEY, String(next));
+	};
+
+	const handleNotchTintChange = (val: number) => {
+		const next = clampNotchTint(val);
+		setNotchTint(next);
+		saveSetting(NOTCH_TINT_KEY, String(next));
 	};
 
 	const handlePageSwitchGraceChange = (val: number) => {
@@ -1052,6 +1090,12 @@ export function useSettings() {
 		handlePanelOrderChange,
 		accentColor,
 		handleAccentColorChange,
+		notchMaterial,
+		handleNotchMaterialChange,
+		notchBlur,
+		handleNotchBlurChange,
+		notchTint,
+		handleNotchTintChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backdrop;
 mod battery;
 mod bluetooth;
 mod calendar;
@@ -139,6 +140,7 @@ fn main() {
             update_dock_rect,
             update_notch_rect,
             window_region::set_window_region,
+            backdrop::capture_notch_backdrop,
             set_dock_hovered,
             set_notch_hovered,
             set_notch_visible,

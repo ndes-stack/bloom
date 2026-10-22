@@ -1339,3 +1339,91 @@ input:checked + .slider:before {
 	opacity: 0;
 	cursor: pointer;
 }
+
+/* Notch Material picker (Settings > Appearance) */
+.material-options {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+	padding: 0 14px 14px;
+}
+
+.material-option {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 6px 8px;
+	border: 1.5px solid transparent;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+	color: var(--bloom-text, #fff);
+	font-family: inherit;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.material-option:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 9%, transparent);
+}
+
+.material-option.selected {
+	border-color: var(--bloom-accent, #0a84ff);
+	background: color-mix(in srgb, var(--bloom-accent, #0a84ff) 12%, transparent);
+}
+
+.material-preview {
+	position: relative;
+	width: 100%;
+	height: 48px;
+	border-radius: 8px;
+	overflow: hidden;
+	background: #22303f;
+}
+
+.material-blob {
+	position: absolute;
+	border-radius: 50%;
+}
+
+.material-blob.one {
+	left: 18%;
+	top: -30%;
+	width: 42%;
+	height: 90%;
+	background: #ff8a3d;
+}
+
+.material-blob.two {
+	left: 48%;
+	top: 0;
+	width: 30%;
+	height: 70%;
+	border-radius: 28%;
+	background: #7c5cff;
+}
+
+.material-blob.three {
+	left: 6%;
+	top: 45%;
+	width: 26%;
+	height: 60%;
+	background: #2ec4b6;
+}
+
+.material-pill {
+	position: absolute;
+	left: 14%;
+	right: 14%;
+	top: 0;
+	height: 58%;
+	border-radius: 0 0 9px 9px;
+	background: rgba(0, 0, 0, 0.95);
+}
+
+.material-label {
+	font-size: 11.5px;
+	font-weight: 600;
+}

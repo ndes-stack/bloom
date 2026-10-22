@@ -7,6 +7,13 @@ interface EdgeSurfaceProps {
 	edge: Edge;
 	/** Show the concave flares that bridge the pill to the edge. */
 	flares?: boolean;
+	/**
+	 * Paint the blurred screenshot in `--notch-backdrop` instead of the theme
+	 * colour, as an opaque layer under the normal (tinted) surface. Fades in
+	 * when `visible`.
+	 */
+	backdrop?: boolean;
+	visible?: boolean;
 }
 
 /**
@@ -15,9 +22,18 @@ interface EdgeSurfaceProps {
  * layer. Render it as the first child of a positioned, isolated element that
  * sets `--surface-bg`; the pill takes that element's corner radii.
  */
-export function EdgeSurface({ edge, flares = true }: EdgeSurfaceProps) {
+export function EdgeSurface({ edge, flares = true, backdrop = false, visible = true }: EdgeSurfaceProps) {
+	const classes = [
+		"edge-surface",
+		`edge-surface--${edge}`,
+		flares ? "show-flares" : "",
+		backdrop ? "edge-surface--backdrop" : "",
+		backdrop && visible ? "is-visible" : ""
+	]
+		.filter(Boolean)
+		.join(" ");
 	return (
-		<div className={`edge-surface edge-surface--${edge}${flares ? " show-flares" : ""}`} aria-hidden="true">
+		<div className={classes} aria-hidden="true">
 			<span className="edge-surface-flare edge-surface-flare--start" />
 			<span className="edge-surface-flare edge-surface-flare--end" />
 		</div>

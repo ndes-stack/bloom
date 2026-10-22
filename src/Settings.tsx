@@ -161,6 +161,12 @@ function SettingsApp() {
 							handleScaleChange={settings.handleScaleChange}
 							accentColor={settings.accentColor}
 							handleAccentColorChange={settings.handleAccentColorChange}
+							notchMaterial={settings.notchMaterial}
+							handleNotchMaterialChange={settings.handleNotchMaterialChange}
+							notchBlur={settings.notchBlur}
+							handleNotchBlurChange={settings.handleNotchBlurChange}
+							notchTint={settings.notchTint}
+							handleNotchTintChange={settings.handleNotchTintChange}
 						/>
 					)}
 					{activeTab === "notch" && (

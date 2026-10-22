@@ -57,6 +57,17 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import type { WidgetConfig } from "./components/StatusWidgetConfig";
 import { EdgeSurface } from "./components/EdgeSurface";
+import {
+	NOTCH_BLUR_KEY,
+	NOTCH_MATERIAL_KEY,
+	NOTCH_TINT_KEY,
+	blurBackdrop,
+	clampNotchBlur,
+	clampNotchTint,
+	materialLook,
+	parseNotchMaterial,
+	type MaterialLook
+} from "./notchMaterial";
 import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
@@ -977,6 +988,22 @@ function App() {
 	const [pageSwitchGrace, setPageSwitchGrace] = useState(() =>
 		clampPageSwitchGrace(localStorage.getItem(PAGE_SWITCH_GRACE_KEY))
 	);
+	// Notch material (Settings > Appearance): solid, or a blurred backdrop.
+	const [notchMaterial, setNotchMaterial] = useState(() =>
+		parseNotchMaterial(localStorage.getItem(NOTCH_MATERIAL_KEY))
+	);
+	const [notchBlur, setNotchBlur] = useState(() =>
+		clampNotchBlur(localStorage.getItem(NOTCH_BLUR_KEY))
+	);
+	const [notchTint, setNotchTint] = useState(() =>
+		clampNotchTint(localStorage.getItem(NOTCH_TINT_KEY))
+	);
+	const notchLook = useMemo(
+		() => materialLook(notchMaterial, notchBlur, notchTint),
+		[notchMaterial, notchBlur, notchTint]
+	);
+	// The blurred screenshot behind the notch, as an object URL.
+	const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
 	// Scroll speed setting (1 slow … 5 fast) for flipping between panels.
 	const [scrollSpeed, setScrollSpeed] = useState(() =>
 		clampScrollSpeed(localStorage.getItem(SCROLL_SPEED_KEY))
@@ -1168,6 +1195,9 @@ function App() {
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
 			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
+			[NOTCH_MATERIAL_KEY]: (v: unknown) => setNotchMaterial(parseNotchMaterial(v)),
+			[NOTCH_BLUR_KEY]: (v: unknown) => setNotchBlur(clampNotchBlur(v)),
+			[NOTCH_TINT_KEY]: (v: unknown) => setNotchTint(clampNotchTint(v)),
 			[PANEL_ORDER_KEY]: (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			[CALENDAR_VIEW_KEY]: (v: unknown) => setCalendarViewMode(parseCalendarView(v)),
 			"bloom-notch-default-panel": (v: unknown) =>
@@ -2939,6 +2969,85 @@ function App() {
 	// The pill's target geometry: the animation springs toward it, and the
 	// window region below is cut from it, so the region is already at the
 	// final size while the pill animates.
+	// Blurred notch materials: grab what's behind the notch when it opens and
+	// every couple of seconds while it stays open, then blur it for the
+	// backdrop layer under the tint. A screenshot more than 30 s old isn't
+	// shown when the notch opens, so it never flashes a stale desktop. After a
+	// few failed grabs in a row (an older Windows that can't leave the notch
+	// out of the shot) the notch stays solid until the material changes.
+	const notchExpanded = isHovered || isOpen;
+	const backdropRawRef = useRef<{ blob: Blob; at: number } | null>(null);
+	const backdropUrlRef = useRef<string | null>(null);
+	const backdropFailuresRef = useRef(0);
+	const [backdropFresh, setBackdropFresh] = useState(false);
+
+	const showBackdrop = useCallback(
+		async (blob: Blob, look: MaterialLook) => {
+			const url = await blurBackdrop(blob, look, window.innerWidth / scale);
+			// Decode first, so swapping images never shows an empty frame.
+			const img = new Image();
+			img.src = url;
+			await img.decode().catch(() => {});
+			const old = backdropUrlRef.current;
+			backdropUrlRef.current = url;
+			setBackdropUrl(url);
+			// Let the new image paint before the old one goes away.
+			if (old) window.setTimeout(() => URL.revokeObjectURL(old), 1000);
+		},
+		[scale]
+	);
+
+	useEffect(() => {
+		backdropFailuresRef.current = 0;
+		if (!notchLook) {
+			setBackdropFresh(false);
+			return;
+		}
+		const raw = backdropRawRef.current;
+		if (raw) showBackdrop(raw.blob, notchLook).catch(() => {});
+	}, [notchLook, showBackdrop]);
+
+	useEffect(() => {
+		if (windowLabel !== "main" || !notchLook || !notchExpanded) return;
+		let cancelled = false;
+		const look = notchLook;
+		const raw = backdropRawRef.current;
+		if (!raw || Date.now() - raw.at > 30_000) setBackdropFresh(false);
+
+		const capture = async () => {
+			if (backdropFailuresRef.current >= 3) return;
+			try {
+				const buf = await invoke<ArrayBuffer>("capture_notch_backdrop");
+				if (cancelled) return;
+				const blob = new Blob([buf], { type: "image/bmp" });
+				backdropRawRef.current = { blob, at: Date.now() };
+				await showBackdrop(blob, look);
+				backdropFailuresRef.current = 0;
+				if (!cancelled) setBackdropFresh(true);
+			} catch (e) {
+				backdropFailuresRef.current++;
+				if (backdropFailuresRef.current === 3) console.warn("Notch blur unavailable:", e);
+			}
+		};
+		capture();
+		const timer = window.setInterval(capture, 2000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [windowLabel, notchLook, notchExpanded, showBackdrop]);
+
+	const backdropVisible =
+		!!notchLook && !!backdropUrl && backdropFresh && notchExpanded && isVisible && !isHidden;
+	const notchSurfaceStyle = {
+		"--notch-backdrop": backdropUrl ? `url("${backdropUrl}")` : "none",
+		"--notch-backdrop-w": `${window.innerWidth / scale}px`,
+		"--notch-backdrop-h": `${window.innerHeight / scale}px`,
+		...(backdropVisible && notchLook
+			? { "--notch-bg": `rgb(from var(--bloom-bg-expanded) r g b / ${notchLook.tint})` }
+			: {})
+	} as Record<string, string>;
+
 	const pillTargetY = !isReady ? 250 : isVisible ? (isHidden ? -100 : 0) : -150;
 	const pillTargetWidth = !isReady
 		? 34
@@ -3040,7 +3149,7 @@ function App() {
 						if (bloomMode === "shelf") clearShelfCollapse();
 					}}
 					onHoverEnd={releaseNotchHover}
-					style={{ originY: 0 }}
+					style={{ originY: 0, ...notchSurfaceStyle }}
 					transition={{
 						width: { type: "spring", stiffness: 400, damping: 31 },
 						height: { type: "spring", stiffness: 450, damping: 29 },
@@ -3053,6 +3162,9 @@ function App() {
 						default: { type: "spring", stiffness: 500, damping: 30, mass: 1 }
 					}}
 				>
+					{notchLook && (
+						<EdgeSurface edge="top" flares={isImpacted} backdrop visible={backdropVisible} />
+					)}
 					<EdgeSurface edge="top" flares={isImpacted} />
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
