@@ -92,6 +92,25 @@ const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "timer", "launcher", "c
 const asNotchPanel = (value: unknown): NotchPanel | null =>
 	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
 
+/**
+ * True if `target`, or an element between it and `root`, can still scroll in
+ * the wheel's direction (so the wheel should scroll it, not flip pages).
+ */
+function canScrollWithin(target: HTMLElement, root: HTMLElement, dx: number, dy: number): boolean {
+	for (let el: HTMLElement | null = target; el && el !== root; el = el.parentElement) {
+		const style = getComputedStyle(el);
+		if (dy !== 0 && /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 1) {
+			const room = dy > 0 ? el.scrollHeight - el.clientHeight - el.scrollTop : el.scrollTop;
+			if (room > 1) return true;
+		}
+		if (dx !== 0 && /(auto|scroll)/.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1) {
+			const room = dx > 0 ? el.scrollWidth - el.clientWidth - el.scrollLeft : el.scrollLeft;
+			if (room > 1) return true;
+		}
+	}
+	return false;
+}
+
 // Sizes of the timer and launcher pages.
 const TIMER_PAGE_WIDTH = 360;
 const TIMER_PAGE_HEIGHT = 272;
@@ -1793,21 +1812,28 @@ function App() {
 	useEffect(() => {
 		scrollFlipperRef.current?.setIntervalMs(scrollSpeedIntervalMs(scrollSpeed));
 	}, [scrollSpeed]);
+	// Last time a scroll went to a list inside the notch rather than to page
+	// flipping, so that list's momentum never spills over into a flip.
+	const innerScrollAtRef = useRef(0);
 	const handleWheel = (e: React.WheelEvent) => {
 		const target = e.target as HTMLElement;
-		if (
-			target.closest(".calendar-body") ||
-			target.closest(".timer-column") ||
-			target.closest(".shelf-content") ||
-			target.closest(".launcher-scroll") ||
-			target.closest(".qp-list")
-		) {
+		const now = performance.now();
+		// Scrolling flips pages from anywhere in the notch, except where the
+		// thing under the pointer still has room to scroll that way (a long
+		// search-result list, the Wi-Fi list, an overflowing shelf): that
+		// scrolls first, and a fresh scroll after it reaches its end flips.
+		const shelfGrid = shelfGridRef.current;
+		const shelfScrolls =
+			!!shelfGrid && !!target.closest(".shelf-content") && shelfGrid.scrollWidth > shelfGrid.clientWidth;
+		if (shelfScrolls || canScrollWithin(target, e.currentTarget as HTMLElement, e.deltaX, e.deltaY)) {
+			innerScrollAtRef.current = now;
 			return;
 		}
+		if (now - innerScrollAtRef.current < 350) return;
 
 		// Use the larger axis so horizontal touchpad swipes work too
 		const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-		const flip = scrollFlipperRef.current!.push(delta, performance.now());
+		const flip = scrollFlipperRef.current!.push(delta, now);
 		// Nothing to switch to: let the next movement try again.
 		if (flip !== 0 && !cycleBloomMode(flip)) scrollFlipperRef.current!.release();
 	};
