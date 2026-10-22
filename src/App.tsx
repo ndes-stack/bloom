@@ -29,6 +29,13 @@ import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { NotchCalendar, monthRowCount } from "./components/NotchCalendar";
+import {
+	clampScrollSpeed,
+	createScrollFlipper,
+	scrollSpeedIntervalMs,
+	SCROLL_SPEED_KEY,
+	type ScrollFlipper
+} from "./scrollFlip";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -921,6 +928,10 @@ function App() {
 	);
 	const rememberPanelEnabledRef = useRef(rememberPanelEnabled);
 	rememberPanelEnabledRef.current = rememberPanelEnabled;
+	// Scroll speed setting (1 slow … 5 fast) for flipping between panels.
+	const [scrollSpeed, setScrollSpeed] = useState(() =>
+		clampScrollSpeed(localStorage.getItem(SCROLL_SPEED_KEY))
+	);
 	const [defaultPanel, setDefaultPanel] = useState<NotchPanel>(() =>
 		asNotchPanel(localStorage.getItem("bloom-notch-default-panel")) ?? "calendar"
 	);
@@ -988,6 +999,7 @@ function App() {
 					(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open", "true")) !== "false"
 				);
 				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
+				setScrollSpeed(clampScrollSpeed(getVal(SCROLL_SPEED_KEY)));
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
 				setLastPanel(asNotchPanel(getVal("bloom-notch-last-panel")));
@@ -1102,6 +1114,7 @@ function App() {
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
+			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
 			"bloom-notch-default-panel": (v: unknown) =>
 				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
 			"bloom-shelf-persist": setShelfPersist,
@@ -1722,7 +1735,16 @@ function App() {
 
 	// Window height is now kept constant to prevent rendering layout lag and sharp corners
 
-	const lastScrollTime = useRef(0);
+	// Scrolling flips panels at a steady pace: the first flip is instant, holding
+	// the scroll keeps flipping (speed from the Scroll speed setting), and
+	// touchpad momentum after the fingers lift is ignored. See scrollFlip.ts.
+	const scrollFlipperRef = useRef<ScrollFlipper | null>(null);
+	if (scrollFlipperRef.current === null) {
+		scrollFlipperRef.current = createScrollFlipper({ intervalMs: scrollSpeedIntervalMs(scrollSpeed) });
+	}
+	useEffect(() => {
+		scrollFlipperRef.current?.setIntervalMs(scrollSpeedIntervalMs(scrollSpeed));
+	}, [scrollSpeed]);
 	const handleWheel = (e: React.WheelEvent) => {
 		const target = e.target as HTMLElement;
 		if (
@@ -1734,14 +1756,11 @@ function App() {
 			return;
 		}
 
-		const now = Date.now();
-		if (now - lastScrollTime.current < 250) return;
-
-		// Use absolute values to detect horizontal swipe gestures on trackpad
+		// Use the larger axis so horizontal touchpad swipes work too
 		const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-		if (Math.abs(delta) < 5) return; // Ignore tiny movements
-
-		if (cycleBloomMode(delta > 0 ? 1 : -1)) lastScrollTime.current = now;
+		const flip = scrollFlipperRef.current!.push(delta, performance.now());
+		// Nothing to switch to: let the next movement try again.
+		if (flip !== 0 && !cycleBloomMode(flip)) scrollFlipperRef.current!.release();
 	};
 
 	function panelAvailable(panel: NotchPanel) {

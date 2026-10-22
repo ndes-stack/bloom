@@ -44,6 +44,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | ------------------------ | -------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `bloom-notch-mode`       | `"fixed"` / `"smart"` / `"peek"` | `"fixed"` | Notch (top bar) visibility behavior. Same modes as dock. **peek** shows the notch briefly on media events and notifications.   |
 | `bloom-notch-edge-delay` | milliseconds `"0"`–`"2000"`      | `"200"`   | In smart/peek mode, how long the cursor must rest against the top screen edge before the notch peeks. `"0"` reveals instantly. |
+| `bloom-scroll-speed`     | `"1"`–`"5"`                       | `"3"`     | How fast scrolling over the notch flips between panels. The first flip is instant; holding the scroll keeps flipping, at most once per 900 / 650 / 450 / 320 / 220 ms for 1–5. Touchpad momentum is ignored. |
 
 ### Weather
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
 	PanelTop,
+	MousePointer2,
 	CalendarSync,
 	Calendar,
 	BellRing,
@@ -18,11 +19,16 @@ import { SettingRow } from "./SettingRow";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { WidgetConfig } from "./types";
 
+// Shown next to the Scroll speed slider (1 … 5).
+const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
+
 interface NotchTabProps {
 	notchMode: string;
 	setNotchModeValue: (mode: string) => void;
 	notchEdgeDelay: number;
 	handleNotchEdgeDelayChange: (val: number) => void;
+	scrollSpeed: number;
+	handleScrollSpeedChange: (val: number) => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	notchRememberPanel: boolean;
@@ -71,6 +77,8 @@ export function NotchTab({
 	setNotchModeValue,
 	notchEdgeDelay,
 	handleNotchEdgeDelayChange,
+	scrollSpeed,
+	handleScrollSpeedChange,
 	calendarEnabled,
 	toggleCalendar,
 	notchRememberPanel,
@@ -159,6 +167,23 @@ export function NotchTab({
 						/>
 					</SettingRow>
 				)}
+
+				<SettingRow
+					icon={MousePointer2}
+					label="Scroll Speed"
+					desc={`Scroll over the notch to flip panels · ${SCROLL_SPEED_LABELS[scrollSpeed - 1]}`}
+				>
+					<input
+						type="range"
+						min="1"
+						max="5"
+						step="1"
+						value={scrollSpeed}
+						aria-label="Scroll speed"
+						onChange={(e) => handleScrollSpeedChange(parseInt(e.target.value))}
+						className="settings-slider"
+					/>
+				</SettingRow>
 
 				<SettingRow
 					icon={PanelTop}

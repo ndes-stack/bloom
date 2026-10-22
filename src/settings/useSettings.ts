@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseIcs } from "../calendarIcs";
+import { clampScrollSpeed, SCROLL_SPEED_KEY } from "../scrollFlip";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -142,6 +143,9 @@ export function useSettings() {
 		const val = localStorage.getItem("bloom-notch-edge-delay");
 		return val !== null ? parseInt(val) : 200;
 	});
+	const [scrollSpeed, setScrollSpeed] = useState(() =>
+		clampScrollSpeed(localStorage.getItem(SCROLL_SPEED_KEY))
+	);
 	const [lowBatteryThreshold, setLowBatteryThreshold] = useState(20);
 	const [updateStatus, setUpdateStatus] = useState<
 		"idle" | "checking" | "available" | "uptodate" | "error" | "downloading" | "installing"
@@ -239,6 +243,7 @@ export function useSettings() {
 
 			apply(getVal("bloom-notch-mode"), setNotchMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-notch-edge-delay"), setNotchEdgeDelay, parseInt);
+			apply(getVal(SCROLL_SPEED_KEY), setScrollSpeed, clampScrollSpeed);
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -352,6 +357,7 @@ export function useSettings() {
 		"bloom-dock-edge-delay": setDockEdgeDelay,
 		"bloom-notch-mode": setNotchMode,
 		"bloom-notch-edge-delay": setNotchEdgeDelay,
+		[SCROLL_SPEED_KEY]: (v) => setScrollSpeed(clampScrollSpeed(v)),
 		"bloom-dock-enabled": setDockEnabled,
 		"bloom-dock-icon-only": setDockIconOnly,
 		"bloom-dock-separator-enabled": setDockSeparatorEnabled,
@@ -753,6 +759,12 @@ export function useSettings() {
 		saveSetting("bloom-dock-edge-delay", val.toString());
 	};
 
+	const handleScrollSpeedChange = (val: number) => {
+		const speed = clampScrollSpeed(val);
+		setScrollSpeed(speed);
+		saveSetting(SCROLL_SPEED_KEY, String(speed));
+	};
+
 	const handleNotchEdgeDelayChange = (val: number) => {
 		setNotchEdgeDelay(val);
 		saveSetting("bloom-notch-edge-delay", val.toString());
@@ -981,6 +993,8 @@ export function useSettings() {
 		setNotchModeValue,
 		notchEdgeDelay,
 		handleNotchEdgeDelayChange,
+		scrollSpeed,
+		handleScrollSpeedChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,

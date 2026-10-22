@@ -167,6 +167,8 @@ function SettingsApp() {
 							setNotchModeValue={settings.setNotchModeValue}
 							notchEdgeDelay={settings.notchEdgeDelay}
 							handleNotchEdgeDelayChange={settings.handleNotchEdgeDelayChange}
+							scrollSpeed={settings.scrollSpeed}
+							handleScrollSpeedChange={settings.handleScrollSpeedChange}
 							calendarEnabled={settings.calendarEnabled}
 							toggleCalendar={settings.toggleCalendar}
 							notchRememberPanel={settings.notchRememberPanel}
