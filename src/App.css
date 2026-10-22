@@ -793,34 +793,259 @@ img {
 	font-weight: 600;
 }
 
-/* Days with events from the linked calendar */
-.calendar-day {
-	position: relative;
+/* ── Wide calendar (full panel; the timer has its own tab) ── */
+.calendar-timer-content.tabbed {
+	padding: 12px 14px 14px;
+	color: var(--bloom-text, white);
+	overflow: hidden;
+	border-radius: 0 0 28px 28px;
 }
 
-.calendar-day.has-events:hover {
-	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.06));
-}
-
-.calendar-day.today.has-events:hover {
-	background: var(--bloom-text, white);
-}
-
-.calendar-day-dots {
-	position: absolute;
-	bottom: 2px;
-	left: 50%;
-	transform: translateX(-50%);
+.calendar-container.wide {
+	height: 100%;
 	display: flex;
+	flex-direction: column;
+}
+
+.calendar-container.wide .calendar-header {
+	height: 26px;
+	margin-bottom: 8px;
+	align-items: center;
+}
+
+.calendar-month-nav {
+	display: flex;
+	align-items: center;
 	gap: 2px;
+}
+
+.calendar-container.wide .month-year {
+	min-width: 118px;
+	text-align: center;
+	font-size: 14px;
+}
+
+.calendar-nav-btn {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.calendar-nav-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+	color: var(--bloom-text, white);
+}
+
+.calendar-today-btn {
+	margin-left: 6px;
+	height: 20px;
+	padding: 0 8px;
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.12));
+	border-radius: 10px;
+	background: transparent;
+	color: var(--bloom-text, white);
+	font-size: 10px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.calendar-today-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+}
+
+.calendar-header-right {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+/* Calendar | Timer segmented switch */
+.calendar-tab-switch {
+	display: flex;
+	padding: 2px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bloom-text, white) 7%, transparent);
+}
+
+.calendar-tab-switch button {
+	min-width: 64px;
+	height: 22px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.calendar-tab-switch button:hover {
+	color: var(--bloom-text, white);
+}
+
+.calendar-tab-switch button.active {
+	background: color-mix(in srgb, var(--bloom-text, white) 16%, transparent);
+	color: var(--bloom-text, white);
+}
+
+/* Time left on a timer running in the background */
+.calendar-tab-switch button.has-badge {
+	color: var(--bloom-accent, #007aff);
+}
+
+.calendar-tab-switch button.has-badge.state-finished {
+	color: #ff9f0a;
+}
+
+.calendar-container.wide .calendar-grid {
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	grid-template-rows: 14px;
+	grid-auto-rows: 44px;
+	gap: 3px;
+}
+
+.calendar-container.wide .day-name {
+	font-size: 9.5px;
+	text-align: left;
+	padding: 0 0 0 5px;
+}
+
+.calendar-container.wide .calendar-day {
+	position: relative;
+	aspect-ratio: auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: flex-start;
+	gap: 2px;
+	padding: 3px 4px;
+	border-radius: 7px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--bloom-text, white) 4%, transparent);
+	color: var(--bloom-text, white);
+	font-weight: 400;
+}
+
+.calendar-container.wide .calendar-day.empty {
+	background: transparent;
+}
+
+.calendar-container.wide .calendar-day.past {
+	opacity: 0.5;
+}
+
+.calendar-container.wide .calendar-day.has-events:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+	opacity: 1;
+}
+
+.calendar-container.wide .calendar-day.today {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 16%, transparent);
+}
+
+.calendar-day-number {
+	align-self: flex-start;
+	min-width: 16px;
+	height: 15px;
+	padding: 0 3px;
+	box-sizing: border-box;
+	border-radius: 8px;
+	font-size: 10.5px;
+	font-weight: 600;
+	line-height: 15px;
+	text-align: center;
+}
+
+.calendar-day.today .calendar-day-number {
+	background: var(--bloom-accent, #007aff);
+	color: #fff;
+}
+
+.calendar-day-chips {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
 	pointer-events: none;
 }
 
-.calendar-day-dot {
-	width: 3px;
-	height: 3px;
-	border-radius: 50%;
-	background: var(--bloom-accent, #007aff);
+.calendar-chip {
+	display: flex;
+	gap: 3px;
+	min-width: 0;
+	height: 11px;
+	padding: 0 3px;
+	border-radius: 3px;
+	font-size: 9px;
+	line-height: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.calendar-chip.all-day {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 30%, transparent);
+}
+
+.calendar-chip.timed {
+	border-left: 2px solid var(--bloom-accent, #007aff);
+	border-radius: 0 3px 3px 0;
+	padding-left: 3px;
+}
+
+.calendar-chip-time {
+	flex-shrink: 0;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-variant-numeric: tabular-nums;
+}
+
+.calendar-chip-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.calendar-chip-more {
+	padding: 0 3px;
+	font-size: 8.5px;
+	line-height: 11px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+/* Timer tab */
+.timer-view {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.timer-view-header {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 4px;
+}
+
+.calendar-timer-content.tabbed .timer-column {
+	flex: 1;
+	border-left: none;
+	padding-left: 0;
 }
 
 /* Hover popup listing a day's events. Lives inside the calendar panel so the

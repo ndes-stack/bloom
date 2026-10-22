@@ -28,7 +28,7 @@ import { CompactMediaPlayer } from "./CompactMediaPlayer";
 import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
-import { NotchCalendar as Calendar } from "./components/NotchCalendar";
+import { NotchCalendar, monthRowCount } from "./components/NotchCalendar";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -355,16 +355,6 @@ export const Visualizer = memo(function Visualizer({
 		</div>
 	);
 });
-
-// Number of week rows the current month occupies. Calendar mode sizes the
-// notch to the month so five-row months stay compact and six-row months never
-// clip the last row.
-const calendarMonthRows = (() => {
-	const now = new Date();
-	const firstWeekday = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
-	const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-	return Math.ceil((firstWeekday + daysInMonth) / 7);
-})();
 
 // Odometer-style digit for the timer clock. When the value changes the old
 // digit rolls up and out while the new one rolls in from below with a slight
@@ -1781,6 +1771,32 @@ function App() {
 		setBloomMode(panels[(index + direction + panels.length) % panels.length]);
 	};
 
+	// Calendar panel: which half is showing (the timer now has its own view so
+	// the calendar can use the full width) and which month is on screen.
+	const [calendarTab, setCalendarTab] = useState<"calendar" | "timer">(() =>
+		localStorage.getItem("bloom-calendar-tab") === "timer" ? "timer" : "calendar"
+	);
+	useEffect(() => {
+		try {
+			localStorage.setItem("bloom-calendar-tab", calendarTab);
+		} catch {
+			// Storage unavailable; the tab just won't be remembered.
+		}
+	}, [calendarTab]);
+	const [calendarView, setCalendarView] = useState(() => {
+		const now = new Date();
+		return { year: now.getFullYear(), month: now.getMonth() };
+	});
+	const shiftCalendarMonth = (delta: number) =>
+		setCalendarView(({ year, month }) => {
+			const d = new Date(year, month + delta, 1);
+			return { year: d.getFullYear(), month: d.getMonth() };
+		});
+	const showCurrentMonth = () => {
+		const now = new Date();
+		setCalendarView({ year: now.getFullYear(), month: now.getMonth() });
+	};
+
 	// Timer state
 	const [timerSeconds, setTimerSeconds] = useState(0);
 	const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -2715,7 +2731,7 @@ function App() {
 	// Calculate width dynamically based on enabled features
 	const getDynamicWidth = () => {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
-		if (isCalendarMode) return 480;
+		if (isCalendarMode) return calendarTab === "timer" ? 420 : 640;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return 350;
 		if (bloomMode === "wifi" || bloomMode === "bluetooth") return 350;
@@ -2746,8 +2762,12 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
 			return announcement.url ? 168 : 148;
 		}
-		// Sized to the calendar's week-row count plus the timer's fixed content.
-		if (bloomMode === "calendar") return calendarMonthRows >= 6 ? 305 : 273;
+		// Calendar: sized to the shown month's week rows (4 to 6). The timer view
+		// has fixed content.
+		if (bloomMode === "calendar") {
+			if (calendarTab === "timer") return 300;
+			return 36 + 76 + monthRowCount(calendarView.year, calendarView.month) * 47;
+		}
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
 		// plus room for the scrollbar once the tiles overflow it.
@@ -2770,10 +2790,49 @@ function App() {
 	};
 
 	const isCalendarMode = bloomMode === "calendar";
+
+	// Each time the calendar is reopened it starts on the current month.
+	useEffect(() => {
+		if (!isCalendarMode || !isOpen) showCurrentMonth();
+	}, [isCalendarMode, isOpen]);
+
+	// A finished timer brings its view forward so "Time's up" is never missed.
+	useEffect(() => {
+		if (isTimerFinished) setCalendarTab("timer");
+	}, [isTimerFinished]);
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
 		isOpen && asNotchPanel(bloomMode) !== null && NOTCH_PANELS.filter(panelAvailable).length > 1;
+
+	// Calendar | Timer switch shown in the calendar panel header. While a timer
+	// runs in the background, its button shows the time left.
+	const timerBadge =
+		calendarTab === "calendar" && (isTimerRunning || isTimerFinished || timerSeconds > 0)
+			? isTimerFinished
+				? "Time's up"
+				: formatTimerTime(timerSeconds)
+			: null;
+	const calendarTabSwitch = (
+		<div className="calendar-tab-switch" role="tablist">
+			<button
+				role="tab"
+				aria-selected={calendarTab === "calendar"}
+				className={calendarTab === "calendar" ? "active" : ""}
+				onClick={() => setCalendarTab("calendar")}
+			>
+				Calendar
+			</button>
+			<button
+				role="tab"
+				aria-selected={calendarTab === "timer"}
+				className={`${calendarTab === "timer" ? "active" : ""} ${timerBadge ? `has-badge state-${timerState}` : ""}`}
+				onClick={() => setCalendarTab("timer")}
+			>
+				{timerBadge ?? "Timer"}
+			</button>
+		</div>
+	);
 
 	// Close compact media player expansions when notch is unhovered or mode changes
 	useEffect(() => {
@@ -3808,7 +3867,7 @@ function App() {
 								<AnimatePresence>
 									{settingsCalendarEnabled && isCalendarMode && (
 										<motion.div
-											className="calendar-timer-content split-view"
+											className={`calendar-timer-content tabbed show-${calendarTab}`}
 											onClick={(e) =>
 												e.stopPropagation()
 											} /* Block mode switches when clicking inside */
@@ -3817,10 +3876,18 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											<div className="calendar-column">
-												<Calendar />
-											</div>
-
+											{calendarTab === "calendar" ? (
+												<NotchCalendar
+													year={calendarView.year}
+													month={calendarView.month}
+													onChangeMonth={shiftCalendarMonth}
+													onToday={showCurrentMonth}
+													use24h={timeFormat24h}
+													headerExtra={calendarTabSwitch}
+												/>
+											) : (
+											<div className="timer-view">
+											<div className="timer-view-header">{calendarTabSwitch}</div>
 											<div className="timer-column">
 												<div className={`timer-section-new state-${timerState}`}>
 													<div className="timer-main">
@@ -3910,6 +3977,8 @@ function App() {
 													</div>
 												</div>
 											</div>
+											</div>
+											)}
 										</motion.div>
 									)}
 								</AnimatePresence>

@@ -186,7 +186,7 @@ export function NotchTab({
 					</SettingRow>
 				)}
 
-				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Enable productivity split-view">
+				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Month calendar with a Pomodoro timer tab">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={calendarEnabled} onChange={toggleCalendar} />
 						<span className="slider"></span>
