@@ -29,7 +29,6 @@ import { useWeather } from "./hooks/useWeather";
 import { useSettingsSync } from "./hooks/useSettingsSync";
 import { useTrailingThrottle } from "./hooks/useTrailingThrottle";
 import { NotchCalendar, monthRowCount } from "./components/NotchCalendar";
-import { createWheelGesture, type WheelGesture } from "./wheelGesture";
 import { useAnnouncement } from "./hooks/useAnnouncement";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -1723,17 +1722,8 @@ function App() {
 
 	// Window height is now kept constant to prevent rendering layout lag and sharp corners
 
-	// One scroll gesture (a touchpad swipe including its inertia, or a quick
-	// flick of the wheel) switches the panel exactly once.
-	const wheelGestureRef = useRef<WheelGesture | null>(null);
-	if (wheelGestureRef.current === null) wheelGestureRef.current = createWheelGesture();
+	const lastScrollTime = useRef(0);
 	const handleWheel = (e: React.WheelEvent) => {
-		// Use the larger axis so horizontal touchpad swipes work too
-		const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-		// Every event is fed in, even over scrollable areas, so a gesture that
-		// drifts across them still counts as one.
-		const step = wheelGestureRef.current!.push(delta, performance.now());
-
 		const target = e.target as HTMLElement;
 		if (
 			target.closest(".calendar-grid") ||
@@ -1744,8 +1734,14 @@ function App() {
 			return;
 		}
 
-		// Nothing to switch to: let the next movement of this gesture try again.
-		if (step !== 0 && !cycleBloomMode(step)) wheelGestureRef.current!.release();
+		const now = Date.now();
+		if (now - lastScrollTime.current < 250) return;
+
+		// Use absolute values to detect horizontal swipe gestures on trackpad
+		const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+		if (Math.abs(delta) < 5) return; // Ignore tiny movements
+
+		if (cycleBloomMode(delta > 0 ? 1 : -1)) lastScrollTime.current = now;
 	};
 
 	function panelAvailable(panel: NotchPanel) {
