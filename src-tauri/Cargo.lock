@@ -441,7 +441,9 @@ version = "3.10.0"
 dependencies = [
  "base64 0.22.1",
  "image",
+ "reqwest",
  "rustfft",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

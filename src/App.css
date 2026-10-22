@@ -741,6 +741,19 @@ img {
 
 .calendar-header {
 	margin-bottom: 8px;
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+/* Shown when the linked Google Calendar can't be loaded; hover for details. */
+.calendar-sync-error {
+	font-size: 9px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	cursor: help;
 }
 
 .month-year {
@@ -778,6 +791,107 @@ img {
 	background: var(--bloom-text, white);
 	color: var(--bloom-bg-expanded, black);
 	font-weight: 600;
+}
+
+/* Days with events from the linked calendar */
+.calendar-day {
+	position: relative;
+}
+
+.calendar-day.has-events:hover {
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.06));
+}
+
+.calendar-day.today.has-events:hover {
+	background: var(--bloom-text, white);
+}
+
+.calendar-day-dots {
+	position: absolute;
+	bottom: 2px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 2px;
+	pointer-events: none;
+}
+
+.calendar-day-dot {
+	width: 3px;
+	height: 3px;
+	border-radius: 50%;
+	background: var(--bloom-accent, #007aff);
+}
+
+/* Hover popup listing a day's events. Lives inside the calendar panel so the
+   notch window doesn't clip it; pointer-events off so it never steals hover. */
+.calendar-event-popup {
+	position: absolute;
+	z-index: 10;
+	box-sizing: border-box;
+	padding: 8px 10px;
+	border-radius: 12px;
+	background: var(--bloom-bg-expanded, rgba(20, 20, 20, 0.92));
+	-webkit-backdrop-filter: blur(18px) saturate(140%);
+	backdrop-filter: blur(18px) saturate(140%);
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.12));
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+	color: var(--bloom-text, white);
+	overflow: hidden;
+	pointer-events: none;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.calendar-event-popup-date {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.calendar-event-row {
+	display: flex;
+	gap: 7px;
+	min-width: 0;
+}
+
+.calendar-event-bar {
+	flex-shrink: 0;
+	width: 3px;
+	border-radius: 2px;
+	background: var(--bloom-accent, #007aff);
+}
+
+.calendar-event-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.calendar-event-title {
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.25;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.calendar-event-meta {
+	font-size: 9.5px;
+	line-height: 1.25;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.calendar-event-more {
+	font-size: 9.5px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
 }
 
 .timer-section-new {

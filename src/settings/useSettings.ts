@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { parseIcs } from "../calendarIcs";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -71,6 +72,14 @@ export function useSettings() {
 	);
 	const [tempUnitFahrenheit, setTempUnitFahrenheit] = useState(false);
 	const [cityName, setCityName] = useState("");
+	// Google Calendar (secret iCal link) shown in the notch calendar
+	const [calendarIcsUrl, setCalendarIcsUrl] = useState(
+		() => localStorage.getItem("bloom-calendar-ics-url") || ""
+	);
+	const [calendarSync, setCalendarSync] = useState<{
+		state: "idle" | "checking" | "ok" | "error";
+		message: string;
+	}>({ state: "idle", message: "" });
 	const [citySearchResults, setCitySearchResults] = useState<
 		Array<{ name: string; country: string; latitude: number; longitude: number }>
 	>([]);
@@ -233,6 +242,7 @@ export function useSettings() {
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
+			apply(getVal("bloom-calendar-ics-url"), setCalendarIcsUrl, (v) => v);
 			const savedCity = getVal("bloom-weather-city");
 			if (savedCity) setCityName(savedCity);
 
@@ -383,6 +393,7 @@ export function useSettings() {
 		"bloom-theme-opacity": setThemeOpacity,
 		"bloom-theme-saturation": setThemeSaturation,
 		"bloom-theme-brightness": setThemeBrightness,
+		"bloom-calendar-ics-url": (v) => setCalendarIcsUrl(typeof v === "string" ? v : ""),
 		"bloom-weather-city": (v) => setCityName(v || "")
 	});
 
@@ -828,6 +839,30 @@ export function useSettings() {
 		if (saved) emit("weather-refresh", { lat: city.latitude, lon: city.longitude });
 	};
 
+	// Saves the calendar link, then test-loads it so the user sees right away
+	// whether it works. The backend reads the saved link itself.
+	const saveCalendarIcsUrl = async (raw: string) => {
+		const url = raw.trim();
+		setCalendarIcsUrl(url);
+		const saved = await saveSetting("bloom-calendar-ics-url", url || null);
+		if (!saved) return;
+		if (!url) {
+			setCalendarSync({ state: "idle", message: "" });
+			return;
+		}
+		setCalendarSync({ state: "checking", message: "Checking link…" });
+		try {
+			const text = await invoke<string | null>("fetch_calendar_ics");
+			const count = text ? parseIcs(text).events.length : 0;
+			setCalendarSync({
+				state: "ok",
+				message: `Connected · ${count} event${count === 1 ? "" : "s"} found`
+			});
+		} catch (e) {
+			setCalendarSync({ state: "error", message: String(e) });
+		}
+	};
+
 	const handleCityClear = async () => {
 		setCityName("");
 		setShowCityDropdown(false);
@@ -972,6 +1007,9 @@ export function useSettings() {
 		toggleWeather,
 		tempUnitFahrenheit,
 		toggleTempUnit,
+		calendarIcsUrl,
+		calendarSync,
+		saveCalendarIcsUrl,
 		cityName,
 		setCityName,
 		citySearchResults,

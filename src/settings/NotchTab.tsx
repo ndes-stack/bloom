@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import {
 	PanelTop,
+	CalendarSync,
 	Calendar,
 	BellRing,
 	Music,
@@ -29,6 +31,9 @@ interface NotchTabProps {
 	changeNotchDefaultPanel: (panel: "calendar" | "command-center") => void;
 	timerSoundEnabled: boolean;
 	toggleTimerSound: () => void;
+	calendarIcsUrl: string;
+	calendarSync: { state: "idle" | "checking" | "ok" | "error"; message: string };
+	saveCalendarIcsUrl: (url: string) => void;
 	musicModeEnabled: boolean;
 	toggleMusicMode: () => void;
 	musicCompactNotch: boolean;
@@ -73,6 +78,9 @@ export function NotchTab({
 	notchDefaultPanel,
 	changeNotchDefaultPanel,
 	timerSoundEnabled,
+	calendarIcsUrl,
+	calendarSync,
+	saveCalendarIcsUrl,
 	toggleTimerSound,
 	musicModeEnabled,
 	toggleMusicMode,
@@ -100,6 +108,20 @@ export function NotchTab({
 	statusWidgets,
 	handleWidgetsChange
 }: NotchTabProps) {
+	// Draft of the calendar link; saved on Enter or when the field loses focus.
+	const [calendarDraft, setCalendarDraft] = useState(calendarIcsUrl);
+	const [calendarFocused, setCalendarFocused] = useState(false);
+	useEffect(() => setCalendarDraft(calendarIcsUrl), [calendarIcsUrl]);
+	const commitCalendarDraft = () => {
+		if (calendarDraft.trim() !== calendarIcsUrl.trim()) saveCalendarIcsUrl(calendarDraft);
+	};
+	const calendarDesc =
+		calendarSync.state !== "idle"
+			? calendarSync.message
+			: calendarIcsUrl
+				? "Linked · events show as dots on the calendar"
+				: "Paste your Google Calendar's secret iCal link";
+
 	return (
 		<>
 			<div className="setting-group-label">Notch</div>
@@ -182,6 +204,57 @@ export function NotchTab({
 							<span className="slider"></span>
 						</label>
 					</SettingRow>
+				)}
+
+				{calendarEnabled && (
+					<>
+						<SettingRow icon={CalendarSync} label="Google Calendar" desc={calendarDesc}>
+							<span
+								className={`calendar-link-status state-${calendarIcsUrl ? calendarSync.state : "idle"}`}
+								aria-hidden="true"
+							/>
+						</SettingRow>
+						<div className="manual-city-input">
+							<div className="city-input-row">
+								<input
+									type="text"
+									className={
+										calendarDraft && !calendarFocused ? "calendar-link-input masked" : "calendar-link-input"
+									}
+									placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+									value={calendarDraft}
+									spellCheck={false}
+									autoComplete="off"
+									onChange={(e) => setCalendarDraft(e.target.value)}
+									onFocus={() => setCalendarFocused(true)}
+									onBlur={() => {
+										setCalendarFocused(false);
+										commitCalendarDraft();
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") e.currentTarget.blur();
+										if (e.key === "Escape") {
+											setCalendarDraft(calendarIcsUrl);
+											e.currentTarget.blur();
+										}
+									}}
+								/>
+								{calendarDraft && (
+									<button
+										className="city-clear-btn"
+										onMouseDown={(e) => {
+											e.preventDefault();
+											setCalendarDraft("");
+											saveCalendarIcsUrl("");
+										}}
+										title="Remove calendar link"
+									>
+										<X size={10} strokeWidth={2.5} />
+									</button>
+								)}
+							</div>
+						</div>
+					</>
 				)}
 
 				<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">

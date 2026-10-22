@@ -175,6 +175,9 @@ function SettingsApp() {
 							changeNotchDefaultPanel={settings.changeNotchDefaultPanel}
 							timerSoundEnabled={settings.timerSoundEnabled}
 							toggleTimerSound={settings.toggleTimerSound}
+							calendarIcsUrl={settings.calendarIcsUrl}
+							calendarSync={settings.calendarSync}
+							saveCalendarIcsUrl={settings.saveCalendarIcsUrl}
 							musicModeEnabled={settings.musicModeEnabled}
 							toggleMusicMode={settings.toggleMusicMode}
 							musicCompactNotch={settings.musicCompactNotch}

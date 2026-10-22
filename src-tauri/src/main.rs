@@ -2,6 +2,7 @@
 
 mod battery;
 mod bluetooth;
+mod calendar;
 mod commands;
 mod diagnostics;
 mod dock_extras;
@@ -190,6 +191,7 @@ fn main() {
             battery::get_battery_details,
             get_system_accent_color,
             get_system_theme,
+            calendar::fetch_calendar_ics,
             get_cpu_usage,
             get_ram_usage,
             get_disk_space,

@@ -662,6 +662,33 @@ input:checked + .slider:before {
 	transition: all 0.15s ease;
 }
 
+/* Google Calendar link: masked while not being edited, since the secret
+   link works like a password. */
+.calendar-link-input.masked {
+	-webkit-text-security: disc;
+	letter-spacing: 1px;
+}
+
+.calendar-link-status {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--bloom-text-muted, rgba(255, 255, 255, 0.25));
+	flex-shrink: 0;
+}
+
+.calendar-link-status.state-checking {
+	background: #ffcc00;
+}
+
+.calendar-link-status.state-ok {
+	background: #34c759;
+}
+
+.calendar-link-status.state-error {
+	background: #ff3b30;
+}
+
 .city-clear-btn:hover {
 	color: var(--bloom-text, #fff);
 	background: rgba(255, 255, 255, 0.1);
