@@ -1427,3 +1427,26 @@ input:checked + .slider:before {
 	font-size: 11.5px;
 	font-weight: 600;
 }
+
+/* Class Reminders > Preview */
+.reminder-preview-btn {
+	height: 26px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 7px;
+	background: var(--bloom-accent, #0a84ff);
+	color: var(--bloom-on-accent, #fff);
+	font-family: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: filter 0.15s ease, transform 0.12s ease;
+}
+
+.reminder-preview-btn:hover {
+	filter: brightness(1.1);
+}
+
+.reminder-preview-btn:active {
+	transform: scale(0.96);
+}

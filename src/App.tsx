@@ -37,6 +37,32 @@ import {
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
 import { TodayCard } from "./components/TodayCard";
+import { useCalendarDays } from "./hooks/useCalendarEvents";
+import {
+	REMINDERS_ENABLED_KEY,
+	REMINDER_BAR_HEIGHT,
+	REMINDER_BAR_HOVER_HEIGHT,
+	REMINDER_BAR_WIDTHS,
+	REMINDER_DURATION_KEY,
+	REMINDER_LEAD_KEY,
+	REMINDER_PREVIEW_EVENT,
+	REMINDER_SKIP_ALLDAY_KEY,
+	REMINDER_SNOOZE_MS,
+	REMINDER_SOUND_KEY,
+	REMINDER_WIDTH_KEY,
+	clockText as reminderClock,
+	dueEvent,
+	loadShown,
+	parseBool,
+	parseReminderDuration,
+	parseReminderLead,
+	parseReminderWidth,
+	previewReminder,
+	reminderKey,
+	saveShown,
+	startsIn,
+	type Reminder
+} from "./reminders";
 import { isNotchPanel, parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "./notchPanels";
 import {
 	clampPageSwitchGrace,
@@ -87,7 +113,8 @@ import {
 	ChevronRight,
 	Inbox,
 	Music,
-	Timer as TimerIcon
+	Timer as TimerIcon,
+	CalendarClock
 } from "lucide-react";
 
 /**
@@ -555,6 +582,28 @@ function App() {
 	const [isOpen, setIsOpen] = useState(false);
 	const isOpenRef = useRef(false);
 	isOpenRef.current = isOpen;
+	// Class reminders (see reminders.ts). A reminder shows as a bar in the
+	// closed notch; opening a panel hides it until the notch closes again.
+	const [remindersEnabled, setRemindersEnabled] = useState(() =>
+		parseBool(localStorage.getItem(REMINDERS_ENABLED_KEY), true)
+	);
+	const [reminderLead, setReminderLead] = useState(() =>
+		parseReminderLead(localStorage.getItem(REMINDER_LEAD_KEY))
+	);
+	const [reminderDuration, setReminderDuration] = useState(() =>
+		parseReminderDuration(localStorage.getItem(REMINDER_DURATION_KEY))
+	);
+	const [reminderWidth, setReminderWidth] = useState(() =>
+		parseReminderWidth(localStorage.getItem(REMINDER_WIDTH_KEY))
+	);
+	const [reminderSkipAllDay, setReminderSkipAllDay] = useState(() =>
+		parseBool(localStorage.getItem(REMINDER_SKIP_ALLDAY_KEY), true)
+	);
+	const [reminderSound, setReminderSound] = useState(() =>
+		parseBool(localStorage.getItem(REMINDER_SOUND_KEY), false)
+	);
+	const [reminder, setReminder] = useState<Reminder | null>(null);
+	const reminderActive = reminder !== null && !isOpen;
 	const [isReady, setIsReady] = useState(false);
 	const [scale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
@@ -800,6 +849,7 @@ function App() {
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
 	const isHidden =
 		!startupAnimating &&
+		!reminderActive &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
@@ -1196,6 +1246,12 @@ function App() {
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
 			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 			[NOTCH_MATERIAL_KEY]: (v: unknown) => setNotchMaterial(parseNotchMaterial(v)),
+			[REMINDERS_ENABLED_KEY]: (v: unknown) => setRemindersEnabled(parseBool(v, true)),
+			[REMINDER_LEAD_KEY]: (v: unknown) => setReminderLead(parseReminderLead(v)),
+			[REMINDER_DURATION_KEY]: (v: unknown) => setReminderDuration(parseReminderDuration(v)),
+			[REMINDER_WIDTH_KEY]: (v: unknown) => setReminderWidth(parseReminderWidth(v)),
+			[REMINDER_SKIP_ALLDAY_KEY]: (v: unknown) => setReminderSkipAllDay(parseBool(v, true)),
+			[REMINDER_SOUND_KEY]: (v: unknown) => setReminderSound(parseBool(v, false)),
 			[NOTCH_BLUR_KEY]: (v: unknown) => setNotchBlur(clampNotchBlur(v)),
 			[NOTCH_TINT_KEY]: (v: unknown) => setNotchTint(clampNotchTint(v)),
 			[PANEL_ORDER_KEY]: (v: unknown) => setPanelOrder(parsePanelOrder(v)),
@@ -2854,8 +2910,101 @@ function App() {
 	const clock24hTrim = timeFormat24h ? 16 : 0;
 
 	// Calculate width dynamically based on enabled features
+	// ── Class reminders ──
+	// Checks the linked calendar every 15 s for an event starting within the
+	// lead time, announces each occurrence once (remembered across restarts),
+	// and hides the bar after the chosen time. Hovering keeps it up.
+	const { days: reminderDays } = useCalendarDays(new Date(), 2);
+	const [reminderNow, setReminderNow] = useState(() => Date.now());
+	const reminderShownRef = useRef<Set<string> | null>(null);
+	const reminderSnoozeRef = useRef<number | undefined>(undefined);
+
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const timer = window.setInterval(() => setReminderNow(Date.now()), 15_000);
+		return () => {
+			window.clearInterval(timer);
+			window.clearTimeout(reminderSnoozeRef.current);
+		};
+	}, [windowLabel]);
+
+	const announceReminder = (r: Reminder) => {
+		setReminder(r);
+		if (reminderSound) playTimerChime();
+	};
+	const announceReminderRef = useRef(announceReminder);
+	announceReminderRef.current = announceReminder;
+	const reminderLeadRef = useRef(reminderLead);
+	reminderLeadRef.current = reminderLead;
+
+	useEffect(() => {
+		if (windowLabel !== "main" || !remindersEnabled || reminder) return;
+		const shown = (reminderShownRef.current ??= loadShown());
+		const ev = dueEvent(reminderDays.flat(), new Date(reminderNow), reminderLead, reminderSkipAllDay, shown);
+		if (!ev) return;
+		const key = reminderKey(ev);
+		shown.add(key);
+		saveShown(shown);
+		announceReminderRef.current({
+			key,
+			title: ev.title,
+			location: ev.location,
+			start: ev.start,
+			end: ev.end,
+			preview: false
+		});
+	}, [windowLabel, remindersEnabled, reminder, reminderDays, reminderNow, reminderLead, reminderSkipAllDay]);
+
+	// Settings > Class Reminders > Preview: a dummy reminder, whatever the toggle.
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const unlisten = listen(REMINDER_PREVIEW_EVENT, () => {
+			window.clearTimeout(reminderSnoozeRef.current);
+			setIsOpen(false);
+			announceReminderRef.current(previewReminder(reminderLeadRef.current));
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, [windowLabel]);
+
+	useEffect(() => {
+		if (!reminderActive || isHovered || reminderDuration === 0) return;
+		const timer = window.setTimeout(() => setReminder(null), reminderDuration * 1000);
+		return () => window.clearTimeout(timer);
+	}, [reminderActive, isHovered, reminderDuration, reminder]);
+
+	// The bar shrinks back to the pill from under the pointer, which doesn't
+	// count as leaving, so let go of the hover state here.
+	const dismissReminder = () => {
+		setReminder(null);
+		releaseNotchHover();
+	};
+	const snoozeReminder = () => {
+		const r = reminder;
+		setReminder(null);
+		releaseNotchHover();
+		if (!r) return;
+		window.clearTimeout(reminderSnoozeRef.current);
+		// The preview comes back after a few seconds so snoozing can be tried out.
+		reminderSnoozeRef.current = window.setTimeout(
+			() => announceReminderRef.current(r),
+			r.preview ? 6000 : REMINDER_SNOOZE_MS
+		);
+	};
+	const openReminder = () => {
+		const r = reminder;
+		setReminder(null);
+		if (!r || !settingsCalendarEnabled) return;
+		setCalendarDate(r.start);
+		setBloomMode("calendar");
+		setIsOpen(true);
+	};
+	const showReminderBar = reminderActive && bloomMode !== "announcement";
+
 	const getDynamicWidth = () => {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
+		if (showReminderBar) return REMINDER_BAR_WIDTHS[reminderWidth];
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
@@ -2885,6 +3034,7 @@ function App() {
 		if (!isExpanded || !isVisible || isHidden) {
 			return isImpacted ? 28.9 : 44.2;
 		}
+		if (showReminderBar) return isHovered ? REMINDER_BAR_HOVER_HEIGHT : REMINDER_BAR_HEIGHT;
 		// Announcement card: body is line-clamped, so a fixed size fits both cases.
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) {
 			return announcement.url ? 168 : 148;
@@ -3481,7 +3631,41 @@ function App() {
 										>
 											<div className="main-row">
 												<AnimatePresence mode="wait">
-													{(showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
+													{showReminderBar && reminder ? (
+														<motion.button
+															key={`reminder-${reminder.key}`}
+															className="reminder-bar"
+															onClick={(e) => {
+																e.stopPropagation();
+																openReminder();
+															}}
+															title="Open in the calendar"
+															initial={{ opacity: 0, y: -4, filter: "blur(6px)" }}
+															animate={{
+																opacity: 1,
+																y: 0,
+																filter: "blur(0px)",
+																transition: { delay: 0.12, duration: 0.32, ease: [0.22, 1, 0.36, 1] }
+															}}
+															exit={{ opacity: 0, filter: "blur(6px)", transition: { duration: 0.12 } }}
+														>
+															<span className="reminder-chip" aria-hidden="true">
+																<CalendarClock size={12} strokeWidth={2.4} />
+															</span>
+															<span className="reminder-title">{reminder.title}</span>
+															{reminder.location && reminderWidth === "wide" && (
+																<span className="reminder-location">{reminder.location}</span>
+															)}
+															<span className="reminder-when">{startsIn(reminder.start, new Date())}</span>
+															{!isHovered && reminderDuration > 0 && (
+																<span
+																	className="reminder-progress"
+																	style={{ animationDuration: `${reminderDuration}s` }}
+																	aria-hidden="true"
+																/>
+															)}
+														</motion.button>
+													) : (showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
 													!isHovered ? (
 														showUpdatePulse ? (
 															<motion.div
@@ -3768,6 +3952,44 @@ function App() {
 												onBack={() => setBloomMode("command-center")}
 												onPinChange={setNotchPinned}
 											/>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Class reminder details, under the bar while it's hovered */}
+								<AnimatePresence>
+									{showReminderBar && reminder && isHovered && (
+										<motion.div
+											className="reminder-details"
+											onClick={(e) => e.stopPropagation()}
+											initial={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+											animate={{
+												opacity: 1,
+												y: 0,
+												filter: "blur(0px)",
+												transition: { delay: 0.06, duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+											}}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+										>
+											<span className="reminder-details-when">
+												{reminderClock(reminder.start, timeFormat24h)} to {reminderClock(reminder.end, timeFormat24h)}
+												{reminder.location ? ` · ${reminder.location}` : ""}
+												{reminder.preview ? " · preview" : ""}
+											</span>
+											<button className="reminder-action" onClick={snoozeReminder}>
+												Snooze 5 min
+											</button>
+											<button className="reminder-action primary" onClick={openReminder}>
+												Open
+											</button>
+											<button
+												className="reminder-action icon"
+												onClick={dismissReminder}
+												aria-label="Dismiss reminder"
+												title="Dismiss"
+											>
+												<X size={13} strokeWidth={2.6} />
+											</button>
 										</motion.div>
 									)}
 								</AnimatePresence>

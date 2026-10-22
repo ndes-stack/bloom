@@ -22,6 +22,7 @@ import { parseNotchPanelChoice, type NotchPanelChoice, type WidgetConfig } from 
 import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
 import type { NotchPanel } from "../notchPanels";
 import { PanelOrderList } from "./PanelOrderList";
+import { ReminderSettings } from "./ReminderSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -388,6 +389,11 @@ export function NotchTab({
 						</SettingRow>
 					</>
 				)}
+			</div>
+
+			<div className="setting-group-label">Class Reminders</div>
+			<div className="setting-group">
+				<ReminderSettings hasCalendar={calendarEnabled && !!calendarIcsUrl.trim()} />
 			</div>
 
 			<div className="setting-group-label">Shelf</div>

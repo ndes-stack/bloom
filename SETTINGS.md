@@ -67,6 +67,12 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | --------------------------- | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
 | `bloom-calendar-enabled`    | `"true"` / `"false"`              | `"true"` | Enable calendar/timer mode in the notch.                                                                 |
 | `bloom-calendar-ics-url`   | https URL (or `webcal://`)        | unset    | Google Calendar "Secret address in iCal format" (any iCal feed works). Events appear as dots in the notch calendar with a hover popup. Treat it like a password. |
+| `bloom-reminders-enabled`    | `"true"` / `"false"`                     | `"true"`    | Class reminders: before an event on the linked calendar starts, the closed notch stretches into a slim bar that says what's next. Settings > Notch > Class Reminders also has a Preview button. |
+| `bloom-reminder-lead`        | `"5"` / `"10"` / `"15"` / `"30"`         | `"10"`      | Minutes before the start that the reminder appears. |
+| `bloom-reminder-duration`    | `"8"` / `"15"` / `"30"` / `"0"`          | `"15"`      | Seconds the bar stays up; `0` keeps it until dismissed. Hovering keeps it up and shows Snooze 5 min, Open and Dismiss. |
+| `bloom-reminder-width`       | `"compact"` / `"wide"`                   | `"wide"`    | Bar width: 440 or 600 px. Wide also shows the location. |
+| `bloom-reminder-skip-allday` | `"true"` / `"false"`                     | `"true"`    | Don't remind for all-day events. |
+| `bloom-reminder-sound`       | `"true"` / `"false"`                     | `"false"`   | Play the timer chime when a reminder appears. |
 | `bloom-calendar-view`     | `"month"` / `"agenda"` / `"columns"` / `"grid"` | `"month"` | Notch calendar layout, picked with the buttons in the calendar header and remembered: month grid, week day-list, week columns, or week timetable. |
 | `bloom-music-mode-enabled`  | `"true"` / `"false"`              | `"true"` | Enable interactive music media widget.                                                                   |
 | `bloom-music-compact-notch` | `"true"` / `"false"`              | `"true"` | Show compact music display (visualizer + artwork) in collapsed notch.                                    |
