@@ -36,6 +36,7 @@ import {
 	type CalendarViewMode
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
+import { isNotchPanel, parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "./notchPanels";
 import {
 	clampPageSwitchGrace,
 	DEFAULT_PAGE_SWITCH_GRACE_MS,
@@ -87,10 +88,7 @@ import {
  *   Dragging files onto the notch also opens the shelf. Wheel/swipe switches
  *   between tool panels, including when a live activity occupies the pill.
  */
-type NotchPanel = "calendar" | "timer" | "launcher" | "command-center";
-const NOTCH_PANELS: readonly NotchPanel[] = ["calendar", "timer", "launcher", "command-center"];
-const asNotchPanel = (value: unknown): NotchPanel | null =>
-	NOTCH_PANELS.includes(value as NotchPanel) ? (value as NotchPanel) : null;
+const asNotchPanel = (value: unknown): NotchPanel | null => (isNotchPanel(value) ? value : null);
 
 /**
  * True if `target`, or an element between it and `root`, can still scroll in
@@ -966,6 +964,10 @@ function App() {
 	);
 	const rememberPanelEnabledRef = useRef(rememberPanelEnabled);
 	rememberPanelEnabledRef.current = rememberPanelEnabled;
+	// Order of the pages for scrolling and the arrows (Settings > Notch > Page Order).
+	const [panelOrder, setPanelOrder] = useState<NotchPanel[]>(() =>
+		parsePanelOrder(localStorage.getItem(PANEL_ORDER_KEY))
+	);
 	// How long the notch stays open after a page switch leaves the pointer outside.
 	const [pageSwitchGrace, setPageSwitchGrace] = useState(() =>
 		clampPageSwitchGrace(localStorage.getItem(PAGE_SWITCH_GRACE_KEY))
@@ -1043,6 +1045,7 @@ function App() {
 				setDefaultPanel(asNotchPanel(getVal("bloom-notch-default-panel")) ?? "calendar");
 				setScrollSpeed(clampScrollSpeed(getVal(SCROLL_SPEED_KEY)));
 				setPageSwitchGrace(clampPageSwitchGrace(getVal(PAGE_SWITCH_GRACE_KEY)));
+				setPanelOrder(parsePanelOrder(getVal(PANEL_ORDER_KEY)));
 				if (getVal(CALENDAR_VIEW_KEY)) setCalendarViewMode(parseCalendarView(getVal(CALENDAR_VIEW_KEY)));
 				setShelfPersist(getVal("bloom-shelf-persist", "false") === "true");
 				setSettingsMusicCompactNotch(getVal("bloom-music-compact-notch", "true") !== "false");
@@ -1160,6 +1163,7 @@ function App() {
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
 			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
+			[PANEL_ORDER_KEY]: (v: unknown) => setPanelOrder(parsePanelOrder(v)),
 			[CALENDAR_VIEW_KEY]: (v: unknown) => setCalendarViewMode(parseCalendarView(v)),
 			"bloom-notch-default-panel": (v: unknown) =>
 				setDefaultPanel(asNotchPanel(v) ?? "calendar"),
@@ -1848,7 +1852,7 @@ function App() {
 	// Music and shelf remain entry points through their activity affordances.
 	const cycleBloomMode = (direction: 1 | -1) => {
 		if (bloomMode === "announcement") return false;
-		const panels = NOTCH_PANELS.filter(panelAvailable);
+		const panels = panelOrder.filter(panelAvailable);
 		const currentIndex = panels.indexOf(bloomMode as NotchPanel);
 		const nextMode = currentIndex === -1
 			? openingPanel()
@@ -1860,7 +1864,7 @@ function App() {
 
 	// Arrows and wheel both stay within panels once one is open.
 	const cyclePanel = (direction: 1 | -1) => {
-		const panels = NOTCH_PANELS.filter(panelAvailable);
+		const panels = panelOrder.filter(panelAvailable);
 		const index = panels.indexOf(bloomMode as NotchPanel);
 		if (index === -1 || panels.length < 2) return;
 		setBloomMode(panels[(index + direction + panels.length) % panels.length]);
@@ -2920,7 +2924,7 @@ function App() {
 	// Arrows switch between the two tool panels; wheel/swipe can also open one
 	// directly from the collapsed pill or a live activity.
 	const showPanelArrows =
-		isOpen && asNotchPanel(bloomMode) !== null && NOTCH_PANELS.filter(panelAvailable).length > 1;
+		isOpen && asNotchPanel(bloomMode) !== null && panelOrder.filter(panelAvailable).length > 1;
 
 	// While a timer is set, the calendar header shows its time left; clicking it
 	// jumps to the timer page.

@@ -1176,3 +1176,110 @@ input:checked + .slider:before {
 	background: rgba(239, 68, 68, 0.25);
 	color: #ef4444;
 }
+
+/* Page Order (Settings > Notch) */
+.panel-order-help {
+	padding: 10px 14px 4px;
+	font-size: 11.5px;
+	line-height: 1.4;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.panel-order-list {
+	display: flex;
+	flex-direction: column;
+	padding: 6px 8px 8px;
+	gap: 4px;
+}
+
+.panel-order-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 36px;
+	padding: 0 6px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+	color: var(--bloom-text, #fff);
+	position: relative;
+}
+
+.panel-order-row.dragging {
+	z-index: 2;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.panel-order-row.off {
+	opacity: 0.5;
+}
+
+.panel-order-grip {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+	cursor: grab;
+	touch-action: none;
+}
+
+.panel-order-row.dragging .panel-order-grip {
+	cursor: grabbing;
+}
+
+.panel-order-index {
+	width: 14px;
+	font-size: 11px;
+	font-weight: 600;
+	text-align: center;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+	font-variant-numeric: tabular-nums;
+}
+
+.panel-order-icon {
+	flex-shrink: 0;
+	color: var(--bloom-accent, #007aff);
+}
+
+.panel-order-name {
+	flex: 1;
+	min-width: 0;
+	font-size: 12.5px;
+	font-weight: 500;
+}
+
+.panel-order-note {
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+}
+
+.panel-order-step {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+}
+
+.panel-order-step:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.panel-order-step:disabled {
+	opacity: 0.3;
+	cursor: default;
+}

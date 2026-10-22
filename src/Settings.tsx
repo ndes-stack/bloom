@@ -171,6 +171,8 @@ function SettingsApp() {
 							handleScrollSpeedChange={settings.handleScrollSpeedChange}
 							pageSwitchGrace={settings.pageSwitchGrace}
 							handlePageSwitchGraceChange={settings.handlePageSwitchGraceChange}
+							panelOrder={settings.panelOrder}
+							handlePanelOrderChange={settings.handlePanelOrderChange}
 							calendarEnabled={settings.calendarEnabled}
 							toggleCalendar={settings.toggleCalendar}
 							notchRememberPanel={settings.notchRememberPanel}

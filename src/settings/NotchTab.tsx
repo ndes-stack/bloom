@@ -20,6 +20,8 @@ import { SettingRow } from "./SettingRow";
 import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import { parseNotchPanelChoice, type NotchPanelChoice, type WidgetConfig } from "./types";
 import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
+import type { NotchPanel } from "../notchPanels";
+import { PanelOrderList } from "./PanelOrderList";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -33,6 +35,8 @@ interface NotchTabProps {
 	handleScrollSpeedChange: (val: number) => void;
 	pageSwitchGrace: number;
 	handlePageSwitchGraceChange: (val: number) => void;
+	panelOrder: NotchPanel[];
+	handlePanelOrderChange: (order: NotchPanel[]) => void;
 	calendarEnabled: boolean;
 	toggleCalendar: () => void;
 	notchRememberPanel: boolean;
@@ -85,6 +89,8 @@ export function NotchTab({
 	handleScrollSpeedChange,
 	pageSwitchGrace,
 	handlePageSwitchGraceChange,
+	panelOrder,
+	handlePanelOrderChange,
 	calendarEnabled,
 	toggleCalendar,
 	notchRememberPanel,
@@ -397,6 +403,19 @@ export function NotchTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+			</div>
+
+			<div className="setting-group-label">Page Order</div>
+			<div className="setting-group">
+				<div className="panel-order-help">
+					Scrolling and the arrows by the clock move through the pages in this order. Drag to
+					rearrange.
+				</div>
+				<PanelOrderList
+					order={panelOrder}
+					onChange={handlePanelOrderChange}
+					disabled={calendarEnabled ? [] : ["calendar", "timer"]}
+				/>
 			</div>
 
 			<div className="setting-group-label">Weather</div>

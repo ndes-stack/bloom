@@ -3,6 +3,7 @@ import { parseIcs } from "../calendarIcs";
 import { clampScrollSpeed, SCROLL_SPEED_KEY } from "../scrollFlip";
 import { clampPageSwitchGrace, PAGE_SWITCH_GRACE_KEY } from "../pageSwitchGrace";
 import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
+import { parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "../notchPanels";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -43,6 +44,9 @@ export function useSettings() {
 	);
 	const [notchDefaultPanel, setNotchDefaultPanel] = useState<NotchPanelChoice>(() =>
 		parseNotchPanelChoice(localStorage.getItem("bloom-notch-default-panel"))
+	);
+	const [panelOrder, setPanelOrder] = useState<NotchPanel[]>(() =>
+		parsePanelOrder(localStorage.getItem(PANEL_ORDER_KEY))
 	);
 	const [pageSwitchGrace, setPageSwitchGrace] = useState(() =>
 		clampPageSwitchGrace(localStorage.getItem(PAGE_SWITCH_GRACE_KEY))
@@ -249,6 +253,7 @@ export function useSettings() {
 			apply(getVal("bloom-notch-edge-delay"), setNotchEdgeDelay, parseInt);
 			apply(getVal(SCROLL_SPEED_KEY), setScrollSpeed, clampScrollSpeed);
 			apply(getVal(PAGE_SWITCH_GRACE_KEY), setPageSwitchGrace, clampPageSwitchGrace);
+			apply(getVal(PANEL_ORDER_KEY), setPanelOrder, parsePanelOrder);
 			apply(getVal("bloom-dock-mode"), setDockMode, (v) => (v === "auto-hide" ? "smart" : v));
 			apply(getVal("bloom-dock-edge-delay"), setDockEdgeDelay, parseInt);
 
@@ -385,6 +390,7 @@ export function useSettings() {
 		"bloom-notch-default-panel": (v: unknown) =>
 			setNotchDefaultPanel(parseNotchPanelChoice(v)),
 		[PAGE_SWITCH_GRACE_KEY]: (v) => setPageSwitchGrace(clampPageSwitchGrace(v)),
+		[PANEL_ORDER_KEY]: (v) => setPanelOrder(parsePanelOrder(v)),
 		"bloom-music-compact-notch": setMusicCompactNotch,
 		"bloom-media-ambience-enabled": setMediaAmbienceEnabled,
 		"bloom-media-compact-glow-enabled": setMediaCompactGlowEnabled,
@@ -559,6 +565,12 @@ export function useSettings() {
 		const next = !notchRememberPanel;
 		setNotchRememberPanel(next);
 		saveSetting("bloom-notch-remember-panel", String(next));
+	};
+
+	const handlePanelOrderChange = (order: NotchPanel[]) => {
+		const next = parsePanelOrder(order);
+		setPanelOrder(next);
+		saveSetting(PANEL_ORDER_KEY, JSON.stringify(next));
 	};
 
 	const handlePageSwitchGraceChange = (val: number) => {
@@ -1009,6 +1021,8 @@ export function useSettings() {
 		handleScrollSpeedChange,
 		pageSwitchGrace,
 		handlePageSwitchGraceChange,
+		panelOrder,
+		handlePanelOrderChange,
 		calendarEnabled,
 		toggleCalendar,
 		timerSoundEnabled,
