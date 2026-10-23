@@ -31,6 +31,8 @@ export const REMINDER_SNOOZE_MS = 5 * 60 * 1000;
 export interface Reminder {
 	/** Event id plus start time, unique per occurrence. */
 	key: string;
+	/** A class (or any event), or something due: titles with due/deadline/submit. */
+	kind: "class" | "deadline";
 	title: string;
 	location?: string;
 	start: Date;
@@ -53,11 +55,26 @@ export const parseReminderLead = (v: unknown) => pick(v, REMINDER_LEAD_OPTIONS, 
 export const parseReminderDuration = (v: unknown) => pick(v, REMINDER_DURATION_OPTIONS, 15);
 export const parseReminderWidth = (v: unknown): ReminderWidth => (v === "compact" ? "compact" : "wide");
 
+const DEADLINE_WORDS = /\b(due|deadline|submit|submission|hand[- ]?in)\b/i;
+
+/** Events that are something due rather than somewhere to be. */
+export function isDeadline(title: string): boolean {
+	return DEADLINE_WORDS.test(title);
+}
+
+/** Deadlines get at least an hour's notice, whatever the lead setting. */
+export function leadFor(ev: CalendarEvent, leadMin: number): number {
+	return isDeadline(ev.title) ? Math.max(leadMin, 60) : leadMin;
+}
+
 export function reminderKey(ev: CalendarEvent): string {
 	return `${ev.id}@${ev.start.getTime()}`;
 }
 
-/** The earliest event starting within `leadMin` minutes that hasn't been announced. */
+/**
+ * The earliest event starting within its lead time (`leadMin` minutes, an
+ * hour or more for deadlines) that hasn't been announced.
+ */
 export function dueEvent(
 	events: CalendarEvent[],
 	now: Date,
@@ -70,7 +87,7 @@ export function dueEvent(
 	for (const ev of events) {
 		if (skipAllDay && ev.allDay) continue;
 		const until = ev.start.getTime() - t;
-		if (until <= 0 || until > leadMin * 60_000) continue;
+		if (until <= 0 || until > leadFor(ev, leadMin) * 60_000) continue;
 		if (shown.has(reminderKey(ev))) continue;
 		if (!best || ev.start < best.start) best = ev;
 	}
@@ -115,6 +132,7 @@ export function previewReminder(leadMin: number): Reminder {
 	const start = new Date(Date.now() + leadMin * 60_000);
 	return {
 		key: `preview-${Date.now()}`,
+		kind: "class",
 		title: "Example Lecture",
 		location: "Room 2-27",
 		start,

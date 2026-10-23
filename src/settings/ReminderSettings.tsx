@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { BellRing, Clock, Timer, MoveHorizontal, CalendarOff, Volume2, Eye } from "lucide-react";
 import { SettingRow } from "./SettingRow";
-import { useSettingsSync } from "../hooks/useSettingsSync";
+import { useStored } from "./useStored";
 import {
 	REMINDERS_ENABLED_KEY,
 	REMINDER_DURATION_KEY,
@@ -20,23 +19,6 @@ import {
 	parseReminderWidth,
 	type ReminderWidth
 } from "../reminders";
-
-/** One setting kept in localStorage + settings.json, following outside changes. */
-function useStored<T>(key: string, parse: (v: unknown) => T): [T, (v: T) => void] {
-	const [value, setValue] = useState<T>(() => parse(localStorage.getItem(key)));
-	useSettingsSync({ [key]: (v: unknown) => setValue(parse(v)) }, []);
-	const save = (v: T) => {
-		setValue(v);
-		const str = String(v);
-		try {
-			localStorage.setItem(key, str);
-		} catch {
-			// settings.json below still records it.
-		}
-		invoke("save_setting", { key, value: str }).catch((e) => console.error(`Failed to save ${key}:`, e));
-	};
-	return [value, save];
-}
 
 /** Settings > Notch > Class Reminders. */
 export function ReminderSettings({ hasCalendar }: { hasCalendar: boolean }) {

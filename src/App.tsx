@@ -39,6 +39,13 @@ import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./compon
 import { TodayCard } from "./components/TodayCard";
 import { useCalendarDays } from "./hooks/useCalendarEvents";
 import {
+	ACTIVITY_STYLE_KEY,
+	parseActivityStyle,
+	sortActivities,
+	type Activity
+} from "./liveActivities";
+import { GlowLine, GlowRow, LiveActivities } from "./components/LiveActivities";
+import {
 	REMINDERS_ENABLED_KEY,
 	REMINDER_BAR_HEIGHT,
 	REMINDER_BAR_HOVER_HEIGHT,
@@ -52,6 +59,7 @@ import {
 	REMINDER_WIDTH_KEY,
 	clockText as reminderClock,
 	dueEvent,
+	isDeadline,
 	loadShown,
 	parseBool,
 	parseReminderDuration,
@@ -604,6 +612,11 @@ function App() {
 	);
 	const [reminder, setReminder] = useState<Reminder | null>(null);
 	const reminderActive = reminder !== null && !isOpen;
+	// How live activities are drawn (Settings > Appearance > Live Activities).
+	const [activityStyle, setActivityStyle] = useState(() =>
+		parseActivityStyle(localStorage.getItem(ACTIVITY_STYLE_KEY))
+	);
+	const islandStyle = activityStyle === "island";
 	const [isReady, setIsReady] = useState(false);
 	const [scale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
@@ -832,6 +845,7 @@ function App() {
 		wanted.push(
 			...measureElements([
 				[".activity-bubble", 16],
+				[".live-activity", 22],
 				[".status-tooltip", 28],
 				[".screen-corner", 0]
 			])
@@ -882,7 +896,13 @@ function App() {
 		const updateRect = () => {
 			if (bloomRef.current && windowLabel === "main") {
 				// Activity bubbles sit beside the pill and must stay clickable too.
-				const rects = [bloomRef.current, musicBubbleRef.current, shelfBubbleRef.current]
+				const rects = [
+					bloomRef.current,
+					musicBubbleRef.current,
+					shelfBubbleRef.current,
+					// Tags, rail and cards (Settings > Live Activities) are clickable too.
+					...Array.from(document.querySelectorAll<HTMLElement>(".live-activity"))
+				]
 					.filter((el): el is NonNullable<typeof el> => el !== null)
 					.map((el) => el.getBoundingClientRect());
 				const left = Math.min(...rects.map((r) => r.left));
@@ -1246,6 +1266,7 @@ function App() {
 			[SCROLL_SPEED_KEY]: (v: unknown) => setScrollSpeed(clampScrollSpeed(v)),
 			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 			[NOTCH_MATERIAL_KEY]: (v: unknown) => setNotchMaterial(parseNotchMaterial(v)),
+			[ACTIVITY_STYLE_KEY]: (v: unknown) => setActivityStyle(parseActivityStyle(v)),
 			[REMINDERS_ENABLED_KEY]: (v: unknown) => setRemindersEnabled(parseBool(v, true)),
 			[REMINDER_LEAD_KEY]: (v: unknown) => setReminderLead(parseReminderLead(v)),
 			[REMINDER_DURATION_KEY]: (v: unknown) => setReminderDuration(parseReminderDuration(v)),
@@ -2182,8 +2203,9 @@ function App() {
 	const timerActive = timerSeconds > 0 || isTimerFinished;
 	const musicActivity =
 		settingsMusicModeEnabled && settingsMusicCompactNotch && mediaInfo.has_media && musicActivityVisible;
-	const collapsedMode = musicActivity && !timerActive ? "music" : "status";
-	const showMusicBubble = musicActivity && timerActive && !isOpen && isVisible && !isHidden;
+	// Other live activity styles show music and timers outside the pill.
+	const collapsedMode = musicActivity && !timerActive && islandStyle ? "music" : "status";
+	const showMusicBubble = islandStyle && musicActivity && timerActive && !isOpen && isVisible && !isHidden;
 	const showShelfBubble =
 		shelfItems.length > 0 && !isOpen && isVisible && !isHidden && bloomMode !== "announcement";
 	restingModeRef.current = collapsedMode;
@@ -2947,6 +2969,7 @@ function App() {
 		saveShown(shown);
 		announceReminderRef.current({
 			key,
+			kind: isDeadline(ev.title) ? "deadline" : "class",
 			title: ev.title,
 			location: ev.location,
 			start: ev.start,
@@ -3000,11 +3023,132 @@ function App() {
 		setBloomMode("calendar");
 		setIsOpen(true);
 	};
-	const showReminderBar = reminderActive && bloomMode !== "announcement";
+	// The stretched reminder bar is the island style; glow style uses it only
+	// while hovered, for the details and buttons.
+	const showReminderBar =
+		reminderActive && bloomMode !== "announcement" && (islandStyle || (activityStyle === "glow" && isHovered));
+
+	// ── Live activities for the non-island styles, most urgent first ──
+	const liveActivities: Activity[] = [];
+	if (!islandStyle) {
+		const now = new Date();
+		if (reminder) {
+			const deadline = reminder.kind === "deadline";
+			liveActivities.push({
+				id: reminder.key,
+				kind: deadline ? "deadline" : "class",
+				label: deadline ? "Due" : "Class",
+				title: reminder.title,
+				detail: reminder.location,
+				value: deadline ? `due ${reminderClock(reminder.start, timeFormat24h)}` : startsIn(reminder.start, now),
+				tone: deadline ? "red" : "accent",
+				alert: true,
+				snoozable: true,
+				dismissable: true
+			});
+		}
+		if (isTimerFinished) {
+			liveActivities.push({
+				id: "timer-done",
+				kind: "timer-done",
+				label: "Timer",
+				title: "Time's up",
+				value: `${Math.max(1, Math.round(lastDurationSeconds / 60))} min done`,
+				tone: "red",
+				alert: true,
+				dismissable: true
+			});
+		} else if (timerSeconds > 0) {
+			liveActivities.push({
+				id: "timer",
+				kind: "timer",
+				label: "Timer",
+				title: isTimerRunning ? "Timer" : "Paused",
+				value: formatTimerTime(timerSeconds),
+				tone: "accent",
+				progress: lastDurationSeconds > 0 ? Math.min(1, timerSeconds / lastDurationSeconds) : 1,
+				alert: false
+			});
+		}
+		if (showLowBatteryPulse) {
+			liveActivities.push({
+				id: "low-battery",
+				kind: "low-battery",
+				label: "Battery",
+				title: "Low battery",
+				value: `${batteryLevel}%`,
+				tone: "red",
+				progress: batteryLevel / 100,
+				alert: true
+			});
+		} else if (showPowerPulse) {
+			liveActivities.push({
+				id: "power",
+				kind: "power",
+				label: "Power",
+				title: isCharging ? "Charging" : "On battery",
+				value: `${batteryLevel}%`,
+				tone: isCharging ? "green" : "neutral",
+				progress: batteryLevel / 100,
+				alert: true
+			});
+		}
+		if (showUpdatePulse) {
+			liveActivities.push({
+				id: "update",
+				kind: "update",
+				label: "Update",
+				title: "Update available",
+				tone: "green",
+				alert: true
+			});
+		}
+		if (musicActivity) {
+			liveActivities.push({
+				id: "music",
+				kind: "music",
+				label: "Music",
+				title: mediaInfo.title || "Music",
+				detail: mediaInfo.artist || undefined,
+				value: isPlaying ? undefined : "Paused",
+				tone: "orange",
+				art: settingsAlbumArtEnabled ? albumArtUrl : null,
+				alert: false
+			});
+		}
+	}
+	const activities = sortActivities(liveActivities);
+	// Glow style: the pill swaps the clock for the top activity (not while
+	// hovered or open, when it behaves as usual).
+	const glowPrimary = activityStyle === "glow" && !isOpen && !isHovered ? activities[0] : undefined;
+	const glowSecondary = glowPrimary ? activities[1] : undefined;
+	// Tags, rail and cards are drawn outside the pill, only while it's closed.
+	const floatingStyle = activityStyle === "tags" || activityStyle === "rail" || activityStyle === "cards";
+	const floatingActivities = floatingStyle && !isOpen && isVisible && !isHidden ? activities : [];
+	const activitiesKey = activities.map((a) => a.id).join("|");
+	// Activities appearing or leaving change what must stay clickable.
+	useEffect(() => {
+		const timer = window.setTimeout(() => reportNotchRect.current(), 500);
+		return () => window.clearTimeout(timer);
+	}, [activitiesKey, activityStyle, isOpen]);
+	const openActivity = (a: Activity) => {
+		if (a.kind === "class" || a.kind === "deadline") openReminder();
+		else if (a.kind === "timer" || a.kind === "timer-done") openNotch("timer");
+		else if (a.kind === "music") openNotch("music");
+		else openNotch("command-center");
+	};
+	const dismissActivity = (a: Activity) => {
+		if (a.kind === "class" || a.kind === "deadline") dismissReminder();
+		else if (a.kind === "timer-done") resetTimer();
+	};
+	const snoozeActivity = (a: Activity) => {
+		if (a.kind === "class" || a.kind === "deadline") snoozeReminder();
+	};
 
 	const getDynamicWidth = () => {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (showReminderBar) return REMINDER_BAR_WIDTHS[reminderWidth];
+		if (glowPrimary) return 230;
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
@@ -3019,7 +3163,7 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
-		if ((showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
+		if (islandStyle && (showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
 		if (isMusicMode) {
@@ -3255,6 +3399,18 @@ function App() {
 					position: "relative"
 				}}
 			>
+				{activityStyle === "rail" && (
+					<LiveActivities
+						variant="rail"
+						activities={floatingActivities}
+						pillWidth={pillTargetWidth}
+						pillHeight={pillTargetHeight}
+						onOpen={openActivity}
+						onDismiss={dismissActivity}
+						onSnooze={snoozeActivity}
+						onLayoutChange={() => reportNotchRect.current()}
+					/>
+				)}
 				<motion.div
 					ref={bloomRef}
 					className={`bloom ${isHovered ? "expanded" : ""} ${isImpacted ? "is-impacted" : ""} ${isDragHovering ? "drag-hover" : ""}`}
@@ -3316,6 +3472,9 @@ function App() {
 						<EdgeSurface edge="top" flares={isImpacted} backdrop visible={backdropVisible} />
 					)}
 					<EdgeSurface edge="top" flares={isImpacted} />
+					<AnimatePresence>
+						{glowPrimary && <GlowLine key="glow-line" primary={glowPrimary} secondary={glowSecondary} />}
+					</AnimatePresence>
 					<AnimatePresence>
 						{isMusicMode && settingsAmbienceEnabled && albumArtUrl && isOpen && !isCalendarMode && (
 							<motion.div
@@ -3665,7 +3824,27 @@ function App() {
 																/>
 															)}
 														</motion.button>
-													) : (showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
+													) : glowPrimary ? (
+														<motion.button
+															key={`glow-${glowPrimary.id}`}
+															className="la-glow-button"
+															onClick={(e) => {
+																e.stopPropagation();
+																openActivity(glowPrimary);
+															}}
+															title={glowPrimary.detail ? `${glowPrimary.title} · ${glowPrimary.detail}` : glowPrimary.title}
+															initial={{ opacity: 0, y: -3, filter: "blur(5px)" }}
+															animate={{
+																opacity: 1,
+																y: 0,
+																filter: "blur(0px)",
+																transition: { delay: 0.1, duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+															}}
+															exit={{ opacity: 0, filter: "blur(5px)", transition: { duration: 0.12 } }}
+														>
+															<GlowRow primary={glowPrimary} secondary={glowSecondary} />
+														</motion.button>
+													) : islandStyle && (showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
 													!isHovered ? (
 														showUpdatePulse ? (
 															<motion.div
@@ -3769,7 +3948,7 @@ function App() {
 																</AnimatePresence>
 																<div className="time-flip-container" onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
-																		{timerSeconds > 0 || isTimerFinished ? (
+																		{islandStyle && (timerSeconds > 0 || isTimerFinished) ? (
 																			<motion.span
 																				key="timer"
 																				className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}
@@ -4482,6 +4661,18 @@ function App() {
 						)}
 					</AnimatePresence>
 				</motion.div>
+				{(activityStyle === "tags" || activityStyle === "cards") && (
+					<LiveActivities
+						variant={activityStyle}
+						activities={floatingActivities}
+						pillWidth={pillTargetWidth}
+						pillHeight={pillTargetHeight}
+						onOpen={openActivity}
+						onDismiss={dismissActivity}
+						onSnooze={snoozeActivity}
+						onLayoutChange={() => reportNotchRect.current()}
+					/>
+				)}
 				{/* The shelf's items, as a bubble on the left of the collapsed pill */}
 				<AnimatePresence onExitComplete={() => reportNotchRect.current()}>
 					{showShelfBubble && (

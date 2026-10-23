@@ -21,6 +21,7 @@ import {
 	type NotchMaterial
 } from "../notchMaterial";
 import { SettingRow } from "./SettingRow";
+import { ActivityStyleSettings } from "./ActivityStyleSettings";
 
 interface AppearanceTabProps {
 	themeMode: string;
@@ -308,6 +309,11 @@ export function AppearanceTab({
 						</SettingRow>
 					</>
 				)}
+			</div>
+
+			<div className="setting-group-label">Live Activities</div>
+			<div className="setting-group">
+				<ActivityStyleSettings />
 			</div>
 
 			<div className="setting-group-label">Display</div>

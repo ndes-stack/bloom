@@ -4088,3 +4088,500 @@ img {
 	align-items: center;
 	justify-content: center;
 }
+
+/* ── Live activities (Settings > Appearance > Live Activities) ── */
+.la-dim {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.65));
+}
+
+.la-tone {
+	color: var(--la-tone, var(--bloom-accent, #0a84ff));
+}
+
+/* Glow: the pill's own text, plus a line glowing along its bottom edge */
+.la-glow-button {
+	width: 100%;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 6px;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	cursor: pointer;
+}
+
+.la-glow-row {
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.la-glow-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-glow-row b {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.la-glow-dot {
+	width: 6px;
+	height: 6px;
+	flex-shrink: 0;
+	border-radius: 3px;
+	background: var(--la-tone);
+	box-shadow: 0 0 6px var(--la-tone);
+}
+
+.la-glow-track {
+	position: absolute;
+	left: 16px;
+	right: 16px;
+	bottom: 0;
+	height: 2px;
+	display: flex;
+	gap: 5px;
+	pointer-events: none;
+	z-index: 3;
+}
+
+.la-glow-seg {
+	min-width: 0;
+	flex: 1 1 auto;
+	height: 100%;
+}
+
+.la-glow-fill {
+	display: block;
+	height: 100%;
+	border-radius: 2px;
+	background: var(--la-tone);
+	box-shadow:
+		0 0 6px var(--la-tone),
+		0 4px 14px var(--la-tone);
+	transition: width 1s linear;
+	animation: la-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes la-breathe {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+/* Tags: labels hanging under the notch on thin strings */
+.la-tags {
+	font-family:
+		"Inter",
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.la-tag-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: auto;
+}
+
+.la-string {
+	width: 1px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 35%, transparent);
+}
+
+.la-tag {
+	height: 28px;
+	display: flex;
+	align-items: center;
+	border-radius: 8px;
+	background: var(--bloom-bg-expanded, rgba(16, 16, 20, 0.94));
+	border: 1px solid color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+	color: var(--bloom-text, #fff);
+}
+
+.la-tag.alert {
+	border-color: color-mix(in srgb, var(--la-tone) 55%, transparent);
+}
+
+.la-tag-main {
+	height: 100%;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 0 11px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 11.5px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.la-tag-main b {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.la-tag-title {
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-tag-detail {
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-tag-mark {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	background: var(--la-tone);
+	color: #fff;
+	overflow: hidden;
+}
+
+.la-tag-mark img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.la-tag-x {
+	width: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	cursor: pointer;
+	overflow: hidden;
+	transition: width 0.18s ease;
+}
+
+.la-tag:hover .la-tag-x {
+	width: 22px;
+}
+
+.la-tag-x:hover {
+	color: var(--bloom-text, #fff);
+}
+
+/* Rail: a thin readout strip out of both sides of the notch, behind it */
+.la-rail {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	height: 24px;
+	display: flex;
+	align-items: stretch;
+	border-radius: 0 0 8px 8px;
+	background: var(--bloom-bg-expanded, rgba(8, 8, 10, 0.9));
+	font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--bloom-text, #fff);
+	transition:
+		width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+		margin-left 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.la-rail.alert {
+	box-shadow: inset 0 -2px 0 var(--la-tone);
+}
+
+.la-rail-side {
+	min-width: 0;
+	flex: 1 1 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	text-transform: inherit;
+	white-space: nowrap;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.la-rail-side.right {
+	justify-content: flex-end;
+}
+
+.la-rail-side span {
+	flex-shrink: 0;
+}
+
+.la-rail-side .la-rail-title {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-rail-bar {
+	position: relative;
+	width: 44px;
+	height: 3px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 15%, transparent);
+}
+
+.la-rail-bar > span {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	border-radius: 2px;
+	background: var(--la-tone);
+	transition: width 1s linear;
+}
+
+/* Cards: a light card dropping out below; ongoing things as chips */
+.la-cards {
+	font-family:
+		"Inter",
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.la-card-stack {
+	position: relative;
+	width: 320px;
+	pointer-events: auto;
+}
+
+.la-card-behind {
+	position: absolute;
+	left: 12px;
+	right: 12px;
+	top: 10px;
+	bottom: -6px;
+	border-radius: 14px;
+	background: #d6d7dc;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+.la-card {
+	position: relative;
+	border-radius: 14px;
+	color: #1c1d21;
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+	overflow: hidden;
+}
+
+.la-card-main {
+	width: 100%;
+	height: 58px;
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	padding: 0 14px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.la-card-icon {
+	width: 30px;
+	height: 30px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 9px;
+	color: #fff;
+}
+
+.la-card-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.la-card-text b,
+.la-card-text span {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-card-text b {
+	font-size: 12.5px;
+}
+
+.la-card-text span {
+	font-size: 11px;
+	color: #4b5058;
+}
+
+.la-card-value {
+	flex-shrink: 0;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Snooze / Open / Dismiss slide out when the card is hovered */
+.la-card-actions {
+	display: flex;
+	gap: 6px;
+	justify-content: flex-end;
+	max-height: 0;
+	padding: 0 12px;
+	opacity: 0;
+	transition:
+		max-height 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+		padding 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+		opacity 0.2s ease;
+}
+
+.la-card:hover .la-card-actions {
+	max-height: 44px;
+	padding: 0 12px 12px;
+	opacity: 1;
+}
+
+.la-card-actions button {
+	height: 28px;
+	padding: 0 11px;
+	border: none;
+	border-radius: 9px;
+	background: rgba(0, 0, 0, 0.07);
+	color: #1c1d21;
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.la-card-actions button:hover {
+	background: rgba(0, 0, 0, 0.12);
+}
+
+.la-card-actions button.primary {
+	background: var(--bloom-accent, #0a84ff);
+	color: var(--bloom-on-accent, #fff);
+}
+
+.la-card-actions button.icon {
+	width: 28px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.la-chips {
+	display: flex;
+	gap: 8px;
+}
+
+.la-chip {
+	height: 40px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px 0 6px;
+	border: none;
+	border-radius: 12px;
+	background: #f5f5f7;
+	color: #1c1d21;
+	font: inherit;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+	pointer-events: auto;
+	cursor: pointer;
+}
+
+.la-chip img {
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	object-fit: cover;
+}
+
+.la-chip-icon {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.la-chip-text {
+	display: flex;
+	flex-direction: column;
+	text-align: left;
+	max-width: 160px;
+}
+
+.la-chip-text b {
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.la-chip-text span {
+	font-size: 10.5px;
+	color: #4b5058;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
