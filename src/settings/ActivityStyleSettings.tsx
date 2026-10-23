@@ -1,9 +1,9 @@
 import { emit } from "@tauri-apps/api/event";
-import { Sparkles, Eye } from "lucide-react";
+import { Sparkles, Eye, Video } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { useStored } from "./useStored";
-import { ACTIVITY_STYLE_KEY, parseActivityStyle, type ActivityStyle } from "../liveActivities";
-import { REMINDER_PREVIEW_EVENT } from "../reminders";
+import { ACTIVITY_STYLE_KEY, PRIVACY_DOT_KEY, parseActivityStyle, type ActivityStyle } from "../liveActivities";
+import { parseBool, REMINDER_PREVIEW_EVENT } from "../reminders";
 
 const STYLE_OPTIONS: { value: ActivityStyle; label: string; hint: string }[] = [
 	{ value: "island", label: "Stretch", hint: "The notch itself grows to show it" },
@@ -16,6 +16,7 @@ const STYLE_OPTIONS: { value: ActivityStyle; label: string; hint: string }[] = [
 /** Settings > Appearance > Live Activities. */
 export function ActivityStyleSettings() {
 	const [style, setStyle] = useStored(ACTIVITY_STYLE_KEY, parseActivityStyle);
+	const [privacyDot, setPrivacyDot] = useStored(PRIVACY_DOT_KEY, (v) => parseBool(v, true));
 	return (
 		<>
 			<SettingRow
@@ -44,6 +45,16 @@ export function ActivityStyleSettings() {
 				))}
 			</div>
 			<div className="setting-divider" />
+			<SettingRow
+				icon={Video}
+				label="Camera & Mic Dot"
+				desc="A green (camera) or orange (mic) dot beside the notch while an app uses them"
+			>
+				<label className="toggle-switch">
+					<input type="checkbox" checked={privacyDot} onChange={() => setPrivacyDot(!privacyDot)} />
+					<span className="slider"></span>
+				</label>
+			</SettingRow>
 			<SettingRow icon={Eye} label="Preview" desc="Shows a made-up class reminder in this style" divider={false}>
 				<button className="reminder-preview-btn" onClick={() => emit(REMINDER_PREVIEW_EVENT).catch(() => {})}>
 					Show preview

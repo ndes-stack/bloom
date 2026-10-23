@@ -4585,3 +4585,132 @@ img {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
+/* Status colours for live activities, readable on the notch in both themes. */
+:root {
+	--tone-green: #30d158;
+	--tone-red: #ff6961;
+	--tone-orange: #ff9f6b;
+}
+
+:root.light-mode {
+	--tone-green: #1f8a3f;
+	--tone-red: #d0312d;
+	--tone-orange: #c2561f;
+}
+
+/* Stretch style: the notch grows into a pill for the top activity */
+.island-pill {
+	width: 100%;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 6px;
+	border: none;
+	background: transparent;
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	font-size: 12.5px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.island-pill.kind-timer {
+	justify-content: space-between;
+	padding: 0 4px;
+}
+
+.island-icon {
+	display: flex;
+	color: var(--la-tone);
+}
+
+.island-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 600;
+}
+
+.island-pill.kind-timer-done .island-title {
+	color: var(--la-tone);
+	font-weight: 700;
+}
+
+.island-value {
+	margin-left: auto;
+	font-weight: 700;
+	color: var(--la-tone);
+	font-variant-numeric: tabular-nums;
+}
+
+.island-pill.kind-timer-done .island-value {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
+	font-weight: 600;
+	font-size: 11.5px;
+}
+
+.island-ring-track,
+.island-ring-fill {
+	fill: none;
+	stroke-width: 3;
+}
+
+.island-ring-track {
+	stroke: color-mix(in srgb, var(--bloom-text, #fff) 15%, transparent);
+}
+
+.island-ring-fill {
+	stroke: var(--la-tone);
+	stroke-linecap: round;
+	transition: stroke-dasharray 1s linear;
+}
+
+.island-pill .pulse {
+	animation: island-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes island-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
+
+/* Deadlines on the reminder bar: red chip, "due 18:00" */
+.reminder-chip.deadline {
+	background: var(--tone-red, #ff6961);
+	color: #fff;
+}
+
+.reminder-when.deadline {
+	color: var(--tone-red, #ff6961);
+}
+
+/* Camera / microphone in use */
+.privacy-dot {
+	position: absolute;
+	top: 14px;
+	width: 8px;
+	height: 8px;
+	border-radius: 4px;
+	pointer-events: auto;
+}
+
+.privacy-dot.camera {
+	background: #30d158;
+	box-shadow: 0 0 6px #30d158;
+}
+
+.privacy-dot.microphone {
+	background: #ff9f0a;
+	box-shadow: 0 0 6px #ff9f0a;
+}
+
+.reminder-progress.deadline {
+	background: var(--tone-red, #ff6961);
+}

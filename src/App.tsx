@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
 import type { UpdateCheckResult } from "./updater";
-import { batteryTooltip, type BatteryDetails } from "./batteryTooltip";
+import { batteryTooltip, formatDuration, type BatteryDetails } from "./batteryTooltip";
 import {
 	createRegionSender,
 	measureElements,
@@ -40,11 +40,13 @@ import { TodayCard } from "./components/TodayCard";
 import { useCalendarDays } from "./hooks/useCalendarEvents";
 import {
 	ACTIVITY_STYLE_KEY,
+	PRIVACY_DOT_KEY,
 	parseActivityStyle,
 	sortActivities,
+	toneColor,
 	type Activity
 } from "./liveActivities";
-import { GlowLine, GlowRow, LiveActivities } from "./components/LiveActivities";
+import { ActivityIcon, GlowLine, GlowRow, LiveActivities } from "./components/LiveActivities";
 import {
 	REMINDERS_ENABLED_KEY,
 	REMINDER_BAR_HEIGHT,
@@ -121,8 +123,7 @@ import {
 	ChevronRight,
 	Inbox,
 	Music,
-	Timer as TimerIcon,
-	CalendarClock
+	Timer as TimerIcon
 } from "lucide-react";
 
 /**
@@ -357,41 +358,6 @@ function BatteryIcon({
 	);
 }
 
-function GreenDownArrowIcon() {
-	return (
-		<div
-			style={{
-				display: "inline-flex",
-				alignItems: "center",
-				justifyContent: "center",
-				width: "18px",
-				height: "18px",
-				borderRadius: "50%",
-				background: "rgba(50, 215, 75, 0.15)",
-				border: "1px solid rgba(50, 215, 75, 0.35)",
-				boxShadow: "0 0 8px rgba(50, 215, 75, 0.25)",
-				flexShrink: 0,
-				verticalAlign: "middle"
-			}}
-		>
-			<svg
-				width="10"
-				height="10"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="#32D74B"
-				strokeWidth="3"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<line x1="12" y1="4" x2="12" y2="16"></line>
-				<polyline points="18 10 12 16 6 10"></polyline>
-				<line x1="6" y1="20" x2="18" y2="20"></line>
-			</svg>
-		</div>
-	);
-}
-
 export const Visualizer = memo(function Visualizer({
 	isPlaying,
 	bars = 5,
@@ -617,6 +583,11 @@ function App() {
 		parseActivityStyle(localStorage.getItem(ACTIVITY_STYLE_KEY))
 	);
 	const islandStyle = activityStyle === "island";
+	// Camera / microphone dot beside the notch while an app is using them.
+	const [privacyDotEnabled, setPrivacyDotEnabled] = useState(
+		() => localStorage.getItem(PRIVACY_DOT_KEY) !== "false"
+	);
+	const [deviceUse, setDeviceUse] = useState({ camera: false, microphone: false });
 	const [isReady, setIsReady] = useState(false);
 	const [scale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
@@ -1267,6 +1238,7 @@ function App() {
 			[PAGE_SWITCH_GRACE_KEY]: (v: unknown) => setPageSwitchGrace(clampPageSwitchGrace(v)),
 			[NOTCH_MATERIAL_KEY]: (v: unknown) => setNotchMaterial(parseNotchMaterial(v)),
 			[ACTIVITY_STYLE_KEY]: (v: unknown) => setActivityStyle(parseActivityStyle(v)),
+			[PRIVACY_DOT_KEY]: (v: unknown) => setPrivacyDotEnabled(parseBool(v, true)),
 			[REMINDERS_ENABLED_KEY]: (v: unknown) => setRemindersEnabled(parseBool(v, true)),
 			[REMINDER_LEAD_KEY]: (v: unknown) => setReminderLead(parseReminderLead(v)),
 			[REMINDER_DURATION_KEY]: (v: unknown) => setReminderDuration(parseReminderDuration(v)),
@@ -3023,14 +2995,9 @@ function App() {
 		setBloomMode("calendar");
 		setIsOpen(true);
 	};
-	// The stretched reminder bar is the island style; glow style uses it only
-	// while hovered, for the details and buttons.
-	const showReminderBar =
-		reminderActive && bloomMode !== "announcement" && (islandStyle || (activityStyle === "glow" && isHovered));
-
 	// ── Live activities for the non-island styles, most urgent first ──
 	const liveActivities: Activity[] = [];
-	if (!islandStyle) {
+	{
 		const now = new Date();
 		if (reminder) {
 			const deadline = reminder.kind === "deadline";
@@ -3087,7 +3054,10 @@ function App() {
 				kind: "power",
 				label: "Power",
 				title: isCharging ? "Charging" : "On battery",
-				value: `${batteryLevel}%`,
+				value:
+					isCharging && batteryDetails?.seconds_to_full
+						? `${batteryLevel}% · full in ${formatDuration(batteryDetails.seconds_to_full)}`
+						: `${batteryLevel}%`,
 				tone: isCharging ? "green" : "neutral",
 				progress: batteryLevel / 100,
 				alert: true
@@ -3118,6 +3088,30 @@ function App() {
 		}
 	}
 	const activities = sortActivities(liveActivities);
+	// Stretch style: the notch grows into a pill for the top activity while it
+	// rests (music keeps Bloom's own compact view; reminders use the bar).
+	const islandTop = islandStyle && !isOpen && !isHovered ? activities[0] : undefined;
+	const islandPill =
+		islandTop && ["timer", "timer-done", "power", "low-battery", "update"].includes(islandTop.kind)
+			? islandTop
+			: undefined;
+	const islandPillWidth = (a: Activity) =>
+		a.kind === "timer"
+			? 190
+			: a.kind === "timer-done"
+				? 250
+				: a.kind === "power" && a.value && a.value.includes("full in")
+					? 310
+					: a.kind === "update"
+						? 220
+						: 230;
+	// The stretched reminder bar is the Stretch style (unless something more
+	// urgent holds the notch); glow style uses it only while hovered, for the
+	// details and buttons.
+	const showReminderBar =
+		reminderActive &&
+		bloomMode !== "announcement" &&
+		((islandStyle && (isHovered || !islandPill)) || (activityStyle === "glow" && isHovered));
 	// Glow style: the pill swaps the clock for the top activity (not while
 	// hovered or open, when it behaves as usual).
 	const glowPrimary = activityStyle === "glow" && !isOpen && !isHovered ? activities[0] : undefined;
@@ -3126,11 +3120,37 @@ function App() {
 	const floatingStyle = activityStyle === "tags" || activityStyle === "rail" || activityStyle === "cards";
 	const floatingActivities = floatingStyle && !isOpen && isVisible && !isHidden ? activities : [];
 	const activitiesKey = activities.map((a) => a.id).join("|");
+	useEffect(() => {
+		if (windowLabel !== "main" || !privacyDotEnabled) {
+			setDeviceUse({ camera: false, microphone: false });
+			return;
+		}
+		let cancelled = false;
+		const poll = () =>
+			invoke<{ camera: boolean; microphone: boolean }>("get_device_use")
+				.then((use) => {
+					if (!cancelled && use) setDeviceUse({ camera: !!use.camera, microphone: !!use.microphone });
+				})
+				.catch(() => {});
+		poll();
+		const timer = window.setInterval(poll, 3000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [windowLabel, privacyDotEnabled]);
+	const privacyDot =
+		privacyDotEnabled && (deviceUse.camera || deviceUse.microphone) && isVisible && !isHidden
+			? deviceUse.camera
+				? "camera"
+				: "microphone"
+			: null;
+
 	// Activities appearing or leaving change what must stay clickable.
 	useEffect(() => {
 		const timer = window.setTimeout(() => reportNotchRect.current(), 500);
 		return () => window.clearTimeout(timer);
-	}, [activitiesKey, activityStyle, isOpen]);
+	}, [activitiesKey, activityStyle, isOpen, privacyDot]);
 	const openActivity = (a: Activity) => {
 		if (a.kind === "class" || a.kind === "deadline") openReminder();
 		else if (a.kind === "timer" || a.kind === "timer-done") openNotch("timer");
@@ -3149,6 +3169,7 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (showReminderBar) return REMINDER_BAR_WIDTHS[reminderWidth];
 		if (glowPrimary) return 230;
+		if (islandPill) return islandPillWidth(islandPill);
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
@@ -3163,7 +3184,6 @@ function App() {
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
 		if (isMusicMode && isOpen) return mediaLayout === "compact" ? 300 : 340;
-		if (islandStyle && (showPowerPulse || showLowBatteryPulse || showUpdatePulse) && !isHovered) return 200;
 
 		let w = 140 - clock24hTrim;
 		if (isMusicMode) {
@@ -3808,17 +3828,21 @@ function App() {
 															}}
 															exit={{ opacity: 0, filter: "blur(6px)", transition: { duration: 0.12 } }}
 														>
-															<span className="reminder-chip" aria-hidden="true">
-																<CalendarClock size={12} strokeWidth={2.4} />
+															<span className={`reminder-chip ${reminder.kind === "deadline" ? "deadline" : ""}`} aria-hidden="true">
+																<ActivityIcon kind={reminder.kind === "deadline" ? "deadline" : "class"} size={12} />
 															</span>
 															<span className="reminder-title">{reminder.title}</span>
 															{reminder.location && reminderWidth === "wide" && (
 																<span className="reminder-location">{reminder.location}</span>
 															)}
-															<span className="reminder-when">{startsIn(reminder.start, new Date())}</span>
+															<span className={`reminder-when ${reminder.kind === "deadline" ? "deadline" : ""}`}>
+																{reminder.kind === "deadline"
+																	? `due ${reminderClock(reminder.start, timeFormat24h)}`
+																	: startsIn(reminder.start, new Date())}
+															</span>
 															{!isHovered && reminderDuration > 0 && (
 																<span
-																	className="reminder-progress"
+																	className={`reminder-progress ${reminder.kind === "deadline" ? "deadline" : ""}`}
 																	style={{ animationDuration: `${reminderDuration}s` }}
 																	aria-hidden="true"
 																/>
@@ -3844,48 +3868,51 @@ function App() {
 														>
 															<GlowRow primary={glowPrimary} secondary={glowSecondary} />
 														</motion.button>
-													) : islandStyle && (showPowerPulse || showLowBatteryPulse || showUpdatePulse) &&
-													!isHovered ? (
-														showUpdatePulse ? (
-															<motion.div
-																key="update-pulse-view"
-																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
-																className="power-pulse-content"
-															>
-																<GreenDownArrowIcon />
-																<span className="label" style={{ color: "#32D74B" }}>
-																	Update Available
-																</span>
-															</motion.div>
-														) : (
-															<motion.div
-																key="pulse-view"
-																initial={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
-																animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-																exit={{ opacity: 0, scale: 1.05, filter: "blur(4px)" }}
-																className="power-pulse-content"
-															>
-																{updateAvailable && <GreenDownArrowIcon />}
-																<BatteryIcon
-																	charging={isCharging}
-																	level={batteryLevel}
-																	threshold={lowBatteryThreshold}
-																/>
-																<span
-																	className="label"
-																	style={{ color: showLowBatteryPulse ? "#FF453A" : "inherit" }}
-																>
-																	{showLowBatteryPulse
-																		? "Low Battery"
-																		: isCharging
-																			? "Charging"
-																			: "On Battery"}{" "}
-																	• {batteryLevel}%
-																</span>
-															</motion.div>
-														)
+													) : islandPill ? (
+														<motion.button
+															key={`island-${islandPill.kind}`}
+															className={`island-pill kind-${islandPill.kind}`}
+															style={{ "--la-tone": toneColor(islandPill.tone) } as React.CSSProperties}
+															onClick={(e) => {
+																e.stopPropagation();
+																openActivity(islandPill);
+															}}
+															initial={{ opacity: 0, y: -3, filter: "blur(5px)" }}
+															animate={{
+																opacity: 1,
+																y: 0,
+																filter: "blur(0px)",
+																transition: { delay: 0.1, duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+															}}
+															exit={{ opacity: 0, filter: "blur(5px)", transition: { duration: 0.12 } }}
+														>
+															{islandPill.kind === "timer" ? (
+																<>
+																	<svg className="island-ring" width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+																		<circle cx="10" cy="10" r="8" className="island-ring-track" />
+																		<circle
+																			cx="10"
+																			cy="10"
+																			r="8"
+																			className="island-ring-fill"
+																			strokeDasharray={`${2 * Math.PI * 8 * (islandPill.progress ?? 1)} ${2 * Math.PI * 8}`}
+																			transform="rotate(-90 10 10)"
+																		/>
+																	</svg>
+																	<span className="island-value">{islandPill.value}</span>
+																</>
+															) : (
+																<>
+																	<span className={`island-icon ${islandPill.kind === "timer-done" ? "pulse" : ""}`}>
+																		<ActivityIcon kind={islandPill.kind} size={14} />
+																	</span>
+																	<span className={`island-title ${islandPill.kind === "timer-done" ? "pulse" : ""}`}>
+																		{islandPill.title}
+																	</span>
+																	{islandPill.value && <span className="island-value">{islandPill.value}</span>}
+																</>
+															)}
+														</motion.button>
 													) : (
 														<motion.div
 															key="standard-view"
@@ -4673,6 +4700,26 @@ function App() {
 						onLayoutChange={() => reportNotchRect.current()}
 					/>
 				)}
+				{/* Camera (green) or microphone (orange) in use, just right of the notch */}
+				<AnimatePresence onExitComplete={() => reportNotchRect.current()}>
+					{privacyDot && (
+						<motion.span
+							key="privacy-dot"
+							className={`privacy-dot live-activity ${privacyDot}`}
+							title={privacyDot === "camera" ? "An app is using your camera" : "An app is using your microphone"}
+							style={{ left: "50%" }}
+							initial={{ opacity: 0, scale: 0 }}
+							animate={{
+								opacity: 1,
+								scale: 1,
+								marginLeft: pillTargetWidth / 2 + (showMusicBubble ? 46 : 8)
+							}}
+							exit={{ opacity: 0, scale: 0 }}
+							transition={{ type: "spring", stiffness: 420, damping: 26 }}
+							onAnimationComplete={() => reportNotchRect.current()}
+						/>
+					)}
+				</AnimatePresence>
 				{/* The shelf's items, as a bubble on the left of the collapsed pill */}
 				<AnimatePresence onExitComplete={() => reportNotchRect.current()}>
 					{showShelfBubble && (

@@ -11,6 +11,8 @@
 //   cards  – a light card drops out below; ongoing things show as chips
 
 export const ACTIVITY_STYLE_KEY = "bloom-activity-style";
+/** Show a dot beside the notch while an app uses the camera or microphone. */
+export const PRIVACY_DOT_KEY = "bloom-privacy-dot";
 
 export type ActivityStyle = "island" | "glow" | "tags" | "rail" | "cards";
 export const ACTIVITY_STYLES: ActivityStyle[] = ["island", "glow", "tags", "rail", "cards"];
@@ -68,15 +70,16 @@ export function sortActivities(list: Activity[]): Activity[] {
 	return [...list].sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind]);
 }
 
-/** Text colour for a tone on the dark notch. */
+/** Text colour for a tone on the notch. The --tone-* colours are darker in
+ * light mode so they stay readable (see App.css). */
 export function toneColor(tone: ActivityTone): string {
 	switch (tone) {
 		case "green":
-			return "#30d158";
+			return "var(--tone-green, #30d158)";
 		case "red":
-			return "#ff6961";
+			return "var(--tone-red, #ff6961)";
 		case "orange":
-			return "#ff9f6b";
+			return "var(--tone-orange, #ff9f6b)";
 		case "neutral":
 			return "var(--bloom-text, #fff)";
 		default:

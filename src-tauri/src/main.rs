@@ -7,6 +7,7 @@ mod calendar;
 mod commands;
 mod diagnostics;
 mod dock_extras;
+mod privacy;
 mod services;
 mod shelf;
 mod shelf_preview;
@@ -141,6 +142,7 @@ fn main() {
             update_notch_rect,
             window_region::set_window_region,
             backdrop::capture_notch_backdrop,
+            privacy::get_device_use,
             set_dock_hovered,
             set_notch_hovered,
             set_notch_visible,
