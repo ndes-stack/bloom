@@ -212,6 +212,14 @@ unsafe extern "system" fn keyboard_hook_proc(
                     // first one starts a fresh combo.
                     if !WIN_KEY_DOWN.swap(true, Ordering::Relaxed) {
                         WIN_COMBO_USED.store(false, Ordering::Relaxed);
+                        // Mask now, while Win is going down: anything injected
+                        // lands after the event being handled, so a mask sent at
+                        // the keyup would reach the shell after it and Windows'
+                        // Start would still open. Masked here, the shell always
+                        // sees Win used as a modifier; real shortcuts still work.
+                        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) && bloom_start_on_win_key() {
+                            send_start_menu_mask();
+                        }
                     }
                     // A fresh Win press always starts a fresh combo, even if the
                     // previous digit's keyup was missed.
@@ -224,9 +232,6 @@ unsafe extern "system" fn keyboard_hook_proc(
                         && NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                         && bloom_start_on_win_key()
                     {
-                        // The mask key makes the shell see a combo, so it won't
-                        // open its own Start when this keyup goes through.
-                        send_start_menu_mask();
                         emit_dock_open_start();
                     }
                 }
