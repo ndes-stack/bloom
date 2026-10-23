@@ -3990,7 +3990,7 @@ img {
 	flex-shrink: 0;
 	font-size: 12.5px;
 	font-weight: 700;
-	color: var(--bloom-accent, #0a84ff);
+	color: var(--bloom-accent-text, var(--bloom-accent, #0a84ff));
 	font-variant-numeric: tabular-nums;
 }
 
@@ -4002,7 +4002,7 @@ img {
 	bottom: 3px;
 	height: 2px;
 	border-radius: 1px;
-	background: color-mix(in srgb, var(--bloom-accent, #0a84ff) 70%, transparent);
+	background: color-mix(in srgb, var(--bloom-accent-text, var(--bloom-accent, #0a84ff)) 70%, transparent);
 	transform-origin: left center;
 	animation-name: reminder-drain;
 	animation-timing-function: linear;
@@ -4095,7 +4095,7 @@ img {
 }
 
 .la-tone {
-	color: var(--la-tone, var(--bloom-accent, #0a84ff));
+	color: var(--la-tone, var(--bloom-accent-text, var(--bloom-accent, #0a84ff)));
 }
 
 /* Glow: the pill's own text, plus a line glowing along its bottom edge */

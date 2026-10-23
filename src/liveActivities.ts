@@ -13,6 +13,8 @@
 export const ACTIVITY_STYLE_KEY = "bloom-activity-style";
 /** Show a dot beside the notch while an app uses the camera or microphone. */
 export const PRIVACY_DOT_KEY = "bloom-privacy-dot";
+/** Keep the notch out while a timer runs, and "Time's up" until dismissed. */
+export const KEEP_TIMER_VISIBLE_KEY = "bloom-timer-keep-visible";
 
 export type ActivityStyle = "island" | "glow" | "tags" | "rail" | "cards";
 export const ACTIVITY_STYLES: ActivityStyle[] = ["island", "glow", "tags", "rail", "cards"];
@@ -83,7 +85,7 @@ export function toneColor(tone: ActivityTone): string {
 		case "neutral":
 			return "var(--bloom-text, #fff)";
 		default:
-			return "var(--bloom-accent, #0a84ff)";
+			return "var(--bloom-accent-text, var(--bloom-accent, #0a84ff))";
 	}
 }
 

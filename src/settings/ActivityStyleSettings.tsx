@@ -1,8 +1,14 @@
 import { emit } from "@tauri-apps/api/event";
-import { Sparkles, Eye, Video } from "lucide-react";
+import { Sparkles, Eye, Video, Timer } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { useStored } from "./useStored";
-import { ACTIVITY_STYLE_KEY, PRIVACY_DOT_KEY, parseActivityStyle, type ActivityStyle } from "../liveActivities";
+import {
+	ACTIVITY_STYLE_KEY,
+	KEEP_TIMER_VISIBLE_KEY,
+	PRIVACY_DOT_KEY,
+	parseActivityStyle,
+	type ActivityStyle
+} from "../liveActivities";
 import { parseBool, REMINDER_PREVIEW_EVENT } from "../reminders";
 
 const STYLE_OPTIONS: { value: ActivityStyle; label: string; hint: string }[] = [
@@ -17,6 +23,7 @@ const STYLE_OPTIONS: { value: ActivityStyle; label: string; hint: string }[] = [
 export function ActivityStyleSettings() {
 	const [style, setStyle] = useStored(ACTIVITY_STYLE_KEY, parseActivityStyle);
 	const [privacyDot, setPrivacyDot] = useStored(PRIVACY_DOT_KEY, (v) => parseBool(v, true));
+	const [keepTimer, setKeepTimer] = useStored(KEEP_TIMER_VISIBLE_KEY, (v) => parseBool(v, true));
 	return (
 		<>
 			<SettingRow
@@ -45,6 +52,20 @@ export function ActivityStyleSettings() {
 				))}
 			</div>
 			<div className="setting-divider" />
+			<SettingRow
+				icon={Timer}
+				label="Keep Timer On Screen"
+				desc={
+					keepTimer
+						? "The notch stays out while a timer runs; Time's up stays until you click it"
+						: "The timer hides with the notch in auto-hide and peek modes"
+				}
+			>
+				<label className="toggle-switch">
+					<input type="checkbox" checked={keepTimer} onChange={() => setKeepTimer(!keepTimer)} />
+					<span className="slider"></span>
+				</label>
+			</SettingRow>
 			<SettingRow
 				icon={Video}
 				label="Camera & Mic Dot"

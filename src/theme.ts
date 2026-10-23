@@ -312,6 +312,38 @@ export function textOnAccent(hex: string): string {
 	return lum > 0.45 ? "#1c1c1e" : "#ffffff";
 }
 
+function luminance(rgb: [number, number, number]): number {
+	const lin = (v: number) => {
+		const c = v / 255;
+		return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+}
+
+function contrast(a: [number, number, number], b: [number, number, number]): number {
+	const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+	return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The accent, darkened (light mode) or lightened (dark mode) just enough to
+ * read as text and thin lines on the notch: a yellow accent on the light
+ * notch would otherwise all but vanish.
+ */
+export function readableAccent(hex: string, lightMode: boolean): string {
+	const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
+	if (!m) return hex;
+	const base: [number, number, number] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+	const surface: [number, number, number] = lightMode ? [245, 245, 247] : [12, 12, 14];
+	const target: [number, number, number] = lightMode ? [0, 0, 0] : [255, 255, 255];
+	let rgb = base;
+	for (let step = 1; step <= 10 && contrast(rgb, surface) < 3; step++) {
+		const t = step / 10;
+		rgb = base.map((c, i) => Math.round(c + (target[i] - c) * t)) as [number, number, number];
+	}
+	return `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Copies an accent value from a settings event into localStorage. */
 function mirrorAccent(value: unknown) {
 	try {
@@ -333,6 +365,7 @@ function applyAccentOverride(root: HTMLElement) {
 	if (override) root.style.setProperty("--bloom-accent", override);
 	const accent = root.style.getPropertyValue("--bloom-accent").trim() || "#007aff";
 	root.style.setProperty("--bloom-on-accent", textOnAccent(accent));
+	root.style.setProperty("--bloom-accent-text", readableAccent(accent, root.classList.contains("light-mode")));
 }
 
 export function initTheme() {

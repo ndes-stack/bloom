@@ -40,6 +40,7 @@ import { TodayCard } from "./components/TodayCard";
 import { useCalendarDays } from "./hooks/useCalendarEvents";
 import {
 	ACTIVITY_STYLE_KEY,
+	KEEP_TIMER_VISIBLE_KEY,
 	PRIVACY_DOT_KEY,
 	parseActivityStyle,
 	sortActivities,
@@ -832,9 +833,18 @@ function App() {
 	const appliedNotchMode = useRef<string | null>(null);
 
 	const isAnyInteraction = isHovered || isNotchHovered || isEdgeHovered;
+	const [timerSeconds, setTimerSeconds] = useState(0);
+	const [isTimerRunning, setIsTimerRunning] = useState(false);
+	const [isTimerFinished, setIsTimerFinished] = useState(false);
+	// Settings > Live Activities > Keep Timer On Screen: a running timer and
+	// "Time's up" keep the notch out even in auto-hide and peek modes.
+	const [keepTimerVisible, setKeepTimerVisible] = useState(
+		() => localStorage.getItem(KEEP_TIMER_VISIBLE_KEY) !== "false"
+	);
 	const isHidden =
 		!startupAnimating &&
 		!reminderActive &&
+		!(keepTimerVisible && (timerSeconds > 0 || isTimerFinished)) &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
 
@@ -1239,6 +1249,7 @@ function App() {
 			[NOTCH_MATERIAL_KEY]: (v: unknown) => setNotchMaterial(parseNotchMaterial(v)),
 			[ACTIVITY_STYLE_KEY]: (v: unknown) => setActivityStyle(parseActivityStyle(v)),
 			[PRIVACY_DOT_KEY]: (v: unknown) => setPrivacyDotEnabled(parseBool(v, true)),
+			[KEEP_TIMER_VISIBLE_KEY]: (v: unknown) => setKeepTimerVisible(parseBool(v, true)),
 			[REMINDERS_ENABLED_KEY]: (v: unknown) => setRemindersEnabled(parseBool(v, true)),
 			[REMINDER_LEAD_KEY]: (v: unknown) => setReminderLead(parseReminderLead(v)),
 			[REMINDER_DURATION_KEY]: (v: unknown) => setReminderDuration(parseReminderDuration(v)),
@@ -1986,10 +1997,8 @@ function App() {
 		);
 	const showCalendarToday = () => setCalendarDate(new Date());
 
-	// Timer state
-	const [timerSeconds, setTimerSeconds] = useState(0);
-	const [isTimerRunning, setIsTimerRunning] = useState(false);
-	const [isTimerFinished, setIsTimerFinished] = useState(false);
+	// Timer state (seconds, running and finished are declared further up,
+	// before the notch's hidden state, which depends on them)
 	const [isEditingTimer, setIsEditingTimer] = useState(false);
 	const [timerEditDigits, setTimerEditDigits] = useState("");
 	const [lastDurationSeconds, setLastDurationSeconds] = useState(() => {
@@ -3020,7 +3029,10 @@ function App() {
 				kind: "timer-done",
 				label: "Timer",
 				title: "Time's up",
-				value: `${Math.max(1, Math.round(lastDurationSeconds / 60))} min done`,
+				value:
+					lastDurationSeconds < 60
+						? `${lastDurationSeconds} sec done`
+						: `${Math.round(lastDurationSeconds / 60)} min done`,
 				tone: "red",
 				alert: true,
 				dismissable: true
@@ -3153,7 +3165,9 @@ function App() {
 	}, [activitiesKey, activityStyle, isOpen, privacyDot]);
 	const openActivity = (a: Activity) => {
 		if (a.kind === "class" || a.kind === "deadline") openReminder();
-		else if (a.kind === "timer" || a.kind === "timer-done") openNotch("timer");
+		// Clicking "Time's up" dismisses it; a running timer opens its page.
+		else if (a.kind === "timer-done") resetTimer();
+		else if (a.kind === "timer") openNotch("timer");
 		else if (a.kind === "music") openNotch("music");
 		else openNotch("command-center");
 	};
