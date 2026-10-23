@@ -2374,6 +2374,7 @@ pub fn open_system_tray() {
                     );
                 }
             }
+            crate::state::SYSTEM_TRAY_OPEN.store(true, Ordering::Relaxed);
             let _ = ShowWindow(hwnd, SW_SHOW);
             crate::state::NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
 
@@ -2511,6 +2512,7 @@ pub fn open_system_tray() {
                     let hidden = crate::utils::set_taskbar_visibility(false, false);
                     crate::state::NATIVE_TASKBAR_HIDDEN.store(hidden, Ordering::Relaxed);
                 }
+                crate::state::SYSTEM_TRAY_OPEN.store(false, Ordering::Relaxed);
 
                 // Revert transparency
                 let tray_class = PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);

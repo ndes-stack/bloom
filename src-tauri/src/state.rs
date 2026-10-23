@@ -15,6 +15,11 @@ pub static CURRENT_NOTCH_OVERLAP: AtomicI32 = AtomicI32::new(-1);
 pub static NATIVE_TASKBAR_HIDDEN: AtomicBool = AtomicBool::new(false);
 /// A scoped native tray operation temporarily exposes Explorer's UI to UIA.
 pub static TRAY_INTERACTION_ACTIVE: AtomicBool = AtomicBool::new(false);
+/// Set while open_system_tray shows Windows' own tray overflow on purpose,
+/// so the taskbar self-heal below leaves the taskbar alone meanwhile.
+pub static SYSTEM_TRAY_OPEN: AtomicBool = AtomicBool::new(false);
+/// Consecutive checks that found Windows' taskbar showing behind the dock.
+pub static TASKBAR_HEAL_TICKS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 /// Set first on every quit/restart path. While windows and webviews are torn
 /// down, Tauri's window table is mutably borrowed; a window call arriving then
 /// (from the mouse hook or a background loop) panics with "RefCell already

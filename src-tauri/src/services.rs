@@ -1774,6 +1774,31 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 {
                     set_taskbar_visibility(false, false);
                 }
+
+                // Self-heal: Windows' taskbar is showing behind a visible dock
+                // although nothing meant to show it. A hide that failed once
+                // (at startup, or while a tray menu was open) used to leave the
+                // flag off until Bloom restarted, so the taskbar stayed up and
+                // the Windows key opened Windows' Start. Wait a few checks so
+                // deliberate, short-lived showings finish first.
+                let wants_heal = !NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                    && !SHUTTING_DOWN.load(Ordering::Relaxed)
+                    && !TRAY_INTERACTION_ACTIVE.load(Ordering::Relaxed)
+                    && !SYSTEM_TRAY_OPEN.load(Ordering::Relaxed)
+                    && crate::utils::dock_enabled()
+                    && handle_visibility
+                        .get_webview_window("dock")
+                        .is_some_and(|w| w.is_visible().unwrap_or(false))
+                    && any_native_taskbar_visible();
+                if !wants_heal {
+                    TASKBAR_HEAL_TICKS.store(0, Ordering::Relaxed);
+                } else if TASKBAR_HEAL_TICKS.fetch_add(1, Ordering::Relaxed) >= 3 {
+                    TASKBAR_HEAL_TICKS.store(0, Ordering::Relaxed);
+                    if set_taskbar_visibility(false, false) {
+                        crate::diagnostics::record("taskbar", "re-hid a taskbar left showing");
+                        NATIVE_TASKBAR_HIDDEN.store(true, Ordering::Relaxed);
+                    }
+                }
             }
 
             // Capture UI state is event-driven: WinEvent callbacks set the
