@@ -7,6 +7,7 @@ mod calendar;
 mod commands;
 mod diagnostics;
 mod dock_extras;
+mod dock_layout;
 mod privacy;
 mod tray_panels;
 mod services;
@@ -144,6 +145,8 @@ fn main() {
             window_region::set_window_region,
             backdrop::capture_notch_backdrop,
             privacy::get_device_use,
+            dock_layout::get_tablet_posture,
+            dock_layout::set_dock_tablet,
             tray_panels::notifications_list,
             tray_panels::notifications_request_access,
             tray_panels::notifications_remove,

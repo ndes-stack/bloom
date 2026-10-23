@@ -24,7 +24,23 @@ import {
 	type PanelAnchor,
 	type PanelRect
 } from "./components/DockTray";
-import { DOCK_TRAY_KEY, type TrayPanelKind } from "./dockTray";
+import { DOCK_TRAY_KEY, trayClock, type TrayPanelKind } from "./dockTray";
+import {
+	DOCK_PILL_GLANCE_KEY,
+	DOCK_SIZE_KEY,
+	DOCK_SIZE_LABELS,
+	DOCK_STYLE_KEY,
+	DOCK_TABLET_KEY,
+	FLOAT_GAP,
+	PILL_IDLE_MS,
+	TOUCH_FACTOR,
+	dockSizeFactor,
+	parseDockSize,
+	parseDockStyle,
+	parseDockTablet,
+	sizeAfterDrag,
+	type DockSize
+} from "./dockLayout";
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
 // window, so their window title must be part of their identity — otherwise two
@@ -252,9 +268,30 @@ const Dock = memo(function Dock() {
 	const [popupBottom, setPopupBottom] = useState(56);
 	const pinnedItemsRef = useRef<AppInfo[]>([]);
 	const handleAppClickRef = useRef<(app: AppInfo) => void>(() => {});
-	const [scale, setScale] = useState(() =>
+	const [uiScale, setScale] = useState(() =>
 		parseFloat(localStorage.getItem("bloom-scale") || "1.0")
 	);
+	const [dockStyle, setDockStyle] = useState(() =>
+		parseDockStyle(localStorage.getItem(DOCK_STYLE_KEY))
+	);
+	const [dockSize, setDockSize] = useState(() => parseDockSize(localStorage.getItem(DOCK_SIZE_KEY)));
+	const [tabletSetting, setTabletSetting] = useState(() =>
+		parseDockTablet(localStorage.getItem(DOCK_TABLET_KEY))
+	);
+	const [pillGlance, setPillGlance] = useState(
+		() => localStorage.getItem(DOCK_PILL_GLANCE_KEY) === "true"
+	);
+	// Windows' slate mode: the 2-in-1's keyboard is folded back or detached.
+	const [slateMode, setSlateMode] = useState(false);
+	const [pillOpen, setPillOpen] = useState(false);
+	const tabletActive = tabletSetting === "always" || (tabletSetting === "auto" && slateMode);
+	const pillCollapsed = tabletActive && !pillOpen;
+	const floating = dockStyle === "floating";
+	const showGlance = pillGlance && dockTrayEnabled;
+	// The dock's own size on top of Bloom's scale; the tablet dock comes back
+	// bigger for fingers.
+	const scale =
+		uiScale * dockSizeFactor(dockSize) * (tabletActive && pillOpen ? TOUCH_FACTOR : 1);
 	const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
 
 	useEffect(() => {
@@ -292,8 +329,10 @@ const Dock = memo(function Dock() {
 		}
 	}, [isAnyInteraction]);
 
+	// The tablet pill always stays on screen; that's its point.
 	const isHidden =
 		!startupAnimating &&
+		!tabletActive &&
 		((dockMode === "smart" && isOverlapped && interactionState === "none") ||
 			(dockMode === "peek" && interactionState === "none"));
 
@@ -411,6 +450,10 @@ const Dock = memo(function Dock() {
 			setStartIcon(startIconVal);
 
 			setDockTrayEnabled(getVal(DOCK_TRAY_KEY, "true") !== "false");
+			setDockStyle(parseDockStyle(getVal(DOCK_STYLE_KEY)));
+			setDockSize(parseDockSize(getVal(DOCK_SIZE_KEY)));
+			setTabletSetting(parseDockTablet(getVal(DOCK_TABLET_KEY)));
+			setPillGlance(getVal(DOCK_PILL_GLANCE_KEY, "false") === "true");
 			setTimeFormat24h(getVal("bloom-time-format-24h", "false") === "true");
 
 			const extrasPosition = getVal("bloom-dock-extras-position", "off");
@@ -489,6 +532,10 @@ const Dock = memo(function Dock() {
 		"bloom-scale": setScale,
 		"bloom-dock-extras-position": setDockExtrasPosition,
 		[DOCK_TRAY_KEY]: (v: unknown) => setDockTrayEnabled(v !== false && v !== "false"),
+		[DOCK_STYLE_KEY]: (v: unknown) => setDockStyle(parseDockStyle(v)),
+		[DOCK_SIZE_KEY]: (v: unknown) => setDockSize(parseDockSize(v)),
+		[DOCK_TABLET_KEY]: (v: unknown) => setTabletSetting(parseDockTablet(v)),
+		[DOCK_PILL_GLANCE_KEY]: (v: unknown) => setPillGlance(v === true || v === "true"),
 		"bloom-time-format-24h": (v: unknown) => setTimeFormat24h(v === true || v === "true"),
 		"bloom-dock-extras-drives": () => setDockExtrasRevision((r) => r + 1),
 		"bloom-dock-extras-recycle-bin": () => setDockExtrasRevision((r) => r + 1),
@@ -906,7 +953,8 @@ const Dock = memo(function Dock() {
 		if (bar && isExpanded && !isHidden && isVisible) {
 			dockBandHeightRef.current = Math.max(dockBandHeightRef.current, bar.height);
 		}
-		const band = (dockBandHeightRef.current || 72 * scale) + 64 * scale;
+		const band =
+			(dockBandHeightRef.current || 72 * scale) + 64 * scale + (floating ? FLOAT_GAP * scale : 0);
 		const wanted: RegionRect[] = [
 			{ x: 0, y: window.innerHeight - band, width: window.innerWidth, height: band }
 		];
@@ -994,6 +1042,74 @@ const Dock = memo(function Dock() {
 		trayPanel,
 		trayPanelRect
 	]);
+
+	// Tablet mode: follow Windows' slate mode while the setting is Automatic.
+	useEffect(() => {
+		if (tabletSetting !== "auto") {
+			setSlateMode(false);
+			return;
+		}
+		const check = () =>
+			invoke<{ touch: boolean; slate: boolean }>("get_tablet_posture")
+				.then((p) => setSlateMode(!!p?.slate))
+				.catch(() => {});
+		check();
+		const poll = setInterval(check, 1500);
+		return () => clearInterval(poll);
+	}, [tabletSetting]);
+
+	// A fixed dock reserves only a sliver of screen while it's a tablet pill.
+	useEffect(() => {
+		invoke("set_dock_tablet", { active: tabletActive }).catch(() => {});
+		if (!tabletActive) setPillOpen(false);
+	}, [tabletActive]);
+
+	// The pill opens on a touch, a tap or the pointer reaching it, and folds
+	// away again a few seconds after you stop using the dock.
+	useEffect(() => {
+		if (tabletActive && isCurrentlyHovered) setPillOpen(true);
+	}, [tabletActive, isCurrentlyHovered]);
+	useEffect(() => {
+		if (!tabletActive || !pillOpen || interactionState !== "none") return;
+		const timer = setTimeout(() => setPillOpen(false), PILL_IDLE_MS);
+		return () => clearTimeout(timer);
+	}, [tabletActive, pillOpen, interactionState]);
+
+	// Ctrl+drag on the dock steps through its sizes; release saves it.
+	const resizeRef = useRef<{ startY: number; start: DockSize; current: DockSize } | null>(null);
+	const startResize = (e: React.PointerEvent) => {
+		if (!e.ctrlKey || pillCollapsed || e.button !== 0) return false;
+		e.preventDefault();
+		e.stopPropagation();
+		resizeRef.current = { startY: e.clientY, start: dockSize, current: dockSize };
+		const onMove = (ev: PointerEvent) => {
+			const r = resizeRef.current;
+			if (!r) return;
+			const next = sizeAfterDrag(r.start, r.startY - ev.clientY);
+			if (next !== r.current) {
+				r.current = next;
+				setDockSize(next);
+				if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+				setToast(`Dock size: ${DOCK_SIZE_LABELS[next]}`);
+				toastTimerRef.current = setTimeout(() => setToast(null), 1500);
+			}
+		};
+		const onUp = () => {
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUp);
+			const r = resizeRef.current;
+			resizeRef.current = null;
+			if (r && r.current !== r.start) {
+				try {
+					localStorage.setItem(DOCK_SIZE_KEY, r.current);
+				} catch {}
+				invoke("save_setting", { key: DOCK_SIZE_KEY, value: r.current }).catch(() => {});
+			}
+		};
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUp);
+		return true;
+	};
 
 	const dockShown = isExpanded && !isHidden && isVisible;
 	const trayStatus = useTrayStatus(dockTrayEnabled, dockShown, trayPanel === "calendar");
@@ -1334,7 +1450,14 @@ const Dock = memo(function Dock() {
 				<motion.div
 					ref={dockRef}
 					layout
-					className={`dock ${isExpanded && !isHidden ? "dock-expanded" : ""} ${isImpacted && !isExpanded && !isHidden ? "dock-impacted" : ""} ${dockIconOnly ? "dock-icon-only" : ""} ${isAdaptive ? "dock-adaptive" : ""}`}
+					className={`dock ${isExpanded && !isHidden ? "dock-expanded" : ""} ${isImpacted && !isExpanded && !isHidden ? "dock-impacted" : ""} ${dockIconOnly ? "dock-icon-only" : ""} ${isAdaptive ? "dock-adaptive" : ""} ${floating && !pillCollapsed ? "dock-floating" : ""} ${pillCollapsed ? "dock-pill" : ""}`}
+					onPointerDownCapture={(e) => {
+						if (startResize(e)) return;
+						if (pillCollapsed) {
+							e.stopPropagation();
+							setPillOpen(true);
+						}
+					}}
 					onMouseEnter={() => setIsDockHovered(true)}
 					onMouseLeave={() => {
 						setIsDockHovered(false);
@@ -1351,18 +1474,40 @@ const Dock = memo(function Dock() {
 						borderBottomLeftRadius: 17,
 						borderBottomRightRadius: 17
 					}}
-					animate={{
-						y: !isReady ? -800 : isVisible ? (isHidden ? 100 : 0) : 150,
-						width:
-							isExpanded && !isHidden && isVisible ? (isAdaptive ? adaptiveWidth : "auto") : 34,
-						height: isExpanded && !isHidden && isVisible ? "auto" : 34,
-						borderTopLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 18 : 17,
-						borderTopRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 18 : 17,
-						borderBottomLeftRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 0 : 17,
-						borderBottomRightRadius: (isImpacted || isExpanded) && !isHidden && isVisible ? 0 : 17,
-						opacity: isVisible ? 1 : 0,
-						scale: scale
-					}}
+					animate={(() => {
+						const shown = (isImpacted || isExpanded) && !isHidden && isVisible;
+						const open = isExpanded && !isHidden && isVisible;
+						if (isReady && isVisible && pillCollapsed) {
+							// The tablet pill: a wide, short touch target with a thin bar
+							// (or the glance chip) drawn inside it.
+							const w = showGlance ? 132 : 120;
+							return {
+								y: -4,
+								width: w,
+								height: 24,
+								borderTopLeftRadius: 12,
+								borderTopRightRadius: 12,
+								borderBottomLeftRadius: 12,
+								borderBottomRightRadius: 12,
+								opacity: 1,
+								scale: uiScale
+							};
+						}
+						const lifted = floating || tabletActive;
+						const top = shown ? (lifted ? 24 : 18) : 17;
+						const bottom = shown ? (lifted ? 24 : 0) : 17;
+						return {
+							y: !isReady ? -800 : isVisible ? (isHidden ? 100 : lifted && open ? -FLOAT_GAP : 0) : 150,
+							width: open ? (isAdaptive ? adaptiveWidth : "auto") : 34,
+							height: open ? "auto" : 34,
+							borderTopLeftRadius: top,
+							borderTopRightRadius: top,
+							borderBottomLeftRadius: bottom,
+							borderBottomRightRadius: bottom,
+							opacity: isVisible ? 1 : 0,
+							scale: scale
+						};
+					})()}
 					transition={{
 						y: { type: "spring", stiffness: 400, damping: 35, mass: 0.8 },
 						width: { type: "spring", stiffness: 250, damping: 22, mass: 0.8 },
@@ -1373,14 +1518,45 @@ const Dock = memo(function Dock() {
 						borderBottomLeftRadius: { type: "spring", stiffness: 500, damping: 30 },
 						borderBottomRightRadius: { type: "spring", stiffness: 500, damping: 30 },
 						opacity: { type: "tween", duration: 0.2 },
-						scale: { duration: 0 }
+						scale: tabletActive
+							? { type: "spring", stiffness: 300, damping: 28 }
+							: { duration: 0 }
 					}}
 					style={{ originX: 0.5, originY: 1, minWidth: 34 }}
 					onContextMenu={(e) => handleContextMenu(e, null)}
 				>
-					<EdgeSurface edge="bottom" flares={isExpanded && !isHidden} />
+					<EdgeSurface
+						edge="bottom"
+						flares={isExpanded && !isHidden && !floating && !tabletActive}
+					/>
 					<AnimatePresence>
-						{isExpanded && (
+						{pillCollapsed && (
+							<motion.span
+								key="pill"
+								className={`dock-pill-mark${showGlance ? " glance" : ""}`}
+								initial={{ opacity: 0, scaleX: 0.6 }}
+								animate={{ opacity: 1, scaleX: 1 }}
+								exit={{ opacity: 0, scaleX: 0.6, transition: { duration: 0.1 } }}
+								transition={{ type: "spring", stiffness: 420, damping: 30 }}
+							>
+								{showGlance && (
+									<>
+										<b>{trayClock(trayStatus.now, timeFormat24h)}</b>
+										{trayStatus.battery?.present && trayStatus.battery.percent != null && (
+											<>
+												<i />
+												{trayStatus.battery.percent}%
+											</>
+										)}
+										{trayStatus.notifications.access === "allowed" &&
+											trayStatus.notifications.items.length > 0 && <span className="dock-pill-dot" />}
+									</>
+								)}
+							</motion.span>
+						)}
+					</AnimatePresence>
+					<AnimatePresence>
+						{isExpanded && !pillCollapsed && (
 							<motion.div
 								key="dock-content"
 								initial={{ opacity: 0 }}

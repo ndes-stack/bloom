@@ -3768,7 +3768,8 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
             return;
         }
 
-        let pr = ((56.0 * bloom_scale) * scale) as i32;
+        let pr = ((crate::dock_layout::current_reserved_logical(window.app_handle()) * bloom_scale)
+            * scale) as i32;
 
         // Serialize with disable_dock_appbar, then check the setting again.
         // A pending registration must not outlive a dock-disable request.

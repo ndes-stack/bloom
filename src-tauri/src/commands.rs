@@ -3156,7 +3156,7 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
         serde_json::json!({ "key": &key, "value": &settings[&key] }),
     );
 
-    if key == "bloom-scale" {
+    if crate::dock_layout::LAYOUT_KEYS.contains(&key.as_str()) {
         re_register_appbars(&app, &settings);
     }
     Ok(())

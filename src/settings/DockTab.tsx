@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react";
 import { DockTraySetting } from "./DockTraySetting";
+import { DockLayoutSettings } from "./DockLayoutSettings";
 import { invoke } from "@tauri-apps/api/core";
 import {
 	Monitor,
@@ -263,6 +264,8 @@ export function DockTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						<DockLayoutSettings />
 
 						<DockTraySetting />
 
