@@ -189,11 +189,24 @@ pub fn open_settings_page(uri: String) -> Result<(), String> {
 /// `restore_foreground` when Start closes.
 #[tauri::command]
 pub fn focus_dock_window(window: tauri::WebviewWindow) -> isize {
-    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
+    use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow,
+    };
     unsafe {
         let previous = GetForegroundWindow();
         if let Ok(hwnd) = window.hwnd() {
+            // Opened from the Windows key, the keypress went to another app, and
+            // Windows only lets the app that owns the input take the foreground.
+            // Sharing that app's input state for a moment lets the dock take it.
+            let theirs = GetWindowThreadProcessId(previous, None);
+            let ours = GetCurrentThreadId();
+            let attached =
+                theirs != 0 && theirs != ours && AttachThreadInput(theirs, ours, true).as_bool();
             let _ = SetForegroundWindow(hwnd);
+            if attached {
+                let _ = AttachThreadInput(theirs, ours, false);
+            }
         }
         let _ = window.set_focus();
         previous.0 as isize

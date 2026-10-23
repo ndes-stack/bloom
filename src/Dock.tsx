@@ -234,6 +234,8 @@ const Dock = memo(function Dock() {
 		parseStartMenu(localStorage.getItem(START_MENU_KEY))
 	);
 	const [startPins, setStartPins] = useState<string | null>(() => localStorage.getItem(START_PINS_KEY));
+	// The Windows key asked for Start; the dock shows itself first, then opens it.
+	const [startRequested, setStartRequested] = useState(false);
 	// While a tray app's own menu is open (and just after), presses outside
 	// the dock and losing focus don't close the tray panel: you're still using it.
 	const trayKeepOpenUntilRef = useRef(0);
@@ -326,7 +328,12 @@ const Dock = memo(function Dock() {
 	const isCurrentlyHovered = isDockHovered || isEdgeHovered;
 	const [interactionState, setInteractionState] = useState<"active" | "grace" | "none">("none");
 	const isAnyInteraction =
-		isCurrentlyHovered || !!contextMenu || showAddPopup || nativeMenuOpen || !!trayPanel;
+		isCurrentlyHovered ||
+		!!contextMenu ||
+		showAddPopup ||
+		nativeMenuOpen ||
+		!!trayPanel ||
+		startRequested;
 
 	const previewTimerRef = useRef<any>(null);
 	const isPreviewHoveredRef = useRef(false);
@@ -1205,6 +1212,35 @@ const Dock = memo(function Dock() {
 	};
 
 	const closeTrayPanel = useMemo(() => () => setTrayPanel(null), []);
+
+	// The Windows key: a tap toggles Bloom's Start (the backend's keyboard hook
+	// stops Windows' own from opening). A hidden dock or tablet pill comes up
+	// first so Start can line up with it.
+	const trayPanelRef = useRef(trayPanel);
+	trayPanelRef.current = trayPanel;
+	useEffect(() => {
+		const unlisten = listen("dock-open-start", () => {
+			if (trayPanelRef.current === "start") {
+				setTrayPanel(null);
+				return;
+			}
+			setPillOpen(true);
+			setStartRequested(true);
+		});
+		return () => {
+			unlisten.then((f) => f());
+		};
+	}, []);
+	useEffect(() => {
+		if (!startRequested || !dockShown || pillCollapsed) return;
+		// Let the dock finish rising so Start is placed against where it ends up.
+		const timer = setTimeout(() => {
+			const icon = dockRef.current?.querySelector<HTMLElement>(".bloom-icon-img")?.parentElement;
+			if (icon) toggleTrayPanel("start", icon);
+			setStartRequested(false);
+		}, 260);
+		return () => clearTimeout(timer);
+	}, [startRequested, dockShown, pillCollapsed]);
 
 	// Stable for the Start menu's effects; fetchIcon itself changes every render.
 	const fetchIconRef = useRef(fetchIcon);

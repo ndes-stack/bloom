@@ -3,6 +3,7 @@
 
 export const START_MENU_KEY = "bloom-start-menu";
 export const START_PINS_KEY = "bloom-start-pins";
+export const START_WIN_KEY = "bloom-start-win-key";
 
 /** Which Start the dock's Start button opens. */
 export type StartMenuKind = "bloom" | "windows";

@@ -27,6 +27,9 @@ static WIN_KEY_DOWN: AtomicBool = AtomicBool::new(false);
 /// Digit (1-9) of the currently held Win+Number combo, 0 when none. Key
 /// auto-repeat re-fires the keydown; only the first press may toggle an app.
 static WIN_NUMBER_HELD: AtomicU8 = AtomicU8::new(0);
+/// Set when any other key goes down while Win is held, so a Win+E or
+/// Win+Shift+S isn't mistaken for a lone Win tap.
+static WIN_COMBO_USED: AtomicBool = AtomicBool::new(false);
 /// Virtual key Microsoft documents as "unassigned", used as the mask key.
 /// See `send_start_menu_mask`.
 const MASK_VK: u16 = 0xE8;
@@ -45,7 +48,8 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
     std::thread::spawn(move || {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
-            let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) && dock_win_number_enabled();
+            let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                && (dock_win_number_enabled() || bloom_start_on_win_key());
             if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
                 // A low-level hook runs on the thread that installed it, which
                 // needs a message loop, so install and remove it on the main thread.
@@ -89,6 +93,27 @@ fn dock_win_number_enabled() -> bool {
     crate::utils::get_setting_str(app, "bloom-dock-win-number-enabled")
         .map(|v| v != "false")
         .unwrap_or(true)
+}
+
+/// A lone Windows key tap opens Bloom's Start instead of Windows' when the
+/// dock's Start button does (`bloom-start-menu`) and `bloom-start-win-key` is on.
+fn bloom_start_on_win_key() -> bool {
+    let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {
+        return false;
+    };
+    let start = crate::utils::get_setting_str(app, "bloom-start-menu");
+    let win_key = crate::utils::get_setting_str(app, "bloom-start-win-key");
+    start.as_deref() != Some("windows") && win_key.as_deref() != Some("false")
+}
+
+/// Asks the dock to open Bloom's Start, off the hook thread.
+fn emit_dock_open_start() {
+    let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() else {
+        return;
+    };
+    tauri::async_runtime::spawn(async move {
+        let _ = app.emit_to("dock", "dock-open-start", ());
+    });
 }
 
 /// Whether one of Bloom's HUD overlays is enabled (`bloom-volume-overlay-enabled`,
@@ -183,15 +208,32 @@ unsafe extern "system" fn keyboard_hook_proc(
         if (kb.flags.0 & LLKHF_INJECTED.0) == 0 {
             if vk_code == VK_LWIN || vk_code == VK_RWIN {
                 if is_down {
-                    WIN_KEY_DOWN.store(true, Ordering::Relaxed);
+                    // Key repeat sends more downs while Win is held; only the
+                    // first one starts a fresh combo.
+                    if !WIN_KEY_DOWN.swap(true, Ordering::Relaxed) {
+                        WIN_COMBO_USED.store(false, Ordering::Relaxed);
+                    }
                     // A fresh Win press always starts a fresh combo, even if the
                     // previous digit's keyup was missed.
                     WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
                 } else if is_up {
-                    WIN_KEY_DOWN.store(false, Ordering::Relaxed);
+                    let was_down = WIN_KEY_DOWN.swap(false, Ordering::Relaxed);
                     WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
+                    let lone_tap = was_down && !WIN_COMBO_USED.swap(false, Ordering::Relaxed);
+                    if lone_tap
+                        && NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                        && bloom_start_on_win_key()
+                    {
+                        // The mask key makes the shell see a combo, so it won't
+                        // open its own Start when this keyup goes through.
+                        send_start_menu_mask();
+                        emit_dock_open_start();
+                    }
                 }
             } else if WIN_KEY_DOWN.load(Ordering::Relaxed) {
+                if is_down {
+                    WIN_COMBO_USED.store(true, Ordering::Relaxed);
+                }
                 if let Some(index) = win_number_index(vk_code.0) {
                     let slot = index + 1;
                     if is_up {
