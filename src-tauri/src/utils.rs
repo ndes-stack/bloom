@@ -280,6 +280,41 @@ pub fn secondary_taskbar_windows() -> Vec<windows::Win32::Foundation::HWND> {
     windows
 }
 
+/// Makes a taskbar window invisible and click-through while it is meant to be
+/// hidden, or undoes that. Bloom parks Windows' taskbar in auto-hide mode, and
+/// Explorer slides an auto-hide taskbar back up whenever the pointer reaches
+/// the bottom edge, which is exactly how the dock is peeked. Cloaked, a
+/// taskbar Explorer brings back shows nothing and takes no clicks.
+pub fn cloak_taskbar(hwnd: windows::Win32::Foundation::HWND, cloak: bool) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongA, SetLayeredWindowAttributes, SetWindowLongA, GWL_EXSTYLE, LWA_ALPHA,
+        WS_EX_LAYERED, WS_EX_TRANSPARENT,
+    };
+    let bits = WS_EX_LAYERED.0 as i32 | WS_EX_TRANSPARENT.0 as i32;
+    unsafe {
+        let ex = GetWindowLongA(hwnd, GWL_EXSTYLE);
+        if cloak {
+            if ex & bits != bits {
+                let _ = SetWindowLongA(hwnd, GWL_EXSTYLE, ex | bits);
+            }
+            let _ = SetLayeredWindowAttributes(
+                hwnd,
+                windows::Win32::Foundation::COLORREF(0),
+                0,
+                LWA_ALPHA,
+            );
+        } else if ex & bits != 0 {
+            let _ = SetLayeredWindowAttributes(
+                hwnd,
+                windows::Win32::Foundation::COLORREF(0),
+                255,
+                LWA_ALPHA,
+            );
+            let _ = SetWindowLongA(hwnd, GWL_EXSTYLE, ex & !bits);
+        }
+    }
+}
+
 pub fn any_native_taskbar_visible() -> bool {
     use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, IsWindowVisible};
     unsafe {
@@ -530,6 +565,7 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
                         *guard = placed_taskbar_rect(tray_hwnd);
                     }
                 }
+                cloak_taskbar(tray_hwnd, true);
                 let _ = ShowWindow(tray_hwnd, SW_HIDE);
                 // Move it far off-screen to prevent any "thin line" artifacts or flashes
                 let _ = SetWindowPos(
@@ -568,8 +604,10 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
                     )
                     .is_ok();
                 }
+                cloak_taskbar(secondary_tray_hwnd, false);
                 let _ = ShowWindow(secondary_tray_hwnd, SW_SHOW);
             } else {
+                cloak_taskbar(secondary_tray_hwnd, true);
                 let _ = ShowWindow(secondary_tray_hwnd, SW_HIDE);
                 let _ = SetWindowPos(
                     secondary_tray_hwnd,

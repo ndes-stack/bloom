@@ -443,6 +443,8 @@ impl Drop for TrayExposure {
             {
                 let _ = ShowWindow(self.taskbar, SW_HIDE);
                 SetWindowLongW(self.taskbar, GWL_EXSTYLE, self.style);
+                // Back to fully invisible and click-through while hidden.
+                crate::utils::cloak_taskbar(self.taskbar, true);
                 let _ = SetWindowPos(
                     self.taskbar,
                     None,

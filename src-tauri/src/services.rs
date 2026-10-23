@@ -36,6 +36,15 @@ const MASK_VK: u16 = 0xE8;
 
 /// Raw handle of the installed keyboard hook, 0 while none is installed.
 static KEYBOARD_HOOK: AtomicIsize = AtomicIsize::new(0);
+/// Thread that owns the keyboard hook and pumps its messages, 0 when none.
+static KEYBOARD_HOOK_THREAD: AtomicU32 = AtomicU32::new(0);
+/// Set from when the hook thread is started until it has fully exited.
+static KEYBOARD_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
+/// Settings the hook needs, refreshed by the setup loop. The hook itself must
+/// answer within Windows' low-level hook timeout, so it reads these instead of
+/// locking the settings cache while a key is held.
+static KB_WIN_NUMBER_ON: AtomicBool = AtomicBool::new(true);
+static KB_START_ON_WIN: AtomicBool = AtomicBool::new(false);
 
 /// Win+1-9 is the only feature that needs a global keyboard hook: Explorer
 /// already registers those hotkeys, so `RegisterHotKey` can't claim them.
@@ -44,35 +53,67 @@ static KEYBOARD_HOOK: AtomicIsize = AtomicIsize::new(0);
 /// (the dock replaces the taskbar and the setting is on); the rest of the time
 /// Bloom doesn't see the keyboard at all.
 pub fn setup_keyboard_hook(app_handle: AppHandle) {
-    let _ = KEYBOARD_HOOK_APP_HANDLE.set(app_handle.clone());
+    let _ = KEYBOARD_HOOK_APP_HANDLE.set(app_handle);
     std::thread::spawn(move || {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
+            KB_WIN_NUMBER_ON.store(dock_win_number_enabled(), Ordering::Relaxed);
+            KB_START_ON_WIN.store(bloom_start_on_win_key(), Ordering::Relaxed);
             let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                && (dock_win_number_enabled() || bloom_start_on_win_key());
-            if wanted != (KEYBOARD_HOOK.load(Ordering::Relaxed) != 0) {
-                // A low-level hook runs on the thread that installed it, which
-                // needs a message loop, so install and remove it on the main thread.
-                let _ = app_handle.run_on_main_thread(move || set_keyboard_hook(wanted));
+                && (KB_WIN_NUMBER_ON.load(Ordering::Relaxed)
+                    || KB_START_ON_WIN.load(Ordering::Relaxed));
+            let running = KEYBOARD_HOOK_RUNNING.load(Ordering::Relaxed);
+            if wanted && !running {
+                start_keyboard_hook_thread();
+            } else if !wanted && running {
+                stop_keyboard_hook_thread();
             }
             std::thread::sleep(Duration::from_millis(500));
         }
     });
 }
 
-fn set_keyboard_hook(enabled: bool) {
-    use windows::Win32::UI::WindowsAndMessaging::{UnhookWindowsHookEx, HHOOK, WH_KEYBOARD_LL};
-    let current = KEYBOARD_HOOK.load(Ordering::Relaxed);
-    unsafe {
-        if enabled && current == 0 {
-            if let Ok(hook) = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) {
-                KEYBOARD_HOOK.store(hook.0 as isize, Ordering::Relaxed);
-            }
-        } else if !enabled && current != 0 {
-            let _ = UnhookWindowsHookEx(HHOOK(current as *mut _));
-            KEYBOARD_HOOK.store(0, Ordering::Relaxed);
-            WIN_KEY_DOWN.store(false, Ordering::Relaxed);
-            WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
+/// The keyboard hook gets a thread of its own with its own message loop.
+/// It used to live on the main thread, where a busy moment (a window event, a
+/// slow command) could keep it from answering in time; Windows then drops the
+/// hook without notice, and the Windows key and Win+1-9 stopped working until
+/// Bloom restarted.
+fn start_keyboard_hook_thread() {
+    if KEYBOARD_HOOK_RUNNING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    std::thread::spawn(|| unsafe {
+        use windows::Win32::System::Threading::GetCurrentThreadId;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            DispatchMessageW, GetMessageW, TranslateMessage, UnhookWindowsHookEx, MSG,
+            WH_KEYBOARD_LL,
+        };
+        let Ok(hook) = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) else {
+            KEYBOARD_HOOK_RUNNING.store(false, Ordering::Relaxed);
+            return;
+        };
+        KEYBOARD_HOOK.store(hook.0 as isize, Ordering::Relaxed);
+        KEYBOARD_HOOK_THREAD.store(GetCurrentThreadId(), Ordering::Relaxed);
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        let _ = UnhookWindowsHookEx(hook);
+        KEYBOARD_HOOK.store(0, Ordering::Relaxed);
+        KEYBOARD_HOOK_THREAD.store(0, Ordering::Relaxed);
+        WIN_KEY_DOWN.store(false, Ordering::Relaxed);
+        WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
+        KEYBOARD_HOOK_RUNNING.store(false, Ordering::Relaxed);
+    });
+}
+
+fn stop_keyboard_hook_thread() {
+    use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
+    let thread = KEYBOARD_HOOK_THREAD.load(Ordering::Relaxed);
+    if thread != 0 {
+        unsafe {
+            let _ = PostThreadMessageW(thread, WM_QUIT, WPARAM(0), LPARAM(0));
         }
     }
 }
@@ -217,7 +258,9 @@ unsafe extern "system" fn keyboard_hook_proc(
                         // the keyup would reach the shell after it and Windows'
                         // Start would still open. Masked here, the shell always
                         // sees Win used as a modifier; real shortcuts still work.
-                        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) && bloom_start_on_win_key() {
+                        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                            && KB_START_ON_WIN.load(Ordering::Relaxed)
+                        {
                             send_start_menu_mask();
                         }
                     }
@@ -230,7 +273,7 @@ unsafe extern "system" fn keyboard_hook_proc(
                     let lone_tap = was_down && !WIN_COMBO_USED.swap(false, Ordering::Relaxed);
                     if lone_tap
                         && NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                        && bloom_start_on_win_key()
+                        && KB_START_ON_WIN.load(Ordering::Relaxed)
                     {
                         emit_dock_open_start();
                     }
@@ -253,7 +296,7 @@ unsafe extern "system" fn keyboard_hook_proc(
                             WIN_KEY_DOWN.store(false, Ordering::Relaxed);
                             WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
                         } else if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                            && dock_win_number_enabled()
+                            && KB_WIN_NUMBER_ON.load(Ordering::Relaxed)
                         {
                             if WIN_NUMBER_HELD.swap(slot, Ordering::Relaxed) != slot {
                                 send_start_menu_mask();

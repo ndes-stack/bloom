@@ -2514,10 +2514,13 @@ pub fn open_system_tray() {
                 }
                 crate::state::SYSTEM_TRAY_OPEN.store(false, Ordering::Relaxed);
 
-                // Revert transparency
+                // Revert transparency, unless the taskbar is hidden again: then
+                // it stays cloaked (see utils::cloak_taskbar).
                 let tray_class = PCSTR(c"Shell_TrayWnd".as_ptr() as *const u8);
                 let hwnd = FindWindowA(tray_class, PCSTR::null()).unwrap_or_default();
-                if !hwnd.0.is_null() {
+                if !hwnd.0.is_null()
+                    && !crate::state::NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                {
                     let exstyle = GetWindowLongA(hwnd, GWL_EXSTYLE);
                     let _ = SetLayeredWindowAttributes(
                         hwnd,
