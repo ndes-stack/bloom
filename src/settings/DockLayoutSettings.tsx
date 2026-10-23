@@ -1,4 +1,4 @@
-import { Clock3, RectangleHorizontal, Scaling, Tablet } from "lucide-react";
+import { Clock3, LayoutGrid, RectangleHorizontal, Scaling, Tablet } from "lucide-react";
 import { SettingRow } from "./SettingRow";
 import { useStored } from "./useStored";
 import {
@@ -14,6 +14,7 @@ import {
 	type DockTabletMode
 } from "../dockLayout";
 import { parseBool } from "../reminders";
+import { START_MENU_KEY, parseStartMenu, type StartMenuKind } from "../startMenu";
 
 /** Settings > Dock: floating, its own size, and the tablet pill. */
 export function DockLayoutSettings() {
@@ -21,8 +22,28 @@ export function DockLayoutSettings() {
 	const [size, setSize] = useStored(DOCK_SIZE_KEY, parseDockSize);
 	const [tablet, setTablet] = useStored(DOCK_TABLET_KEY, parseDockTablet);
 	const [glance, setGlance] = useStored(DOCK_PILL_GLANCE_KEY, (v) => parseBool(v, false));
+	const [start, setStart] = useStored(START_MENU_KEY, parseStartMenu);
 	return (
 		<>
+			<SettingRow
+				icon={LayoutGrid}
+				label="Start Menu"
+				desc={
+					start === "bloom"
+						? "The Start button opens Bloom's Start. The Windows key still opens Windows' own"
+						: "The Start button opens the Windows Start menu"
+				}
+			>
+				<select
+					className="settings-select"
+					value={start}
+					onChange={(e) => setStart(e.target.value as StartMenuKind)}
+				>
+					<option value="bloom">Bloom</option>
+					<option value="windows">Windows</option>
+				</select>
+			</SettingRow>
+
 			<SettingRow icon={RectangleHorizontal} label="Style" desc="Attached to the screen edge, or floating just above it">
 				<select
 					className="settings-select"

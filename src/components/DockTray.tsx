@@ -412,6 +412,7 @@ export const PANEL_WIDTHS: Record<TrayPanelKind, number> = {
 	apps: 260,
 	quick: 360,
 	lang: 320,
+	start: 560,
 	calendar: 720
 };
 

@@ -1,0 +1,551 @@
+/* Bloom's Start menu. It sits in the dock's panel host (.tray-panel), so it
+   uses the same --tray-* colours as the tray panels. */
+
+.sm {
+	position: relative;
+	width: 560px;
+	padding: 18px;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.sm button {
+	font: inherit;
+	color: inherit;
+}
+
+.sm-search {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 42px;
+	padding: 0 14px;
+	border-radius: 14px;
+	background: var(--tray-fill);
+	box-shadow: inset 0 0 0 1.5px transparent;
+	transition: box-shadow 0.2s ease;
+}
+
+.sm-search:focus-within {
+	box-shadow: inset 0 0 0 1.5px var(--tray-accent);
+}
+
+.sm-search svg {
+	width: 15px;
+	height: 15px;
+	flex: none;
+	color: var(--tray-muted);
+}
+
+.sm-search input {
+	flex: 1;
+	min-width: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	font-size: 13px;
+}
+
+.sm-search input::placeholder {
+	color: var(--tray-muted);
+}
+
+.sm-body {
+	position: relative;
+	min-height: 0;
+}
+
+.sm-home,
+.sm-results,
+.sm-all {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.sm-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 28px;
+}
+
+.sm-head b {
+	font-size: 13px;
+	margin-right: auto;
+}
+
+.sm-count {
+	font-size: 11px;
+	color: var(--tray-muted);
+}
+
+.sm-chip {
+	height: 28px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 11px;
+	border: none;
+	border-radius: 9px;
+	background: var(--tray-fill);
+	font-size: 11px !important;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.sm-chip:hover {
+	background: var(--tray-fill-hover);
+}
+
+.sm-chip svg {
+	width: 12px;
+	height: 12px;
+}
+
+.sm-icon-btn {
+	width: 32px;
+	height: 32px;
+	flex: none;
+	padding: 0;
+	border: none;
+	border-radius: 10px;
+	background: var(--tray-fill);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		box-shadow 0.2s ease;
+}
+
+.sm-icon-btn:hover,
+.sm-icon-btn.open {
+	background: var(--tray-fill-hover);
+}
+
+.sm-icon-btn.open {
+	box-shadow: inset 0 0 0 1.5px var(--tray-accent);
+}
+
+.sm-icon-btn svg {
+	width: 15px;
+	height: 15px;
+}
+
+.sm-icon {
+	flex: none;
+	object-fit: contain;
+	pointer-events: none;
+}
+
+.sm-icon-fallback {
+	border-radius: 28%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--tray-fill-hover);
+	font-weight: 700;
+}
+
+/* Pinned */
+
+.sm-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 4px;
+}
+
+.sm-tile {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 7px;
+	padding: 10px 4px 8px;
+	border: none;
+	border-radius: 14px;
+	background: transparent;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.sm-tile:hover {
+	background: var(--tray-fill);
+}
+
+.sm-tile span {
+	max-width: 100%;
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Up next */
+
+.sm-upnext {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	border-radius: 16px;
+	background: color-mix(in srgb, var(--tray-accent) 14%, transparent);
+}
+
+.sm-upnext-bar {
+	width: 4px;
+	align-self: stretch;
+	border-radius: 2px;
+	background: var(--tray-accent);
+}
+
+.sm-upnext-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	line-height: 1.35;
+}
+
+.sm-upnext-text b {
+	font-size: 12.5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sm-upnext-text span,
+.sm-upnext-after {
+	font-size: 11px;
+	color: var(--tray-muted);
+}
+
+.sm-upnext-after {
+	max-width: 45%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Recent files */
+
+.sm-recent {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.sm-file {
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 11px;
+	padding: 9px 11px;
+	border: none;
+	border-radius: 13px;
+	background: var(--tray-fill);
+	text-align: left;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.sm-file:hover {
+	background: var(--tray-fill-hover);
+}
+
+.sm-file-icon {
+	position: relative;
+	width: 30px;
+	height: 30px;
+	flex: none;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+}
+
+.sm-file-icon svg {
+	width: 14px;
+	height: 14px;
+	opacity: 0.5;
+}
+
+.sm-file-icon b {
+	position: absolute;
+	bottom: 3px;
+	font-size: 7px;
+	letter-spacing: 0.3px;
+}
+
+.sm-result-text {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	line-height: 1.35;
+	text-align: left;
+}
+
+.sm-result-text b {
+	font-size: 12.5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sm-result-text span {
+	font-size: 11px;
+	color: var(--tray-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Search results */
+
+.sm-results {
+	gap: 2px;
+	min-height: 120px;
+}
+
+.sm-result {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 48px;
+	padding: 6px 12px;
+	border: none;
+	border-radius: 13px;
+	background: transparent;
+	text-align: left;
+	cursor: pointer;
+}
+
+.sm-result.selected {
+	background: color-mix(in srgb, var(--tray-accent) 16%, transparent);
+}
+
+.sm-result .sm-result-text {
+	flex: 1;
+}
+
+.sm-glyph {
+	width: 30px;
+	height: 30px;
+	flex: none;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--tray-fill-hover);
+}
+
+.sm-glyph.accent {
+	background: var(--tray-accent);
+	color: var(--tray-on-accent);
+}
+
+.sm-glyph svg {
+	width: 15px;
+	height: 15px;
+}
+
+.sm-enter {
+	font-size: 10.5px;
+	color: var(--tray-muted);
+}
+
+.sm-empty {
+	padding: 22px 0;
+	text-align: center;
+	font-size: 12px;
+	color: var(--tray-muted);
+}
+
+.sm-empty.wide {
+	grid-column: 1 / -1;
+}
+
+/* All apps */
+
+.sm-all-wrap {
+	display: flex;
+	gap: 8px;
+	height: 330px;
+}
+
+.sm-all-list {
+	flex: 1;
+	min-width: 0;
+	overflow-y: auto;
+	position: relative;
+	padding-right: 4px;
+}
+
+.sm-all-list::-webkit-scrollbar {
+	width: 4px;
+}
+
+.sm-all-list::-webkit-scrollbar-thumb {
+	border-radius: 2px;
+	background: var(--tray-fill-hover);
+}
+
+.sm-letter {
+	display: block;
+	padding: 10px 10px 4px;
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--tray-accent-text);
+}
+
+.sm-row {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 40px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 11px;
+	background: transparent;
+	text-align: left;
+	font-size: 12.5px !important;
+	cursor: pointer;
+}
+
+.sm-row:hover {
+	background: var(--tray-fill);
+}
+
+.sm-row span {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sm-rail {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 2px 0;
+}
+
+.sm-rail button {
+	width: 18px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	font-size: 9.5px !important;
+	font-weight: 700;
+	color: var(--tray-muted) !important;
+	opacity: 0.45;
+	cursor: default;
+}
+
+.sm-rail button.on {
+	opacity: 1;
+	color: var(--bloom-text, #fff) !important;
+	cursor: pointer;
+}
+
+.sm-rail button.on:hover {
+	color: var(--tray-accent-text) !important;
+}
+
+/* Footer */
+
+.sm-footer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-top: 14px;
+	border-top: 1px solid var(--tray-line);
+}
+
+.sm-avatar {
+	width: 32px;
+	height: 32px;
+	flex: none;
+	border-radius: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--tray-accent);
+	color: var(--tray-on-accent);
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.sm-user {
+	margin-right: auto;
+	min-width: 0;
+	font-size: 12.5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sm-power-wrap {
+	position: relative;
+}
+
+.sm-power,
+.sm-menu {
+	position: absolute;
+	z-index: 5;
+	min-width: 160px;
+	padding: 6px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-bg-expanded, rgb(30, 30, 30)) 92%, var(--bloom-text, #fff) 0%);
+	backdrop-filter: blur(30px) saturate(1.5);
+	-webkit-backdrop-filter: blur(30px) saturate(1.5);
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.12));
+	box-shadow: 0 14px 34px rgba(0, 0, 0, 0.25);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	transform-origin: bottom right;
+}
+
+.sm-power {
+	right: 0;
+	bottom: calc(100% + 8px);
+}
+
+.sm-power button,
+.sm-menu button {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 34px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 9px;
+	background: transparent;
+	font-size: 12.5px !important;
+	text-align: left;
+	cursor: pointer;
+}
+
+.sm-power button:hover,
+.sm-menu button:hover {
+	background: var(--tray-fill-hover);
+}
+
+.sm-power svg,
+.sm-menu svg {
+	width: 14px;
+	height: 14px;
+}
+
+.sm-menu {
+	transform-origin: top left;
+}

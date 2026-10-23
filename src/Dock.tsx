@@ -27,6 +27,8 @@ import {
 	type PanelRect
 } from "./components/DockTray";
 import { DOCK_TRAY_KEY, trayClock, type TrayPanelKind } from "./dockTray";
+import { StartMenu } from "./components/StartMenu";
+import { START_MENU_KEY, START_PINS_KEY, parseStartMenu, type StartPin } from "./startMenu";
 import {
 	DOCK_PILL_GLANCE_KEY,
 	DOCK_SIZE_KEY,
@@ -228,6 +230,10 @@ const Dock = memo(function Dock() {
 	const [trayAnchor, setTrayAnchor] = useState<PanelAnchor | null>(null);
 	const [trayPanelRect, setTrayPanelRect] = useState<PanelRect | null>(null);
 	const [trayApps, setTrayApps] = useState<TrayApp[]>([]);
+	const [startMenuKind, setStartMenuKind] = useState(() =>
+		parseStartMenu(localStorage.getItem(START_MENU_KEY))
+	);
+	const [startPins, setStartPins] = useState<string | null>(() => localStorage.getItem(START_PINS_KEY));
 	// While a tray app's own menu is open (and just after), presses outside
 	// the dock and losing focus don't close the tray panel: you're still using it.
 	const trayKeepOpenUntilRef = useRef(0);
@@ -457,6 +463,8 @@ const Dock = memo(function Dock() {
 			setStartIcon(startIconVal);
 
 			setDockTrayEnabled(getVal(DOCK_TRAY_KEY, "true") !== "false");
+			setStartMenuKind(parseStartMenu(getVal(START_MENU_KEY)));
+			setStartPins(getVal(START_PINS_KEY));
 			setDockStyle(parseDockStyle(getVal(DOCK_STYLE_KEY)));
 			setDockSize(parseDockSize(getVal(DOCK_SIZE_KEY)));
 			setTabletSetting(parseDockTablet(getVal(DOCK_TABLET_KEY)));
@@ -539,6 +547,8 @@ const Dock = memo(function Dock() {
 		"bloom-scale": setScale,
 		"bloom-dock-extras-position": setDockExtrasPosition,
 		[DOCK_TRAY_KEY]: (v: unknown) => setDockTrayEnabled(v !== false && v !== "false"),
+		[START_MENU_KEY]: (v: unknown) => setStartMenuKind(parseStartMenu(v)),
+		[START_PINS_KEY]: (v: unknown) => setStartPins(typeof v === "string" ? v : v == null ? null : JSON.stringify(v)),
 		[DOCK_STYLE_KEY]: (v: unknown) => setDockStyle(parseDockStyle(v)),
 		[DOCK_SIZE_KEY]: (v: unknown) => setDockSize(parseDockSize(v)),
 		[DOCK_TABLET_KEY]: (v: unknown) => setTabletSetting(parseDockTablet(v)),
@@ -1176,9 +1186,14 @@ const Dock = memo(function Dock() {
 		setPreviewData(null);
 		const end = (button.closest(".dock-tray") ?? button).getBoundingClientRect();
 		const btn = button.getBoundingClientRect();
-		const dockTop = dockRef.current?.getBoundingClientRect().top ?? window.innerHeight - 60;
+		const dockBox = dockRef.current?.getBoundingClientRect();
+		const dockTop = dockBox?.top ?? window.innerHeight - 60;
 		const width = PANEL_WIDTHS[kind] * scale;
-		let right = Math.max(8, window.innerWidth - end.right);
+		// Start lines up with the dock's left end instead of the tray's right end.
+		let right =
+			kind === "start"
+				? Math.max(8, window.innerWidth - ((dockBox?.left ?? btn.left) + width))
+				: Math.max(8, window.innerWidth - end.right);
 		if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
 		setTrayAnchor({
 			right,
@@ -1190,6 +1205,22 @@ const Dock = memo(function Dock() {
 	};
 
 	const closeTrayPanel = useMemo(() => () => setTrayPanel(null), []);
+
+	// Stable for the Start menu's effects; fetchIcon itself changes every render.
+	const fetchIconRef = useRef(fetchIcon);
+	fetchIconRef.current = fetchIcon;
+	const requestIcon = useMemo(
+		() => (path: string, name?: string) => void fetchIconRef.current(path, name),
+		[]
+	);
+	const saveStartPins = (pins: StartPin[]) => {
+		const value = JSON.stringify(pins);
+		setStartPins(value);
+		try {
+			localStorage.setItem(START_PINS_KEY, value);
+		} catch {}
+		invoke("save_setting", { key: START_PINS_KEY, value }).catch(() => {});
+	};
 
 	const dockItems = useMemo(() => {
 		const runningMap = new Map();
@@ -1634,7 +1665,8 @@ const Dock = memo(function Dock() {
 											onPointerCancel={() => setPressedApp(null)}
 											onClick={(e) => {
 												e.stopPropagation();
-												handleAppClick(startItem);
+												if (startMenuKind === "bloom") toggleTrayPanel("start", e.currentTarget);
+												else handleAppClick(startItem);
 											}}
 										>
 											<img
@@ -2402,6 +2434,21 @@ const Dock = memo(function Dock() {
 										}}
 										onMenu={(app) => {
 											if (app.tray_ids[0]) void openTrayMenuInPanel(app.tray_ids[0]);
+										}}
+									/>
+								) : kind === "start" ? (
+									<StartMenu
+										icons={iconsRef.current}
+										requestIcon={requestIcon}
+										dockPins={pinnedApps}
+										pinsSetting={startPins}
+										savePins={saveStartPins}
+										use24h={timeFormat24h}
+										onClose={closeTrayPanel}
+										onOpenCalendar={() => {
+											const clock = document.querySelector<HTMLElement>(".tray-clock");
+											if (clock) toggleTrayPanel("calendar", clock);
+											else setTrayPanel(null);
 										}}
 									/>
 								) : kind === "lang" ? (

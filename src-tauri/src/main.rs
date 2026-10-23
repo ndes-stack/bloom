@@ -12,6 +12,7 @@ mod privacy;
 mod tray_panels;
 mod services;
 mod shelf;
+mod start_menu;
 mod shelf_preview;
 mod state;
 mod tray;
@@ -146,6 +147,13 @@ fn main() {
             backdrop::capture_notch_backdrop,
             privacy::get_device_use,
             dock_layout::get_tablet_posture,
+            start_menu::get_recent_files,
+            start_menu::get_user_display_name,
+            start_menu::power_action,
+            start_menu::open_known_folder,
+            start_menu::open_settings_page,
+            start_menu::focus_dock_window,
+            start_menu::restore_foreground,
             dock_layout::set_dock_tablet,
             tray_panels::notifications_list,
             tray_panels::notifications_request_access,
