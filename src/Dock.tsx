@@ -13,6 +13,8 @@ import { driveLetter, hideDrive, removeCustomFolder, type DockExtra } from "./do
 import { createRegionSender, measureElements, padRect, type RegionRect } from "./windowRegion";
 import {
 	CalendarPanel,
+	LanguagePanel,
+	PANEL_MAX_WIDTH,
 	PANEL_WIDTHS,
 	QuickSettingsPanel,
 	TrayAppsPanel,
@@ -226,6 +228,11 @@ const Dock = memo(function Dock() {
 	const [trayAnchor, setTrayAnchor] = useState<PanelAnchor | null>(null);
 	const [trayPanelRect, setTrayPanelRect] = useState<PanelRect | null>(null);
 	const [trayApps, setTrayApps] = useState<TrayApp[]>([]);
+	// While a tray app's own menu is open (and just after), presses outside
+	// the dock and losing focus don't close the tray panel: you're still using it.
+	const trayKeepOpenUntilRef = useRef(0);
+	const [menuResync, setMenuResync] = useState(0);
+	const trayPanelPinned = () => Date.now() < trayKeepOpenUntilRef.current;
 	const [focusMinutes, setFocusMinutes] = useState(() => {
 		const last = parseInt(localStorage.getItem("bloom-timer-last-duration") || "", 10);
 		const min = Number.isFinite(last) && last >= 300 ? Math.round(last / 300) * 5 : 25;
@@ -827,6 +834,30 @@ const Dock = memo(function Dock() {
 		}
 	};
 
+	// A tray app's menu, opened from the tray panel: the panel stays open
+	// while the menu is up and after you pick something, and the list updates
+	// if the app quit.
+	const openTrayMenuInPanel = async (trayId: string) => {
+		trayKeepOpenUntilRef.current = Number.POSITIVE_INFINITY;
+		setNativeMenuOpen(true);
+		try {
+			await invoke("show_tray_context_menu", { trayId });
+		} catch (error) {
+			showActionError(error);
+		} finally {
+			setNativeMenuOpen(false);
+			trayKeepOpenUntilRef.current = Date.now() + 800;
+			setMenuResync((n) => n + 1);
+			for (const ms of [400, 1500]) {
+				setTimeout(() => {
+					invoke<TrayApp[]>("get_tray_apps")
+						.then((tray) => setTrayApps(tray))
+						.catch(() => {});
+				}, ms);
+			}
+		}
+	};
+
 	const handleContextMenu = (e: React.MouseEvent, app: AppInfo | null) => {
 		e.stopPropagation();
 		e.preventDefault();
@@ -924,7 +955,8 @@ const Dock = memo(function Dock() {
 			setContextMenu(null);
 			setActiveSubmenu(null);
 			setShowAddPopup(false);
-			setTrayPanel(null);
+			if (trayPanelPinned()) setMenuResync((n) => n + 1);
+			else setTrayPanel(null);
 		});
 		return () => {
 			unlisten.then((f) => f());
@@ -983,7 +1015,7 @@ const Dock = memo(function Dock() {
 		// A tray panel morphs between sizes without re-rendering the dock, so
 		// it gets the whole column it can grow into, from the dock up.
 		if (trayPanel && trayAnchor) {
-			const w = 420 * scale;
+			const w = (PANEL_MAX_WIDTH + 40) * scale;
 			const right = window.innerWidth - trayAnchor.right;
 			wanted.push(
 				padRect(
@@ -1040,7 +1072,8 @@ const Dock = memo(function Dock() {
 		activeSubmenu,
 		scale,
 		trayPanel,
-		trayPanelRect
+		trayPanelRect,
+		menuResync
 	]);
 
 	// Tablet mode: follow Windows' slate mode while the setting is Automatic.
@@ -1318,6 +1351,7 @@ const Dock = memo(function Dock() {
 
 	useEffect(() => {
 		const handleBlur = () => {
+			if (trayPanelPinned()) return;
 			closeMenu();
 			closePopup();
 			setTrayPanel(null);
@@ -2367,9 +2401,11 @@ const Dock = memo(function Dock() {
 											setTrayPanel(null);
 										}}
 										onMenu={(app) => {
-											if (app.tray_ids[0]) void openTrayMenu(app.tray_ids[0]);
+											if (app.tray_ids[0]) void openTrayMenuInPanel(app.tray_ids[0]);
 										}}
 									/>
+								) : kind === "lang" ? (
+									<LanguagePanel onChanged={trayStatus.refreshLanguage} />
 								) : kind === "quick" ? (
 									<QuickSettingsPanel
 										status={trayStatus}

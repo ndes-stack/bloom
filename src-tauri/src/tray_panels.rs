@@ -226,26 +226,112 @@ pub struct InputLanguage {
     pub layouts: u32,
 }
 
-/// The foreground window's keyboard language, like the taskbar's indicator.
+/// The last app window that was in front, for when Bloom itself is (a click
+/// on the dock can bring it forward).
+static LAST_APP_WINDOW: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+/// The window the keyboard language belongs to: the foreground window, or
+/// the app that was in front before Bloom.
+unsafe fn app_window() -> windows::Win32::Foundation::HWND {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    let fg = GetForegroundWindow();
+    let mut pid = 0u32;
+    GetWindowThreadProcessId(fg, Some(&mut pid as *mut u32));
+    if !fg.0.is_null() && pid != std::process::id() {
+        LAST_APP_WINDOW.store(fg.0 as isize, Ordering::Relaxed);
+        return fg;
+    }
+    HWND(LAST_APP_WINDOW.load(Ordering::Relaxed) as *mut _)
+}
+
+fn locale_info(lang_id: u32, kind: u32) -> String {
+    use windows::Win32::Globalization::GetLocaleInfoW;
+    let mut buf = [0u16; 128];
+    let len = unsafe { GetLocaleInfoW(lang_id, kind, Some(&mut buf)) };
+    if len > 1 {
+        String::from_utf16_lossy(&buf[..len as usize - 1])
+    } else {
+        String::new()
+    }
+}
+
+fn lang_id(layout: windows::Win32::UI::Input::KeyboardAndMouse::HKL) -> u32 {
+    (layout.0 as usize & 0xffff) as u32
+}
+
+unsafe fn current_layout() -> windows::Win32::UI::Input::KeyboardAndMouse::HKL {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+    GetKeyboardLayout(GetWindowThreadProcessId(app_window(), None))
+}
+
+/// The app's keyboard language, like the taskbar's indicator.
 #[tauri::command]
 pub fn get_input_language() -> InputLanguage {
-    use windows::Win32::Globalization::{GetLocaleInfoW, LOCALE_SISO639LANGNAME2};
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardLayoutList};
-    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-
+    use windows::Win32::Globalization::LOCALE_SISO639LANGNAME2;
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayoutList;
     unsafe {
-        let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
-        let layout = GetKeyboardLayout(thread);
-        let lang_id = (layout.0 as usize & 0xffff) as u32;
-        let mut buf = [0u16; 16];
-        let len = GetLocaleInfoW(lang_id, LOCALE_SISO639LANGNAME2, Some(&mut buf));
-        let code = if len > 1 {
-            String::from_utf16_lossy(&buf[..len as usize - 1]).to_uppercase()
-        } else {
-            String::new()
-        };
+        let code = locale_info(lang_id(current_layout()), LOCALE_SISO639LANGNAME2).to_uppercase();
         let layouts = GetKeyboardLayoutList(None).max(0) as u32;
         InputLanguage { code, layouts }
+    }
+}
+
+#[derive(Serialize)]
+pub struct InputLayout {
+    /// The keyboard layout handle, in hex, for `set_input_language`.
+    pub id: String,
+    pub code: String,
+    /// "English (United States)".
+    pub name: String,
+    pub active: bool,
+}
+
+/// Every installed keyboard language, for the dock's language panel.
+#[tauri::command]
+pub fn get_input_languages() -> Vec<InputLayout> {
+    use windows::Win32::Globalization::{LOCALE_SISO639LANGNAME2, LOCALE_SLOCALIZEDDISPLAYNAME};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayoutList, HKL};
+    unsafe {
+        let current = current_layout();
+        let count = GetKeyboardLayoutList(None).max(0) as usize;
+        let mut list = vec![HKL(std::ptr::null_mut()); count];
+        let got = GetKeyboardLayoutList(Some(&mut list)).max(0) as usize;
+        list.truncate(got);
+        list.into_iter()
+            .map(|layout| {
+                let id = lang_id(layout);
+                InputLayout {
+                    id: format!("{:x}", layout.0 as usize),
+                    code: locale_info(id, LOCALE_SISO639LANGNAME2).to_uppercase(),
+                    name: locale_info(id, LOCALE_SLOCALIZEDDISPLAYNAME),
+                    active: layout == current,
+                }
+            })
+            .collect()
+    }
+}
+
+/// Switches the app in front to another keyboard language, the way the
+/// taskbar's language menu does.
+#[tauri::command]
+pub fn set_input_language(id: String) -> Result<(), String> {
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_INPUTLANGCHANGEREQUEST};
+    let layout = usize::from_str_radix(id.trim_start_matches("0x"), 16).map_err(|e| e.to_string())?;
+    unsafe {
+        let target = app_window();
+        if target.0.is_null() {
+            return Err("No app window to switch".into());
+        }
+        PostMessageW(
+            Some(target),
+            WM_INPUTLANGCHANGEREQUEST,
+            WPARAM(0),
+            LPARAM(layout as isize),
+        )
+        .map_err(|e| e.message().to_string())
     }
 }
 

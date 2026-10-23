@@ -4430,6 +4430,7 @@ pub enum SystemAction {
     NotificationSettings,
     DateTime,
     SoundSettings,
+    LanguageSettings,
 }
 
 #[tauri::command]
@@ -4472,6 +4473,7 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
             }
             SystemAction::DateTime => ("ms-settings:dateandtime".into(), String::new()),
             SystemAction::SoundSettings => ("ms-settings:sound".into(), String::new()),
+            SystemAction::LanguageSettings => ("ms-settings:regionlanguage".into(), String::new()),
             SystemAction::TaskView => (
                 "explorer.exe".into(),
                 "shell:::{3080F90E-D7AD-11D9-BD98-0000947B0257}".into(),

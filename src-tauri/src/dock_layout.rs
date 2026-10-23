@@ -23,10 +23,10 @@ pub fn size_factor(size: Option<&str>) -> f64 {
 pub const FLOAT_GAP: f64 = 12.0;
 
 /// Height of the strip a fixed dock reserves, in logical pixels before
-/// `bloom-scale`. The tablet pill reserves only a sliver so apps get the screen.
+/// `bloom-scale`. The tablet pill reserves nothing: it sits on top of the app.
 pub fn reserved_logical(size: Option<&str>, style: Option<&str>, tablet: bool) -> f64 {
     if tablet {
-        return 14.0;
+        return 0.0;
     }
     let gap = if style == Some("floating") { FLOAT_GAP } else { 0.0 };
     56.0 * size_factor(size) + gap
@@ -90,6 +90,6 @@ mod tests {
         assert_eq!(reserved_logical(Some("medium"), Some("attached"), false), 56.0);
         assert_eq!(reserved_logical(Some("large"), None, false), 56.0 * 1.2);
         assert_eq!(reserved_logical(Some("small"), Some("floating"), false), 56.0 * 0.85 + 12.0);
-        assert_eq!(reserved_logical(Some("large"), Some("floating"), true), 14.0);
+        assert_eq!(reserved_logical(Some("large"), Some("floating"), true), 0.0);
     }
 }

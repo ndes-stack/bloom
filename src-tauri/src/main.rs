@@ -152,6 +152,8 @@ fn main() {
             tray_panels::notifications_remove,
             tray_panels::notifications_clear,
             tray_panels::get_input_language,
+            tray_panels::get_input_languages,
+            tray_panels::set_input_language,
             tray_panels::open_input_switcher,
             tray_panels::request_media_update,
             set_dock_hovered,

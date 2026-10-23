@@ -365,7 +365,12 @@ function applyAccentOverride(root: HTMLElement) {
 	if (override) root.style.setProperty("--bloom-accent", override);
 	const accent = root.style.getPropertyValue("--bloom-accent").trim() || "#007aff";
 	root.style.setProperty("--bloom-on-accent", textOnAccent(accent));
-	root.style.setProperty("--bloom-accent-text", readableAccent(accent, root.classList.contains("light-mode")));
+	const readable = readableAccent(accent, root.classList.contains("light-mode"));
+	root.style.setProperty("--bloom-accent-text", readable);
+	// For filled controls (buttons, today's date, badges): the readable accent,
+	// with text that reads on it. A white accent would vanish on a light panel.
+	root.style.setProperty("--bloom-accent-fill", readable);
+	root.style.setProperty("--bloom-on-accent-fill", textOnAccent(readable));
 }
 
 export function initTheme() {

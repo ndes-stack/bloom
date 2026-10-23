@@ -7,10 +7,13 @@
 	--tray-fill-hover: color-mix(in srgb, var(--bloom-text, #fff) 14%, transparent);
 	--tray-line: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
 	--tray-muted: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
-	--tray-accent: var(--bloom-accent, #0a84ff);
-	--tray-on-accent: var(--bloom-on-accent, #fff);
+	--tray-accent: var(--bloom-accent-fill, var(--bloom-accent, #0a84ff));
+	--tray-on-accent: var(--bloom-on-accent-fill, var(--bloom-on-accent, #fff));
 	--tray-accent-text: var(--bloom-accent-text, var(--bloom-accent, #0a84ff));
 	--tray-red: var(--tone-red, #ff453a);
+	backdrop-filter: blur(28px) saturate(1.5);
+	-webkit-backdrop-filter: blur(28px) saturate(1.5);
+	border-radius: 22px;
 }
 
 /* ---------------------------------------------------------------- buttons */
@@ -18,8 +21,8 @@
 .dock-tray {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding-left: 10px;
+	gap: 8px;
+	padding-left: 12px;
 	margin-left: -2px;
 	border-left: 1px solid color-mix(in srgb, var(--bloom-text, white) 18%, transparent);
 	color: var(--bloom-text, white);
@@ -36,8 +39,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
-	padding: 0 11px;
+	gap: 10px;
+	padding: 0 13px;
 	border: none;
 	border-radius: 11px;
 	background: var(--tray-fill);
@@ -160,7 +163,7 @@
 	align-items: flex-end;
 	justify-content: center;
 	gap: 0;
-	padding: 0 11px;
+	padding: 0 13px;
 	line-height: 1.2;
 	white-space: nowrap;
 }
@@ -229,33 +232,33 @@
 }
 
 .tp-apps {
-	width: 236px;
+	width: 260px;
 }
 
 .tp-quick {
-	width: 340px;
+	width: 360px;
 }
 
 .tp-calendar {
 	flex-direction: row !important;
 	align-items: stretch;
-	gap: 14px !important;
+	gap: 18px !important;
 }
 
 .tc-col {
-	width: 332px;
+	width: 348px;
 	flex: none;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 14px;
 }
 
 .tp {
-	padding: 12px;
+	padding: 16px;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 14px;
 }
 
 .tp button {
@@ -316,11 +319,11 @@
 .tp-apps-grid {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 6px;
+	gap: 8px;
 }
 
 .tp-app {
-	height: 46px;
+	height: 52px;
 	border: none;
 	border-radius: 12px;
 	background: var(--tray-fill);
@@ -370,7 +373,7 @@
 .tp-quick-main {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 16px;
 }
 
 .tp-quick-sub {
@@ -391,13 +394,13 @@
 .tp-split-row {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	gap: 10px;
 }
 
 .tp-split {
 	display: flex;
-	height: 54px;
-	border-radius: 14px;
+	height: 58px;
+	border-radius: 16px;
 	overflow: hidden;
 	background: var(--tray-fill);
 	transition:
@@ -476,14 +479,14 @@
 .tp-small-row {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 8px;
+	gap: 10px;
 }
 
 .tp-small {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 5px;
+	gap: 7px;
 	min-width: 0;
 }
 
@@ -499,9 +502,9 @@
 
 .tp-small-btn {
 	width: 100%;
-	height: 42px;
+	height: 46px;
 	border: none;
-	border-radius: 13px;
+	border-radius: 14px;
 	background: var(--tray-fill);
 	display: flex;
 	align-items: center;
@@ -529,8 +532,8 @@
 .tp-sliders {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	padding: 2px 0;
+	gap: 14px;
+	padding: 4px 0;
 }
 
 .tp-slider-row {
@@ -633,8 +636,8 @@
 .tp-media-inner {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	padding: 8px;
+	gap: 10px;
+	padding: 10px;
 	border-radius: 14px;
 	background: var(--tray-fill);
 }
@@ -707,7 +710,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding-top: 10px;
+	padding-top: 14px;
 	border-top: 1px solid var(--tray-line);
 }
 
@@ -750,11 +753,11 @@
 .tn {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 12px;
 }
 
 .tn-compact {
-	padding-bottom: 10px;
+	padding-bottom: 14px;
 	border-bottom: 1px solid var(--tray-line);
 }
 
@@ -762,10 +765,10 @@
    the list scrolling inside. contain: size keeps its content out of the row's
    height so the calendar decides it. */
 .tn-column {
-	width: 300px;
+	width: 320px;
 	flex: none;
 	contain: size;
-	padding-right: 14px;
+	padding-right: 18px;
 	border-right: 1px solid var(--tray-line);
 }
 
@@ -794,7 +797,7 @@
 .tn-list {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 10px;
 	overflow-y: auto;
 	overflow-x: hidden;
 	margin-right: -4px;
@@ -815,9 +818,9 @@
 	flex: none;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	padding: 9px 10px;
-	border-radius: 14px;
+	gap: 8px;
+	padding: 12px 14px;
+	border-radius: 16px;
 	background: var(--tray-fill);
 	cursor: grab;
 	touch-action: pan-y;
@@ -830,7 +833,7 @@
 .tn-head {
 	display: flex;
 	align-items: center;
-	gap: 7px;
+	gap: 8px;
 	font-size: 11px;
 	color: var(--tray-muted);
 }
@@ -910,7 +913,7 @@
 .tn-item {
 	display: flex;
 	flex-direction: column;
-	gap: 1px;
+	gap: 3px;
 	padding: 0;
 	border: none;
 	background: transparent;
@@ -938,7 +941,7 @@
 }
 
 .tn-item + .tn-item {
-	padding-top: 6px;
+	padding-top: 10px;
 	border-top: 1px solid var(--tray-line);
 }
 
@@ -958,7 +961,7 @@
 .tc {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 8px;
 }
 
 .tc-header {
@@ -1016,7 +1019,7 @@
 
 .tc-day {
 	position: relative;
-	height: 28px;
+	height: 30px;
 	padding: 0;
 	border: none;
 	background: transparent;
@@ -1083,21 +1086,21 @@
 }
 
 .ta {
-	padding-top: 8px;
+	padding-top: 12px;
 	border-top: 1px solid var(--tray-line);
 }
 
 .ta-list {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 6px;
 }
 
 .ta-row {
 	display: flex;
 	align-items: stretch;
-	gap: 9px;
-	padding: 6px 8px;
+	gap: 11px;
+	padding: 8px 10px;
 	border-radius: 10px;
 }
 
@@ -1164,7 +1167,7 @@
 
 .tf {
 	position: relative;
-	padding-top: 10px;
+	padding-top: 14px;
 	border-top: 1px solid var(--tray-line);
 }
 
@@ -1234,4 +1237,117 @@
 	.tc-day-num {
 		transition: none;
 	}
+}
+
+/* Animated surfaces get their own layer, so opening and morphing stay smooth. */
+.tray-panel,
+.tray-panel-content {
+	will-change: transform, opacity;
+}
+
+/* ---------------------------------------------------------------- keyboard */
+
+.tp-lang {
+	width: 320px;
+}
+
+.tl-header {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.tl-header b {
+	font-size: 13.5px;
+}
+
+.tl-header span {
+	font-size: 11px;
+	color: var(--tray-muted);
+}
+
+.tl-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.tl-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 46px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 14px;
+	background: var(--tray-fill);
+	text-align: left;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		box-shadow 0.2s ease;
+}
+
+.tl-row:hover {
+	background: var(--tray-fill-hover);
+}
+
+.tl-row.active {
+	box-shadow: inset 0 0 0 1.5px var(--tray-accent);
+}
+
+.tl-code {
+	width: 38px;
+	height: 26px;
+	flex: none;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--tray-fill-hover);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.3px;
+}
+
+.tl-row.active .tl-code {
+	background: var(--tray-accent);
+	color: var(--tray-on-accent);
+}
+
+.tl-name {
+	flex: 1;
+	min-width: 0;
+	font-size: 12.5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tl-check {
+	display: flex;
+	color: var(--tray-accent-text);
+}
+
+.tp-lang .tp-footer-battery {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tp-footer > .tp-chip {
+	width: auto;
+	flex: none;
+	padding: 0 12px;
+	background: var(--tray-fill);
+}
+
+.tp-footer > .tp-chip:hover {
+	background: var(--tray-fill-hover);
+}
+
+.tl-check svg {
+	width: 16px;
+	height: 16px;
 }

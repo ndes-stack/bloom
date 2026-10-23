@@ -3778,6 +3778,14 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
             return;
         }
 
+        // The tablet pill floats over the app, so it holds no strip at all:
+        // drop the AppBar (the window stays where it is) until tablet mode ends.
+        if pr <= 0 {
+            unregister_appbar_native(hwnd);
+            DOCK_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
+            return;
+        }
+
         unsafe {
             use windows::Win32::Foundation::RECT;
             use windows::Win32::UI::Shell::{

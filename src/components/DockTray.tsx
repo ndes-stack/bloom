@@ -11,6 +11,7 @@ import {
 	BatteryCharging,
 	Bluetooth,
 	BluetoothOff,
+	Check,
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
@@ -83,6 +84,7 @@ export interface TrayStatus {
 	setVolumeLocal: (v: number, muted: boolean) => void;
 	battery: BatteryInfo | null;
 	language: { code: string; layouts: number } | null;
+	refreshLanguage: () => void;
 	notifications: NotificationList;
 	setNotifications: (fn: (n: NotificationList) => NotificationList) => void;
 	refreshNotifications: () => void;
@@ -215,18 +217,19 @@ export function useTrayStatus(enabled: boolean, active: boolean, notificationsFa
 
 	// Keyboard language follows the foreground window, so check often while
 	// the dock is on screen.
+	const refreshLanguage = useCallback(() => {
+		invoke<{ code: string; layouts: number }>("get_input_language")
+			.then((l) =>
+				setLanguage((prev) => (prev?.code === l.code && prev.layouts === l.layouts ? prev : l))
+			)
+			.catch(() => {});
+	}, []);
 	useEffect(() => {
 		if (!enabled || !active) return;
-		const load = () =>
-			invoke<{ code: string; layouts: number }>("get_input_language")
-				.then((l) =>
-					setLanguage((prev) => (prev?.code === l.code && prev.layouts === l.layouts ? prev : l))
-				)
-				.catch(() => {});
-		load();
-		const poll = setInterval(load, 2000);
+		refreshLanguage();
+		const poll = setInterval(refreshLanguage, 2000);
 		return () => clearInterval(poll);
-	}, [enabled, active]);
+	}, [enabled, active, refreshLanguage]);
 
 	// Notifications: quick while their panel is open, slow otherwise, and
 	// slower still when Windows won't share them.
@@ -251,6 +254,7 @@ export function useTrayStatus(enabled: boolean, active: boolean, notificationsFa
 		},
 		battery,
 		language,
+		refreshLanguage,
 		notifications,
 		setNotifications: setNotificationsState,
 		refreshNotifications,
@@ -350,11 +354,12 @@ export function TrayButtons({ status, open, onToggle, hasTrayApps, use24h }: Tra
 			{language && language.layouts > 1 && language.code && (
 				<motion.button
 					type="button"
-					className="tray-btn tray-lang"
-					aria-label={`Keyboard language ${language.code}. Switch input`}
+					className={`tray-btn tray-lang${open === "lang" ? " open" : ""}`}
+					aria-label={`Keyboard language ${language.code}. Change it`}
+					aria-expanded={open === "lang"}
 					whileTap={{ scale: 0.92 }}
 					transition={tapSpring}
-					onClick={() => invoke("open_input_switcher").catch(() => {})}
+					onClick={(e) => onToggle("lang", e.currentTarget)}
 				>
 					{language.code}
 				</motion.button>
@@ -403,7 +408,15 @@ export function TrayButtons({ status, open, onToggle, hasTrayApps, use24h }: Tra
 // ---------------------------------------------------------------- panel host
 
 /** Widest each panel gets, for keeping it on screen. */
-export const PANEL_WIDTHS: Record<TrayPanelKind, number> = { apps: 236, quick: 340, calendar: 680 };
+export const PANEL_WIDTHS: Record<TrayPanelKind, number> = {
+	apps: 260,
+	quick: 360,
+	lang: 320,
+	calendar: 720
+};
+
+/** The widest any panel gets. */
+export const PANEL_MAX_WIDTH = Math.max(...Object.values(PANEL_WIDTHS));
 
 /** Where the open panel sits, in visual (zoomed) viewport pixels. */
 export interface PanelAnchor {
@@ -424,7 +437,11 @@ export interface PanelRect {
 	height: number;
 }
 
-const panelSpring = { type: "spring" as const, stiffness: 380, damping: 32, mass: 0.9 };
+// Critically damped, so the panel settles without a wobble.
+const panelSpring = { type: "spring" as const, stiffness: 520, damping: 44, mass: 1 };
+// Size changes ease rather than spring: a springy width or height makes the
+// blurred surface repaint at odd sizes and reads as jitter.
+const morphEase = { duration: 0.32, ease: [0.32, 0.72, 0, 1] as const };
 
 /**
  * Hosts whichever panel is open. Switching panels morphs the one surface to
@@ -488,15 +505,15 @@ export function TrayPanelHost({
 			<motion.div
 				className="tray-panel"
 				role="dialog"
-				initial={{ opacity: 0, y: 14, scale: 0.94, width: width ?? "auto", height: height ?? "auto" }}
+				initial={{ opacity: 0, y: 12, scale: 0.97, width: width ?? "auto", height: height ?? "auto" }}
 				animate={{ opacity: 1, y: 0, scale: 1, width: width ?? "auto", height: height ?? "auto" }}
-				exit={{ opacity: 0, y: 10, scale: 0.96, transition: { duration: 0.14, ease: "easeIn" } }}
+				exit={{ opacity: 0, y: 8, scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
 				transition={{
-					opacity: { duration: 0.16 },
+					opacity: { duration: 0.18, ease: "easeOut" },
 					y: panelSpring,
 					scale: panelSpring,
-					width: panelSpring,
-					height: panelSpring
+					width: morphEase,
+					height: morphEase
 				}}
 				style={{ transformOrigin, maxHeight: anchor.maxHeight / scale }}
 				onClick={(e) => e.stopPropagation()}
@@ -509,10 +526,10 @@ export function TrayPanelHost({
 					<motion.div
 						key={kind}
 						className="tray-panel-content"
-						initial={{ opacity: 0, scale: 0.98 }}
-						animate={{ opacity: 1, scale: 1 }}
-						exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.12 } }}
-						transition={{ duration: 0.2, delay: 0.04 }}
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0, transition: { duration: 0.1 } }}
+						transition={{ duration: 0.22, delay: 0.08, ease: "easeOut" }}
 					>
 						<Measure kind={kind} onHeight={report}>
 							{render(kind)}
@@ -613,6 +630,102 @@ export function TrayAppsPanel({
 						{hovered ?? (apps.length ? "Running in the background" : "Nothing in the tray")}
 					</motion.span>
 				</AnimatePresence>
+			</div>
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------- keyboard language
+
+interface InputLayout {
+	id: string;
+	code: string;
+	name: string;
+	active: boolean;
+}
+
+export function LanguagePanel({ onChanged }: { onChanged: () => void }) {
+	const [layouts, setLayouts] = useState<InputLayout[] | null>(null);
+	const load = useCallback(() => {
+		invoke<InputLayout[]>("get_input_languages")
+			.then((l) => setLayouts(l ?? []))
+			.catch(() => setLayouts([]));
+	}, []);
+	useEffect(() => {
+		load();
+		const poll = setInterval(load, 2000);
+		return () => clearInterval(poll);
+	}, [load]);
+
+	const pick = (layout: InputLayout) => {
+		setLayouts((prev) => prev?.map((l) => ({ ...l, active: l.id === layout.id })) ?? prev);
+		invoke("set_input_language", { id: layout.id })
+			.catch(() => {})
+			.finally(() => {
+				setTimeout(() => {
+					load();
+					onChanged();
+				}, 250);
+			});
+	};
+
+	// Two layouts for one language get numbered so they can be told apart.
+	const counts = new Map<string, number>();
+	return (
+		<div className="tp tp-lang">
+			<div className="tl-header">
+				<b>Keyboard</b>
+				<span>Applies to the app you're using</span>
+			</div>
+			<div className="tl-list">
+				{(layouts ?? []).map((l, i) => {
+					const n = (counts.get(l.name) ?? 0) + 1;
+					counts.set(l.name, n);
+					const dupes = (layouts ?? []).filter((x) => x.name === l.name).length > 1;
+					return (
+						<motion.button
+							type="button"
+							key={l.id}
+							className={`tl-row${l.active ? " active" : ""}`}
+							aria-pressed={l.active}
+							initial={{ opacity: 0, y: 4 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.18, delay: 0.03 * i }}
+							whileTap={{ scale: 0.98 }}
+							onClick={() => pick(l)}
+						>
+							<span className="tl-code">{l.code || "?"}</span>
+							<span className="tl-name">
+								{l.name || "Keyboard"}
+								{dupes ? ` · ${n}` : ""}
+							</span>
+							<AnimatePresence>
+								{l.active && (
+									<motion.span
+										className="tl-check"
+										initial={{ scale: 0 }}
+										animate={{ scale: 1 }}
+										exit={{ scale: 0 }}
+										transition={{ type: "spring", stiffness: 500, damping: 28 }}
+									>
+										<Check />
+									</motion.span>
+								)}
+							</AnimatePresence>
+						</motion.button>
+					);
+				})}
+				{layouts && layouts.length === 0 && <div className="ta-empty">No keyboard languages found</div>}
+			</div>
+			<div className="tp-footer">
+				<span className="tp-footer-battery">Win+Space switches too</span>
+				<button
+					type="button"
+					className="tp-chip"
+					onClick={() => invoke("open_system_action", { action: "language-settings" }).catch(() => {})}
+				>
+					Language settings
+				</button>
 			</div>
 		</div>
 	);
@@ -1268,6 +1381,8 @@ export function CalendarPanel({
 	const twoColumns = status.notifications.access === "allowed" && status.notifications.items.length > 0;
 	const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString([], { month: "long", year: "numeric" });
 	const isSelectedToday = sameDay(selected, today);
+	// Six-week months take a row of the agenda, so the panel fits above the dock.
+	const agendaRows = cells.length > 35 ? 2 : 3;
 
 	return (
 		<div className={`tp tp-calendar${twoColumns ? " two" : ""}`}>
@@ -1365,10 +1480,12 @@ export function CalendarPanel({
 								</div>
 							) : (
 								<>
-									{agenda.slice(0, 3).map((ev) => (
+									{agenda.slice(0, agendaRows).map((ev) => (
 										<AgendaRow key={ev.id} ev={ev} day={selected} now={now} />
 									))}
-									{agenda.length > 3 && <span className="ta-more">+{agenda.length - 3} more</span>}
+									{agenda.length > agendaRows && (
+										<span className="ta-more">+{agenda.length - agendaRows} more</span>
+									)}
 								</>
 							)}
 						</motion.div>
