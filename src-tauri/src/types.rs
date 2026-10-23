@@ -39,6 +39,7 @@ pub struct MediaInfo {
 
 pub enum SystemCommand {
     SetVolume(f32),
+    SetMute(bool),
     MediaPlayPause,
     MediaNext,
     MediaPrevious,

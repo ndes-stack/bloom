@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react";
+import { DockTraySetting } from "./DockTraySetting";
 import { invoke } from "@tauri-apps/api/core";
 import {
 	Monitor,
@@ -262,6 +263,8 @@ export function DockTab({
 								<span className="slider"></span>
 							</label>
 						</SettingRow>
+
+						<DockTraySetting />
 
 						<SettingRow icon={Copy} label="Task View" desc="Show the Task View button beside Start">
 							<label className="toggle-switch">

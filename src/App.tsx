@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, memo } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
@@ -47,6 +47,13 @@ import {
 	toneColor,
 	type Activity
 } from "./liveActivities";
+import {
+	FOCUS_TIMER_EVENT,
+	TIMER_STATE_EVENT,
+	TIMER_STATE_REQUEST_EVENT,
+	type FocusTimerCommand,
+	type TimerBroadcast
+} from "./dockTray";
 import { ActivityIcon, GlowLine, GlowRow, LiveActivities } from "./components/LiveActivities";
 import {
 	REMINDERS_ENABLED_KEY,
@@ -2150,6 +2157,37 @@ function App() {
 			if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 		};
 	}, [isTimerRunning, timerSeconds === 0]);
+
+	// The dock's Focus controls drive this timer: it starts and stops it with
+	// events and follows it through the state broadcast below.
+	const focusHandlersRef = useRef({ startTimer, resetTimer });
+	focusHandlersRef.current = { startTimer, resetTimer };
+	const timerBroadcast: TimerBroadcast = {
+		seconds: timerSeconds,
+		running: isTimerRunning,
+		finished: isTimerFinished,
+		total: lastDurationSeconds
+	};
+	const timerBroadcastRef = useRef(timerBroadcast);
+	timerBroadcastRef.current = timerBroadcast;
+	useEffect(() => {
+		emit(TIMER_STATE_EVENT, timerBroadcastRef.current).catch(() => {});
+	}, [timerSeconds, isTimerRunning, isTimerFinished, lastDurationSeconds]);
+	useEffect(() => {
+		const subs = [
+			listen<FocusTimerCommand>(FOCUS_TIMER_EVENT, (e) => {
+				const cmd = e.payload;
+				if (cmd.action === "start" && cmd.seconds > 0) focusHandlersRef.current.startTimer(cmd.seconds);
+				else if (cmd.action === "stop") focusHandlersRef.current.resetTimer();
+			}),
+			listen(TIMER_STATE_REQUEST_EVENT, () => {
+				emit(TIMER_STATE_EVENT, timerBroadcastRef.current).catch(() => {});
+			})
+		];
+		return () => {
+			subs.forEach((p) => p.then((f) => f()));
+		};
+	}, []);
 
 	// Completion moment: chime once and reveal the notch in peek mode.
 	useEffect(() => {

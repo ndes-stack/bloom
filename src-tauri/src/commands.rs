@@ -2694,6 +2694,14 @@ pub fn set_volume(volume: f32) {
     }
 }
 
+/// Mutes or unmutes the default output device, keeping its level.
+#[tauri::command]
+pub fn set_master_mute(muted: bool) {
+    if let Some(sender) = COMMAND_SENDER.get() {
+        let _ = sender.send(crate::types::SystemCommand::SetMute(muted));
+    }
+}
+
 /// Full path of a running process, or `None` when it can't be opened.
 pub(crate) unsafe fn process_image_path(pid: u32) -> Option<String> {
     use windows::Win32::Foundation::CloseHandle;
@@ -4418,6 +4426,10 @@ pub enum SystemAction {
     PowerOptions,
     NetworkConnections,
     TaskView,
+    Accessibility,
+    NotificationSettings,
+    DateTime,
+    SoundSettings,
 }
 
 #[tauri::command]
@@ -4454,6 +4466,12 @@ pub async fn open_system_action(action: SystemAction) -> Result<(), String> {
             // Task View's shell folder opens Task View like the taskbar's
             // button, without sending Win+Tab, which a held Ctrl or Shift
             // would turn into a different shortcut.
+            SystemAction::Accessibility => ("ms-settings:easeofaccess".into(), String::new()),
+            SystemAction::NotificationSettings => {
+                ("ms-settings:notifications".into(), String::new())
+            }
+            SystemAction::DateTime => ("ms-settings:dateandtime".into(), String::new()),
+            SystemAction::SoundSettings => ("ms-settings:sound".into(), String::new()),
             SystemAction::TaskView => (
                 "explorer.exe".into(),
                 "shell:::{3080F90E-D7AD-11D9-BD98-0000947B0257}".into(),

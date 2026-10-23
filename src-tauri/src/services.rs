@@ -1050,6 +1050,11 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                             hide_osd("bloom-volume-overlay-enabled");
                         }
                         (SystemCommand::SetVolume(_), None) => {}
+                        (SystemCommand::SetMute(muted), Some(aev)) => {
+                            let _ = aev.SetMute(muted, std::ptr::null());
+                            hide_osd("bloom-volume-overlay-enabled");
+                        }
+                        (SystemCommand::SetMute(_), None) => {}
                         (SystemCommand::MediaPlayPause, _) => {
                             if let Some(ref mgr) = manager {
                                 if let Ok(session) = mgr.GetCurrentSession() {
@@ -1275,6 +1280,9 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                         position_updated_at: 0,
                     });
                     let art_str = current.artwork.as_ref().and_then(|a| a.first()).cloned();
+                    if MEDIA_RESEND.swap(false, Ordering::Relaxed) {
+                        last_emitted_info = None;
+                    }
                     if last_emitted_info.as_ref().is_none_or(|(t, a, p, h, art, pos, _dur)| {
                         t != &current.title || a != &current.artist || p != &current.is_playing || h != &current.has_media || art != &art_str ||
                         // For position: emit if >1s difference (avoid spamming on every poll)

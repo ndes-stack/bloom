@@ -8,6 +8,7 @@ mod commands;
 mod diagnostics;
 mod dock_extras;
 mod privacy;
+mod tray_panels;
 mod services;
 mod shelf;
 mod shelf_preview;
@@ -143,6 +144,13 @@ fn main() {
             window_region::set_window_region,
             backdrop::capture_notch_backdrop,
             privacy::get_device_use,
+            tray_panels::notifications_list,
+            tray_panels::notifications_request_access,
+            tray_panels::notifications_remove,
+            tray_panels::notifications_clear,
+            tray_panels::get_input_language,
+            tray_panels::open_input_switcher,
+            tray_panels::request_media_update,
             set_dock_hovered,
             set_notch_hovered,
             set_notch_visible,
@@ -174,6 +182,7 @@ fn main() {
             get_volume_state,
             get_brightness,
             set_volume,
+            set_master_mute,
             get_audio_sessions,
             set_app_volume,
             set_app_mute,

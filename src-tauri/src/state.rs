@@ -43,6 +43,9 @@ pub static CURRENT_BRIGHTNESS: AtomicU32 = AtomicU32::new(50);
 pub static CURRENT_VOLUME: AtomicU32 = AtomicU32::new(50);
 pub static LAST_BRIGHTNESS_CHANGE: AtomicI64 = AtomicI64::new(0);
 pub static ANY_MEDIA_PLAYING: AtomicBool = AtomicBool::new(false);
+/// Set by a window that opened after the last media update; the media worker
+/// then sends the current state again.
+pub static MEDIA_RESEND: AtomicBool = AtomicBool::new(false);
 pub static LAST_START_TOGGLE_MS: AtomicI64 = AtomicI64::new(0);
 // Whether the Start menu was open when the left button last went down,
 // recorded by the mouse hook before Start can react to the press.

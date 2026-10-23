@@ -11,6 +11,20 @@ import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
 import { mergeTrayApps, selectDockTrayApps, type AppInfo, type TrayApp } from "./dockApps";
 import { driveLetter, hideDrive, removeCustomFolder, type DockExtra } from "./dockExtras";
 import { createRegionSender, measureElements, padRect, type RegionRect } from "./windowRegion";
+import {
+	CalendarPanel,
+	PANEL_WIDTHS,
+	QuickSettingsPanel,
+	TrayAppsPanel,
+	TrayButtons,
+	TrayMotion,
+	TrayPanelHost,
+	sendFocus,
+	useTrayStatus,
+	type PanelAnchor,
+	type PanelRect
+} from "./components/DockTray";
+import { DOCK_TRAY_KEY, type TrayPanelKind } from "./dockTray";
 
 // Host processes (Edge/Chrome/Brave/ApplicationFrameHost) run every PWA/UWP
 // window, so their window title must be part of their identity — otherwise two
@@ -186,6 +200,21 @@ const Dock = memo(function Dock() {
 		() => localStorage.getItem("bloom-dock-extras-position") || "off"
 	);
 	const [dockExtras, setDockExtras] = useState<DockExtra[]>([]);
+	const [dockTrayEnabled, setDockTrayEnabled] = useState(
+		() => localStorage.getItem(DOCK_TRAY_KEY) !== "false"
+	);
+	const [timeFormat24h, setTimeFormat24h] = useState(
+		() => localStorage.getItem("bloom-time-format-24h") === "true"
+	);
+	const [trayPanel, setTrayPanel] = useState<TrayPanelKind | null>(null);
+	const [trayAnchor, setTrayAnchor] = useState<PanelAnchor | null>(null);
+	const [trayPanelRect, setTrayPanelRect] = useState<PanelRect | null>(null);
+	const [trayApps, setTrayApps] = useState<TrayApp[]>([]);
+	const [focusMinutes, setFocusMinutes] = useState(() => {
+		const last = parseInt(localStorage.getItem("bloom-timer-last-duration") || "", 10);
+		const min = Number.isFinite(last) && last >= 300 ? Math.round(last / 300) * 5 : 25;
+		return Math.min(180, Math.max(5, min));
+	});
 	const [dockExtrasRevision, setDockExtrasRevision] = useState(0);
 	const [isMaximized, setIsMaximized] = useState(false);
 	const [previewData, setPreviewData] = useState<{
@@ -246,7 +275,8 @@ const Dock = memo(function Dock() {
 
 	const isCurrentlyHovered = isDockHovered || isEdgeHovered;
 	const [interactionState, setInteractionState] = useState<"active" | "grace" | "none">("none");
-	const isAnyInteraction = isCurrentlyHovered || !!contextMenu || showAddPopup || nativeMenuOpen;
+	const isAnyInteraction =
+		isCurrentlyHovered || !!contextMenu || showAddPopup || nativeMenuOpen || !!trayPanel;
 
 	const previewTimerRef = useRef<any>(null);
 	const isPreviewHoveredRef = useRef(false);
@@ -380,6 +410,9 @@ const Dock = memo(function Dock() {
 			const startIconVal = getVal("bloom-start-icon", "default") || "default";
 			setStartIcon(startIconVal);
 
+			setDockTrayEnabled(getVal(DOCK_TRAY_KEY, "true") !== "false");
+			setTimeFormat24h(getVal("bloom-time-format-24h", "false") === "true");
+
 			const extrasPosition = getVal("bloom-dock-extras-position", "off");
 			if (extrasPosition) setDockExtrasPosition(extrasPosition);
 
@@ -455,6 +488,8 @@ const Dock = memo(function Dock() {
 		"bloom-start-icon": setStartIcon,
 		"bloom-scale": setScale,
 		"bloom-dock-extras-position": setDockExtrasPosition,
+		[DOCK_TRAY_KEY]: (v: unknown) => setDockTrayEnabled(v !== false && v !== "false"),
+		"bloom-time-format-24h": (v: unknown) => setTimeFormat24h(v === true || v === "true"),
 		"bloom-dock-extras-drives": () => setDockExtrasRevision((r) => r + 1),
 		"bloom-dock-extras-recycle-bin": () => setDockExtrasRevision((r) => r + 1),
 		"bloom-dock-extras-hidden-drives": () => setDockExtrasRevision((r) => r + 1),
@@ -523,6 +558,12 @@ const Dock = memo(function Dock() {
 				)
 			);
 			observedTrayPathsRef.current = selected.observed;
+			setTrayApps((prev) =>
+				prev.length === tray.length &&
+				prev.every((a, i) => a.path === tray[i].path && a.tray_ids.join() === tray[i].tray_ids.join())
+					? prev
+					: tray
+			);
 			const running = mergeTrayApps(windows, selected.visible);
 			setActiveApps((prev) => (sameRunningApps(prev, running) ? prev : running));
 
@@ -819,6 +860,7 @@ const Dock = memo(function Dock() {
 	const closeMenu = () => {
 		setContextMenu(null);
 		setActiveSubmenu(null);
+		setTrayPanel(null);
 		invoke("set_menu_open", { open: false, rect: null }).catch(() => {});
 	};
 
@@ -835,6 +877,7 @@ const Dock = memo(function Dock() {
 			setContextMenu(null);
 			setActiveSubmenu(null);
 			setShowAddPopup(false);
+			setTrayPanel(null);
 		});
 		return () => {
 			unlisten.then((f) => f());
@@ -889,6 +932,18 @@ const Dock = memo(function Dock() {
 			const a = anchor.getBoundingClientRect();
 			wanted.push(padRect({ x: p.left, y: a.top, width: p.width, height: a.height }, 40));
 		}
+		// A tray panel morphs between sizes without re-rendering the dock, so
+		// it gets the whole column it can grow into, from the dock up.
+		if (trayPanel && trayAnchor) {
+			const w = 420 * scale;
+			const right = window.innerWidth - trayAnchor.right;
+			wanted.push(
+				padRect(
+					{ x: right - w, y: 0, width: w, height: window.innerHeight - trayAnchor.bottom },
+					40
+				)
+			);
+		}
 		sendDockRegion(wanted);
 	});
 
@@ -914,10 +969,78 @@ const Dock = memo(function Dock() {
 				height: Math.round(r.height)
 			};
 			open = true;
+		} else if (trayPanel) {
+			// Until the panel has measured itself, any press outside the dock closes it.
+			rect = trayPanelRect
+				? {
+						x: Math.round(trayPanelRect.x),
+						y: Math.round(trayPanelRect.y),
+						width: Math.round(trayPanelRect.width),
+						height: Math.round(trayPanelRect.height)
+					}
+				: { x: 0, y: 0, width: 0, height: 0 };
+			open = true;
 		}
 
 		invoke("set_menu_open", { open, rect }).catch(() => {});
-	}, [contextMenu, menuPos, showAddPopup, pinnedApps, activeApps, activeSubmenu, scale]);
+	}, [
+		contextMenu,
+		menuPos,
+		showAddPopup,
+		pinnedApps,
+		activeApps,
+		activeSubmenu,
+		scale,
+		trayPanel,
+		trayPanelRect
+	]);
+
+	const dockShown = isExpanded && !isHidden && isVisible;
+	const trayStatus = useTrayStatus(dockTrayEnabled, dockShown, trayPanel === "calendar");
+
+	// Icons for the tray apps grid and for notification senders (by app id).
+	useEffect(() => {
+		if (trayPanel === "apps") trayApps.forEach((a) => fetchIcon(a.path));
+	}, [trayPanel, trayApps]);
+	const notificationAppIds = useMemo(
+		() => [...new Set(trayStatus.notifications.items.map((n) => n.app_id).filter(Boolean))],
+		[trayStatus.notifications.items]
+	);
+	useEffect(() => {
+		notificationAppIds.forEach((id) => fetchIcon(id));
+	}, [notificationAppIds]);
+
+	const trayIcons: Record<string, string> = {};
+	for (const a of trayApps) if (iconsRef.current[a.path]) trayIcons[a.path] = iconsRef.current[a.path];
+	for (const id of notificationAppIds) if (iconsRef.current[id]) trayIcons[id] = iconsRef.current[id];
+
+	// The panel opens above the tray end, right edges lined up, and grows out
+	// of the button that opened it. Pressing the same button again closes it.
+	const toggleTrayPanel = (kind: TrayPanelKind, button: HTMLElement) => {
+		if (trayPanel === kind) {
+			setTrayPanel(null);
+			return;
+		}
+		setContextMenu(null);
+		setActiveSubmenu(null);
+		setShowAddPopup(false);
+		setPreviewData(null);
+		const end = (button.closest(".dock-tray") ?? button).getBoundingClientRect();
+		const btn = button.getBoundingClientRect();
+		const dockTop = dockRef.current?.getBoundingClientRect().top ?? window.innerHeight - 60;
+		const width = PANEL_WIDTHS[kind] * scale;
+		let right = Math.max(8, window.innerWidth - end.right);
+		if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+		setTrayAnchor({
+			right,
+			bottom: window.innerHeight - dockTop + 10,
+			buttonCenterFromRight: window.innerWidth - (btn.left + btn.width / 2),
+			maxHeight: Math.max(240, dockTop - 22)
+		});
+		setTrayPanel(kind);
+	};
+
+	const closeTrayPanel = useMemo(() => () => setTrayPanel(null), []);
 
 	const dockItems = useMemo(() => {
 		const runningMap = new Map();
@@ -1081,6 +1204,7 @@ const Dock = memo(function Dock() {
 		const handleBlur = () => {
 			closeMenu();
 			closePopup();
+			setTrayPanel(null);
 		};
 		window.addEventListener("blur", handleBlur);
 		return () => window.removeEventListener("blur", handleBlur);
@@ -1701,6 +1825,18 @@ const Dock = memo(function Dock() {
 										{dockExtras.map((extra) => renderExtra(extra))}
 									</>
 								)}
+
+								{dockTrayEnabled && (
+									<TrayMotion>
+										<TrayButtons
+											status={trayStatus}
+											open={trayPanel}
+											onToggle={toggleTrayPanel}
+											hasTrayApps={trayApps.length > 0}
+											use24h={timeFormat24h}
+										/>
+									</TrayMotion>
+								)}
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -2030,6 +2166,58 @@ const Dock = memo(function Dock() {
 					/>
 				)}
 			</AnimatePresence>
+
+			<TrayMotion>
+				<AnimatePresence>
+					{trayPanel && trayAnchor && (
+						<TrayPanelHost
+							key="tray-panel"
+							kind={trayPanel}
+							anchor={trayAnchor}
+							scale={scale}
+							onClose={closeTrayPanel}
+							onRect={setTrayPanelRect}
+							render={(kind) =>
+								kind === "apps" ? (
+									<TrayAppsPanel
+										apps={trayApps}
+										icons={trayIcons}
+										onOpen={(app) => {
+											if (app.tray_ids[0]) {
+												invoke("activate_tray_icon", { trayId: app.tray_ids[0] }).catch(
+													showActionError
+												);
+											}
+											setTrayPanel(null);
+										}}
+										onMenu={(app) => {
+											if (app.tray_ids[0]) void openTrayMenu(app.tray_ids[0]);
+										}}
+									/>
+								) : kind === "quick" ? (
+									<QuickSettingsPanel
+										status={trayStatus}
+										focusMinutes={focusMinutes}
+										onFocus={sendFocus}
+									/>
+								) : (
+									<CalendarPanel
+										status={trayStatus}
+										icons={trayIcons}
+										focusMinutes={focusMinutes}
+										setFocusMinutes={setFocusMinutes}
+										onFocus={sendFocus}
+										onOpenBloomSettings={() => {
+											invoke("open_settings_window").catch(() => {});
+											setTrayPanel(null);
+										}}
+									/>
+								)
+							}
+						/>
+					)}
+				</AnimatePresence>
+			</TrayMotion>
 
 			<AnimatePresence>
 				{toast && (
