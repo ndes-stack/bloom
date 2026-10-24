@@ -58,14 +58,31 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
             KB_WIN_NUMBER_ON.store(dock_win_number_enabled(), Ordering::Relaxed);
-            KB_START_ON_WIN.store(bloom_start_on_win_key(), Ordering::Relaxed);
-            let wanted = NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                && (KB_WIN_NUMBER_ON.load(Ordering::Relaxed)
-                    || KB_START_ON_WIN.load(Ordering::Relaxed));
+            // Opening Bloom's Start from the Windows key only needs the dock on.
+            // It used to also wait for Bloom to have hidden Windows' taskbar,
+            // and Explorer's auto-hide kept that from sticking, so the key went
+            // to Windows' Start most of the time.
+            KB_START_ON_WIN.store(
+                bloom_start_on_win_key() && crate::utils::dock_enabled(),
+                Ordering::Relaxed,
+            );
+            let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                && KB_WIN_NUMBER_ON.load(Ordering::Relaxed))
+                || KB_START_ON_WIN.load(Ordering::Relaxed);
             let running = KEYBOARD_HOOK_RUNNING.load(Ordering::Relaxed);
             if wanted && !running {
+                crate::diagnostics::record(
+                    "keyboard_hook",
+                    &format!(
+                        "starting start_on_win={} win_number={} taskbar_hidden={}",
+                        KB_START_ON_WIN.load(Ordering::Relaxed),
+                        KB_WIN_NUMBER_ON.load(Ordering::Relaxed),
+                        NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+                    ),
+                );
                 start_keyboard_hook_thread();
             } else if !wanted && running {
+                crate::diagnostics::record("keyboard_hook", "stopping: not needed");
                 stop_keyboard_hook_thread();
             }
             std::thread::sleep(Duration::from_millis(500));
@@ -89,9 +106,11 @@ fn start_keyboard_hook_thread() {
             WH_KEYBOARD_LL,
         };
         let Ok(hook) = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) else {
+            crate::diagnostics::record("keyboard_hook", "install failed");
             KEYBOARD_HOOK_RUNNING.store(false, Ordering::Relaxed);
             return;
         };
+        crate::diagnostics::record("keyboard_hook", "installed on its own thread");
         KEYBOARD_HOOK.store(hook.0 as isize, Ordering::Relaxed);
         KEYBOARD_HOOK_THREAD.store(GetCurrentThreadId(), Ordering::Relaxed);
         let mut msg = MSG::default();
@@ -153,6 +172,7 @@ fn emit_dock_open_start() {
         return;
     };
     tauri::async_runtime::spawn(async move {
+        crate::diagnostics::record("start_key", "Windows key tap: opening Bloom's Start");
         let _ = app.emit_to("dock", "dock-open-start", ());
     });
 }
@@ -258,9 +278,7 @@ unsafe extern "system" fn keyboard_hook_proc(
                         // the keyup would reach the shell after it and Windows'
                         // Start would still open. Masked here, the shell always
                         // sees Win used as a modifier; real shortcuts still work.
-                        if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                            && KB_START_ON_WIN.load(Ordering::Relaxed)
-                        {
+                        if KB_START_ON_WIN.load(Ordering::Relaxed) {
                             send_start_menu_mask();
                         }
                     }
@@ -271,10 +289,7 @@ unsafe extern "system" fn keyboard_hook_proc(
                     let was_down = WIN_KEY_DOWN.swap(false, Ordering::Relaxed);
                     WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
                     let lone_tap = was_down && !WIN_COMBO_USED.swap(false, Ordering::Relaxed);
-                    if lone_tap
-                        && NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
-                        && KB_START_ON_WIN.load(Ordering::Relaxed)
-                    {
+                    if lone_tap && KB_START_ON_WIN.load(Ordering::Relaxed) {
                         emit_dock_open_start();
                     }
                 }
@@ -1824,6 +1839,11 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 // flag off until Bloom restarted, so the taskbar stayed up and
                 // the Windows key opened Windows' Start. Wait a few checks so
                 // deliberate, short-lived showings finish first.
+                // The flag is the intent ("Bloom keeps Windows' taskbar
+                // hidden"), so it is restored even when a check right after
+                // hiding disagrees: Explorer's auto-hide can slide the taskbar
+                // back at that moment. The 150 ms enforcement above then keeps
+                // it hidden and cloaked.
                 let wants_heal = !NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                     && !SHUTTING_DOWN.load(Ordering::Relaxed)
                     && !TRAY_INTERACTION_ACTIVE.load(Ordering::Relaxed)
@@ -1831,16 +1851,17 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     && crate::utils::dock_enabled()
                     && handle_visibility
                         .get_webview_window("dock")
-                        .is_some_and(|w| w.is_visible().unwrap_or(false))
-                    && any_native_taskbar_visible();
+                        .is_some_and(|w| w.is_visible().unwrap_or(false));
                 if !wants_heal {
                     TASKBAR_HEAL_TICKS.store(0, Ordering::Relaxed);
-                } else if TASKBAR_HEAL_TICKS.fetch_add(1, Ordering::Relaxed) >= 3 {
+                } else if TASKBAR_HEAL_TICKS.fetch_add(1, Ordering::Relaxed) >= 7 {
                     TASKBAR_HEAL_TICKS.store(0, Ordering::Relaxed);
-                    if set_taskbar_visibility(false, false) {
-                        crate::diagnostics::record("taskbar", "re-hid a taskbar left showing");
-                        NATIVE_TASKBAR_HIDDEN.store(true, Ordering::Relaxed);
-                    }
+                    let hidden = set_taskbar_visibility(false, false);
+                    crate::diagnostics::record(
+                        "taskbar",
+                        &format!("dock is up but taskbar wasn't marked hidden; hid it (confirmed={hidden})"),
+                    );
+                    NATIVE_TASKBAR_HIDDEN.store(true, Ordering::Relaxed);
                 }
             }
 
@@ -2510,6 +2531,62 @@ fn queue_cursor(point: windows::Win32::Foundation::POINT) {
     }
 }
 
+/// "app.exe" or "app.exe (admin)" for the foreground window, for the log.
+/// Windows hides input from Bloom's hooks while an app running as
+/// administrator is in front, which looks exactly like a dropped hook.
+fn foreground_summary() -> String {
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::System::Threading::OpenProcessToken;
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    unsafe {
+        let fg = GetForegroundWindow();
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(fg, Some(&mut pid));
+        if pid == 0 {
+            return "none".into();
+        }
+        let name = crate::commands::process_image_path(pid)
+            .and_then(|p| {
+                std::path::Path::new(&p)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+            })
+            .unwrap_or_else(|| format!("pid {pid}"));
+        let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
+            return format!("{name} (unreadable)");
+        };
+        let mut token = HANDLE::default();
+        let elevated = if OpenProcessToken(process, TOKEN_QUERY, &mut token).is_ok() {
+            let mut info = TOKEN_ELEVATION::default();
+            let mut len = 0u32;
+            let ok = GetTokenInformation(
+                token,
+                TokenElevation,
+                Some(&mut info as *mut _ as *mut core::ffi::c_void),
+                std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+                &mut len,
+            )
+            .is_ok();
+            let _ = CloseHandle(token);
+            if ok {
+                info.TokenIsElevated != 0
+            } else {
+                true
+            }
+        } else {
+            // A normal app can't open an administrator app's token.
+            true
+        };
+        let _ = CloseHandle(process);
+        if elevated {
+            format!("{name} (admin)")
+        } else {
+            name
+        }
+    }
+}
+
 fn hook_tick_ms() -> i64 {
     unsafe { windows::Win32::System::SystemInformation::GetTickCount64() as i64 }
 }
@@ -2559,11 +2636,15 @@ fn run_mouse_hook_thread() {
                     hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0).ok();
                     crate::diagnostics::record(
                         "mouse_hook",
-                        if hook.is_some() {
-                            "reinstalled"
-                        } else {
-                            "reinstall failed"
-                        },
+                        &format!(
+                            "{} foreground={}",
+                            if hook.is_some() {
+                                "reinstalled"
+                            } else {
+                                "reinstall failed"
+                            },
+                            foreground_summary()
+                        ),
                     );
                     if hook.is_some() {
                         queue_cursor(current);
