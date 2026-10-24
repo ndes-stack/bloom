@@ -45,6 +45,19 @@ static KEYBOARD_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
 /// locking the settings cache while a key is held.
 static KB_WIN_NUMBER_ON: AtomicBool = AtomicBool::new(true);
 static KB_START_ON_WIN: AtomicBool = AtomicBool::new(false);
+/// GetTickCount() of the last key event the hook saw.
+static KB_LAST_EVENT_TICK: AtomicU32 = AtomicU32::new(0);
+
+/// Whether Windows has registered input that neither of Bloom's hooks saw,
+/// a moment ago: the sign that Windows dropped the keyboard hook (it does so
+/// silently after a few slow answers). `last_input` is GetLastInputInfo's
+/// tick; ticks are GetTickCount values and may wrap.
+pub fn keyboard_hook_missed_input(last_input: u32, last_key: u32, last_mouse: u32, now: u32) -> bool {
+    let seen = if (last_key.wrapping_sub(last_mouse) as i32) > 0 { last_key } else { last_mouse };
+    let unseen_for = last_input.wrapping_sub(seen) as i32;
+    let age = now.wrapping_sub(last_input) as i32;
+    unseen_for > 750 && (0..5000).contains(&age)
+}
 
 /// Win+1-9 is the only feature that needs a global keyboard hook: Explorer
 /// already registers those hotkeys, so `RegisterHotKey` can't claim them.
@@ -100,10 +113,12 @@ fn start_keyboard_hook_thread() {
         return;
     }
     std::thread::spawn(|| unsafe {
+        use windows::Win32::System::SystemInformation::GetTickCount;
         use windows::Win32::System::Threading::GetCurrentThreadId;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
         use windows::Win32::UI::WindowsAndMessaging::{
-            DispatchMessageW, GetMessageW, TranslateMessage, UnhookWindowsHookEx, MSG,
-            WH_KEYBOARD_LL,
+            DispatchMessageW, GetMessageW, KillTimer, SetTimer, TranslateMessage,
+            UnhookWindowsHookEx, MSG, WH_KEYBOARD_LL, WM_TIMER,
         };
         let Ok(hook) = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) else {
             crate::diagnostics::record("keyboard_hook", "install failed");
@@ -113,10 +128,60 @@ fn start_keyboard_hook_thread() {
         crate::diagnostics::record("keyboard_hook", "installed on its own thread");
         KEYBOARD_HOOK.store(hook.0 as isize, Ordering::Relaxed);
         KEYBOARD_HOOK_THREAD.store(GetCurrentThreadId(), Ordering::Relaxed);
+        KB_LAST_EVENT_TICK.store(GetTickCount(), Ordering::Relaxed);
+        // Once a second, check Windows hasn't dropped the hook (see
+        // keyboard_hook_missed_input) and put it back if it has, as the mouse
+        // hook already does. Without this the Windows key stayed with
+        // Windows' Start until Bloom restarted.
+        let timer = SetTimer(None, 1, 1000, None);
+        let mut hook = hook;
+        let mut last_reinstall = 0u32;
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+            if timer != 0 && msg.message == WM_TIMER && msg.wParam.0 == timer {
+                let mut info = LASTINPUTINFO {
+                    cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+                    dwTime: 0,
+                };
+                let now = GetTickCount();
+                let last_mouse = MOUSE_HOOK_LAST_EVENT_MS.load(Ordering::Relaxed) as u32;
+                if GetLastInputInfo(&mut info).as_bool()
+                    && keyboard_hook_missed_input(
+                        info.dwTime,
+                        KB_LAST_EVENT_TICK.load(Ordering::Relaxed),
+                        last_mouse,
+                        now,
+                    )
+                    && now.wrapping_sub(last_reinstall) > 3000
+                {
+                    last_reinstall = now;
+                    let _ = UnhookWindowsHookEx(hook);
+                    match SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) {
+                        Ok(fresh) => {
+                            hook = fresh;
+                            KEYBOARD_HOOK.store(hook.0 as isize, Ordering::Relaxed);
+                            KB_LAST_EVENT_TICK.store(now, Ordering::Relaxed);
+                            let foreground = foreground_summary();
+                            std::thread::spawn(move || {
+                                crate::diagnostics::record(
+                                    "keyboard_hook",
+                                    &format!("reinstalled foreground={foreground}"),
+                                );
+                            });
+                        }
+                        Err(_) => {
+                            crate::diagnostics::record("keyboard_hook", "reinstall failed");
+                            break;
+                        }
+                    }
+                }
+                continue;
+            }
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
+        }
+        if timer != 0 {
+            let _ = KillTimer(None, timer);
         }
         let _ = UnhookWindowsHookEx(hook);
         KEYBOARD_HOOK.store(0, Ordering::Relaxed);
@@ -259,6 +324,10 @@ unsafe extern "system" fn keyboard_hook_proc(
         KBDLLHOOKSTRUCT, LLKHF_INJECTED, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
     };
     if code >= 0 {
+        KB_LAST_EVENT_TICK.store(
+            windows::Win32::System::SystemInformation::GetTickCount(),
+            Ordering::Relaxed,
+        );
         let kb = *(lparam.0 as *const KBDLLHOOKSTRUCT);
         let vk_code = VIRTUAL_KEY(kb.vkCode as u16);
         let is_down = wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
@@ -3172,6 +3241,10 @@ unsafe extern "system" fn mouse_hook_proc(
         let cursor = (*(lparam.0 as *const MSLLHOOKSTRUCT)).pt;
         queue_cursor(cursor);
         MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
+    } else if code >= 0 {
+        // Clicks and scrolling count as seen input too, so the keyboard
+        // hook's check doesn't take a scroll for a key it missed.
+        MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
     }
     // Start closes itself on the press of a click outside it, the dock's
     // Start button included, before that click reaches Bloom. The hook sees
@@ -4680,6 +4753,21 @@ fn recover_from_webview_failure(handle: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn missed_keyboard_input_is_noticed() {
+        use super::keyboard_hook_missed_input as missed;
+        // Typing the hook saw: fine.
+        assert!(!missed(10_000, 10_000, 9_000, 10_500));
+        // Input a second after anything either hook saw, just now: dropped.
+        assert!(missed(12_000, 10_000, 11_000, 12_400));
+        // The mouse hook saw it: fine.
+        assert!(!missed(12_000, 10_000, 12_000, 12_400));
+        // Old idle input isn't acted on.
+        assert!(!missed(12_000, 10_000, 9_000, 20_000));
+        // Tick counts wrap after 49 days.
+        assert!(missed(1_500, u32::MAX - 500, u32::MAX - 600, 1_800));
+    }
     use super::{
         is_helper_name, is_launchable_entry, is_primary_monitor, is_start_menu_process_path,
         notch_mode_reserves_work_area, pack_cursor, trim_thumbnail_cache, unpack_cursor,
