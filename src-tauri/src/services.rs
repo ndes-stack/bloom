@@ -302,6 +302,36 @@ fn send_start_menu_mask() {
     }
 }
 
+/// The mask key's tap followed by the Win key's release, as one SendInput
+/// batch so nothing can land between them. Injected, so the hook ignores them.
+fn send_masked_win_release(win: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        VIRTUAL_KEY,
+    };
+    let key = |vk: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let mask = VIRTUAL_KEY(MASK_VK);
+    let inputs = [
+        key(mask, KEYBD_EVENT_FLAGS(0)),
+        key(mask, KEYEVENTF_KEYUP),
+        key(win, KEYEVENTF_KEYUP),
+    ];
+    unsafe {
+        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
 /// Hands the slot to the dock window, whose click handler already knows how to
 /// focus a running window or launch a pinned app.
 fn emit_dock_win_number(index: u8) {
@@ -342,14 +372,6 @@ unsafe extern "system" fn keyboard_hook_proc(
                     // first one starts a fresh combo.
                     if !WIN_KEY_DOWN.swap(true, Ordering::Relaxed) {
                         WIN_COMBO_USED.store(false, Ordering::Relaxed);
-                        // Mask now, while Win is going down: anything injected
-                        // lands after the event being handled, so a mask sent at
-                        // the keyup would reach the shell after it and Windows'
-                        // Start would still open. Masked here, the shell always
-                        // sees Win used as a modifier; real shortcuts still work.
-                        if KB_START_ON_WIN.load(Ordering::Relaxed) {
-                            send_start_menu_mask();
-                        }
                     }
                     // A fresh Win press always starts a fresh combo, even if the
                     // previous digit's keyup was missed.
@@ -359,7 +381,15 @@ unsafe extern "system" fn keyboard_hook_proc(
                     WIN_NUMBER_HELD.store(0, Ordering::Relaxed);
                     let lone_tap = was_down && !WIN_COMBO_USED.swap(false, Ordering::Relaxed);
                     if lone_tap && KB_START_ON_WIN.load(Ordering::Relaxed) {
+                        // Hold back the real release and send the mask key and
+                        // the release ourselves, in that order, in one batch
+                        // (AutoHotkey's #MenuMaskKey). The shell then sees Win
+                        // used as a modifier and leaves its Start closed. A mask
+                        // sent separately, at the press or the release, could
+                        // reach the shell on the wrong side of the Win key.
                         emit_dock_open_start();
+                        send_masked_win_release(vk_code);
+                        return windows::Win32::Foundation::LRESULT(1);
                     }
                 }
             } else if WIN_KEY_DOWN.load(Ordering::Relaxed) {
