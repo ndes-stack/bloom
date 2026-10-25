@@ -185,6 +185,12 @@
 	background-position: 50% 0;
 }
 
+/* The dock hangs from the bottom edge: line the screenshot up with the
+   window's bottom, lifted by the gap under a floating dock. */
+.edge-surface--bottom.edge-surface--backdrop::before {
+	background-position: 50% calc(100% + var(--dock-backdrop-gap, 0px));
+}
+
 .edge-surface--backdrop .edge-surface-flare--start {
 	background-position: calc(50cqw - var(--notch-backdrop-w) / 2) 0;
 }
@@ -192,4 +198,9 @@
 /* Mirrored by its transform, so this lines up the right strip, flipped. */
 .edge-surface--backdrop .edge-surface-flare--end {
 	background-position: calc(14px - 50cqw - var(--notch-backdrop-w) / 2) 0;
+}
+
+/* The bottom flares sit at the window's bottom edge (a lifted dock has none). */
+.edge-surface--bottom.edge-surface--backdrop .edge-surface-flare {
+	background-position-y: 100%;
 }

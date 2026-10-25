@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type CSSProperties } from "react";
 import { DockTraySetting } from "./DockTraySetting";
 import { DockLayoutSettings } from "./DockLayoutSettings";
+import { DockMaterialSettings } from "./DockMaterialSettings";
 import { invoke } from "@tauri-apps/api/core";
 import {
 	Monitor,
@@ -266,6 +267,8 @@ export function DockTab({
 						</SettingRow>
 
 						<DockLayoutSettings />
+
+						<DockMaterialSettings />
 
 						<DockTraySetting />
 

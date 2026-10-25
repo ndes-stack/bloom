@@ -28,6 +28,14 @@ import {
 } from "./components/DockTray";
 import { DOCK_TRAY_KEY, trayClock, type TrayPanelKind } from "./dockTray";
 import { StartMenu } from "./components/StartMenu";
+import { blurBackdrop, type MaterialLook } from "./notchMaterial";
+import {
+	DOCK_MATERIAL_LINK_KEY,
+	captureInterval,
+	dockMaterialLook,
+	parseMaterialLink,
+	readChoice
+} from "./dockMaterial";
 import { START_MENU_KEY, START_PINS_KEY, parseStartMenu, type StartPin } from "./startMenu";
 import {
 	DOCK_PILL_GLANCE_KEY,
@@ -290,6 +298,16 @@ const Dock = memo(function Dock() {
 		parseDockStyle(localStorage.getItem(DOCK_STYLE_KEY))
 	);
 	const [dockSize, setDockSize] = useState(() => parseDockSize(localStorage.getItem(DOCK_SIZE_KEY)));
+	// Dock material: the notch's while linked, its own otherwise (dockMaterial.ts).
+	const [materialLink, setMaterialLink] = useState(() =>
+		parseMaterialLink(localStorage.getItem(DOCK_MATERIAL_LINK_KEY))
+	);
+	const [notchChoice, setNotchChoice] = useState(() =>
+		readChoice("notch", (k) => localStorage.getItem(k))
+	);
+	const [dockChoice, setDockChoice] = useState(() =>
+		readChoice("dock", (k) => localStorage.getItem(k))
+	);
 	const [tabletSetting, setTabletSetting] = useState(() =>
 		parseDockTablet(localStorage.getItem(DOCK_TABLET_KEY))
 	);
@@ -473,6 +491,9 @@ const Dock = memo(function Dock() {
 			setStartMenuKind(parseStartMenu(getVal(START_MENU_KEY)));
 			setStartPins(getVal(START_PINS_KEY));
 			setDockStyle(parseDockStyle(getVal(DOCK_STYLE_KEY)));
+			setMaterialLink(parseMaterialLink(getVal(DOCK_MATERIAL_LINK_KEY)));
+			setNotchChoice(readChoice("notch", (k) => getVal(k)));
+			setDockChoice(readChoice("dock", (k) => getVal(k)));
 			setDockSize(parseDockSize(getVal(DOCK_SIZE_KEY)));
 			setTabletSetting(parseDockTablet(getVal(DOCK_TABLET_KEY)));
 			setPillGlance(getVal(DOCK_PILL_GLANCE_KEY, "false") === "true");
@@ -557,6 +578,20 @@ const Dock = memo(function Dock() {
 		[START_MENU_KEY]: (v: unknown) => setStartMenuKind(parseStartMenu(v)),
 		[START_PINS_KEY]: (v: unknown) => setStartPins(typeof v === "string" ? v : v == null ? null : JSON.stringify(v)),
 		[DOCK_STYLE_KEY]: (v: unknown) => setDockStyle(parseDockStyle(v)),
+		[DOCK_MATERIAL_LINK_KEY]: (v: unknown) => setMaterialLink(parseMaterialLink(v)),
+		// The changed value comes with the event; the rest are read as stored.
+		...Object.fromEntries(
+			(["notch", "dock"] as const).flatMap((prefix) =>
+				["material", "blur", "tint"].map((part) => {
+					const key = `bloom-${prefix}-${part}`;
+					const set = prefix === "notch" ? setNotchChoice : setDockChoice;
+					return [
+						key,
+						(v: unknown) => set(readChoice(prefix, (k) => (k === key ? v : localStorage.getItem(k))))
+					];
+				})
+			)
+		),
 		[DOCK_SIZE_KEY]: (v: unknown) => setDockSize(parseDockSize(v)),
 		[DOCK_TABLET_KEY]: (v: unknown) => setTabletSetting(parseDockTablet(v)),
 		[DOCK_PILL_GLANCE_KEY]: (v: unknown) => setPillGlance(v === true || v === "true"),
@@ -1162,6 +1197,73 @@ const Dock = memo(function Dock() {
 	};
 
 	const dockShown = isExpanded && !isHidden && isVisible;
+
+	// Blurred materials, as on the notch: a small screenshot of what's behind
+	// the dock window (with the dock left out of it), blurred here and laid
+	// behind the bar, the tray panels and Start under a see-through tint.
+	const dockLook = useMemo(
+		() => dockMaterialLook(materialLink, notchChoice, dockChoice),
+		[materialLink, notchChoice, dockChoice]
+	);
+	const [dockBackdrop, setDockBackdrop] = useState<string | null>(null);
+	const [dockBackdropFresh, setDockBackdropFresh] = useState(false);
+	const dockBackdropRawRef = useRef<{ blob: Blob; at: number } | null>(null);
+	const dockBackdropUrlRef = useRef<string | null>(null);
+	const dockBackdropFailuresRef = useRef(0);
+	const showDockBackdrop = useMemo(
+		() => async (blob: Blob, look: MaterialLook) => {
+			const url = await blurBackdrop(blob, look, window.innerWidth / scale);
+			const img = new Image();
+			img.src = url;
+			await img.decode().catch(() => {});
+			const old = dockBackdropUrlRef.current;
+			dockBackdropUrlRef.current = url;
+			setDockBackdrop(url);
+			if (old) window.setTimeout(() => URL.revokeObjectURL(old), 1000);
+		},
+		[scale]
+	);
+	// A new look re-blurs the last screenshot straight away.
+	useEffect(() => {
+		dockBackdropFailuresRef.current = 0;
+		if (!dockLook) {
+			setDockBackdropFresh(false);
+			return;
+		}
+		const raw = dockBackdropRawRef.current;
+		if (raw) showDockBackdrop(raw.blob, dockLook).catch(() => {});
+	}, [dockLook, showDockBackdrop]);
+	useEffect(() => {
+		if (!dockLook || !dockShown) return;
+		let cancelled = false;
+		const look = dockLook;
+		const raw = dockBackdropRawRef.current;
+		// Never flash an old desktop: a stale shot waits for a fresh one.
+		if (!raw || Date.now() - raw.at > 30_000) setDockBackdropFresh(false);
+		const capture = async () => {
+			if (dockBackdropFailuresRef.current >= 3) return;
+			try {
+				const buf = await invoke<ArrayBuffer>("capture_notch_backdrop");
+				if (cancelled) return;
+				const blob = new Blob([buf], { type: "image/bmp" });
+				dockBackdropRawRef.current = { blob, at: Date.now() };
+				await showDockBackdrop(blob, look);
+				dockBackdropFailuresRef.current = 0;
+				if (!cancelled) setDockBackdropFresh(true);
+			} catch (e) {
+				dockBackdropFailuresRef.current++;
+				if (dockBackdropFailuresRef.current === 3) console.warn("Dock blur unavailable:", e);
+			}
+		};
+		capture();
+		const timer = window.setInterval(capture, captureInterval(!!trayPanel, dockMode === "fixed"));
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [dockLook, dockShown, !!trayPanel, dockMode, showDockBackdrop]);
+	const dockFlares = isExpanded && !isHidden && !floating && !tabletActive;
+	const dockBackdropVisible = !!dockLook && !!dockBackdrop && dockBackdropFresh && dockShown;
 	const trayStatus = useTrayStatus(dockTrayEnabled, dockShown, trayPanel === "calendar");
 
 	// Icons for the tray apps grid and for notification senders (by app id).
@@ -1623,13 +1725,28 @@ const Dock = memo(function Dock() {
 							? { type: "spring", stiffness: 300, damping: 28 }
 							: { duration: 0 }
 					}}
-					style={{ originX: 0.5, originY: 1, minWidth: 34 }}
+					style={
+						{
+							originX: 0.5,
+							originY: 1,
+							minWidth: 34,
+							"--notch-backdrop": dockBackdrop ? `url("${dockBackdrop}")` : "none",
+							"--notch-backdrop-w": `${window.innerWidth / scale}px`,
+							"--notch-backdrop-h": `${window.innerHeight / scale}px`,
+							// A lifted dock sits FLOAT_GAP px (on screen) above the
+							// window's bottom; in the bar's own, scaled px that's less.
+							"--dock-backdrop-gap": `${(floating || tabletActive) && dockShown ? FLOAT_GAP / scale : 0}px`,
+							...(dockBackdropVisible && dockLook
+								? { "--surface-bg": `rgb(from var(--bloom-bg) r g b / ${dockLook.tint})` }
+								: {})
+						} as React.CSSProperties
+					}
 					onContextMenu={(e) => handleContextMenu(e, null)}
 				>
-					<EdgeSurface
-						edge="bottom"
-						flares={isExpanded && !isHidden && !floating && !tabletActive}
-					/>
+					{dockLook && (
+						<EdgeSurface edge="bottom" flares={dockFlares} backdrop visible={dockBackdropVisible} />
+					)}
+					<EdgeSurface edge="bottom" flares={dockFlares} />
 					<AnimatePresence>
 						{pillCollapsed && (
 							<motion.span
@@ -2455,6 +2572,8 @@ const Dock = memo(function Dock() {
 							scale={scale}
 							onClose={closeTrayPanel}
 							onRect={setTrayPanelRect}
+							backdrop={dockBackdropVisible ? dockBackdrop : null}
+							backdropTint={dockLook?.tint ?? 1}
 							render={(kind) =>
 								kind === "apps" ? (
 									<TrayAppsPanel

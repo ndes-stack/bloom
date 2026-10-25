@@ -57,6 +57,7 @@ import {
 	type TrayNotification,
 	type TrayPanelKind
 } from "../dockTray";
+import { panelTint } from "../dockMaterial";
 import "./DockTray.css";
 
 // ---------------------------------------------------------------- status
@@ -454,7 +455,9 @@ export function TrayPanelHost({
 	scale,
 	onClose,
 	onRect,
-	render
+	render,
+	backdrop = null,
+	backdropTint = 1
 }: {
 	kind: TrayPanelKind;
 	anchor: PanelAnchor;
@@ -462,6 +465,9 @@ export function TrayPanelHost({
 	onClose: () => void;
 	onRect: (rect: PanelRect | null) => void;
 	render: (kind: TrayPanelKind) => React.ReactNode;
+	/** Blurred screenshot of the dock window's area, laid behind the panel. */
+	backdrop?: string | null;
+	backdropTint?: number;
 }) {
 	const [sizes, setSizes] = useState<Partial<Record<TrayPanelKind, { w: number; h: number }>>>({});
 	const size = sizes[kind];
@@ -516,7 +522,11 @@ export function TrayPanelHost({
 					width: morphEase,
 					height: morphEase
 				}}
-				style={{ transformOrigin, maxHeight: anchor.maxHeight / scale }}
+				style={{
+					transformOrigin,
+					maxHeight: anchor.maxHeight / scale,
+					...(backdrop ? panelBackdropStyle(backdrop, backdropTint, anchor, scale) : {})
+				}}
 				onClick={(e) => e.stopPropagation()}
 				onContextMenu={(e) => {
 					e.preventDefault();
@@ -562,6 +572,25 @@ function Measure({
 		return () => ro.disconnect();
 	}, [kind, onHeight]);
 	return <div ref={ref}>{children}</div>;
+}
+
+/**
+ * The dock's blurred screenshot, placed so it lines up with the screen behind
+ * the panel: it covers the whole window, and the panel's right and bottom
+ * edges are `anchor.right` and `anchor.bottom` (on screen) from the window's.
+ * Sizes are in the panel's own px, which CSS zoom scales by `scale`.
+ */
+function panelBackdropStyle(url: string, tint: number, anchor: PanelAnchor, scale: number): React.CSSProperties {
+	const veil = `rgb(from var(--bloom-bg-expanded) r g b / ${panelTint(tint)})`;
+	return {
+		backgroundColor: "transparent",
+		backgroundImage: `linear-gradient(${veil}, ${veil}), url("${url}")`,
+		backgroundSize: `auto, ${window.innerWidth / scale}px ${window.innerHeight / scale}px`,
+		backgroundPosition: `0 0, calc(100% + ${anchor.right / scale}px) calc(100% + ${anchor.bottom / scale}px)`,
+		backgroundRepeat: "no-repeat",
+		backgroundOrigin: "border-box",
+		backdropFilter: "none"
+	};
 }
 
 /** Respects Windows' "Animation effects" setting through prefers-reduced-motion. */
