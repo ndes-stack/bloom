@@ -225,9 +225,11 @@ interface QuickLauncherProps {
 	onHeightChange: (height: number) => void;
 	/** Keeps the notch open while typing or while a file picker is open. */
 	onPinChange: (pinned: boolean) => void;
+	/** Bumped when the launcher should put the cursor in its search box. */
+	focusToken?: number;
 }
 
-export function QuickLauncher({ onHeightChange, onPinChange }: QuickLauncherProps) {
+export function QuickLauncher({ onHeightChange, onPinChange, focusToken = 0 }: QuickLauncherProps) {
 	const [items, setItems] = useState<LaunchItem[]>(readStoredItems);
 	const [query, setQuery] = useState("");
 	const [selected, setSelected] = useState(0);
@@ -254,6 +256,9 @@ export function QuickLauncher({ onHeightChange, onPinChange }: QuickLauncherProp
 
 	// Never leave the notch pinned open after this page closes.
 	useEffect(() => () => onPinChange(false), [onPinChange]);
+	useEffect(() => {
+		if (focusToken) inputRef.current?.focus();
+	}, [focusToken]);
 
 	const update = (next: LaunchItem[]) => {
 		setItems(next);

@@ -22,6 +22,7 @@ import { parseNotchPanelChoice, type NotchPanelChoice, type WidgetConfig } from 
 import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
 import type { NotchPanel } from "../notchPanels";
 import { PanelOrderList } from "./PanelOrderList";
+import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { ReminderSettings } from "./ReminderSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
@@ -422,6 +423,7 @@ export function NotchTab({
 					onChange={handlePanelOrderChange}
 					disabled={calendarEnabled ? [] : ["calendar", "timer"]}
 				/>
+				<LauncherShortcutSetting />
 			</div>
 
 			<div className="setting-group-label">Weather</div>

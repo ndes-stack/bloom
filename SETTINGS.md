@@ -60,6 +60,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-page-switch-grace` | milliseconds `"0"`–`"2000"`     | `"800"`   | After switching notch pages (which can shrink the notch out from under the pointer), how long it stays open while the pointer is outside. Coming back within this time keeps it open. `"0"` turns it off. |
 | `bloom-notch-panel-order` | JSON array of panel ids          | `["calendar","timer","launcher","command-center"]` | Order scrolling and the panel arrows move through the notch pages. Unknown ids are ignored and missing pages are appended. |
 | `bloom-launcher-items`   | JSON array                        | `[]`      | Quick Launcher pins, in order: `{"id","kind":"app"|"folder"|"file"|"url","name","target"}`. |
+| `bloom-launcher-shortcut` | `"true"` / `"false"`             | `"true"`  | Alt+Space opens the notch's Quick Launcher with the search box ready, instead of the window menu. It stays open until Esc, Alt+Space again or a click outside Bloom. |
 
 ### Weather
 

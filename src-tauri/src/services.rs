@@ -45,6 +45,11 @@ static KEYBOARD_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
 /// locking the settings cache while a key is held.
 static KB_WIN_NUMBER_ON: AtomicBool = AtomicBool::new(true);
 static KB_START_ON_WIN: AtomicBool = AtomicBool::new(false);
+/// Alt+Space opens the notch's Quick Launcher (`bloom-launcher-shortcut`).
+static KB_LAUNCHER_ON: AtomicBool = AtomicBool::new(false);
+/// Set from a swallowed Alt+Space press until its Space release, which is
+/// swallowed too.
+static ALT_SPACE_HELD: AtomicBool = AtomicBool::new(false);
 /// GetTickCount() of the last key event the hook saw.
 static KB_LAST_EVENT_TICK: AtomicU32 = AtomicU32::new(0);
 
@@ -79,16 +84,19 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
                 bloom_start_on_win_key() && crate::utils::dock_enabled(),
                 Ordering::Relaxed,
             );
+            KB_LAUNCHER_ON.store(launcher_shortcut_enabled(), Ordering::Relaxed);
             let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                 && KB_WIN_NUMBER_ON.load(Ordering::Relaxed))
-                || KB_START_ON_WIN.load(Ordering::Relaxed);
+                || KB_START_ON_WIN.load(Ordering::Relaxed)
+                || KB_LAUNCHER_ON.load(Ordering::Relaxed);
             let running = KEYBOARD_HOOK_RUNNING.load(Ordering::Relaxed);
             if wanted && !running {
                 crate::diagnostics::record(
                     "keyboard_hook",
                     &format!(
-                        "starting start_on_win={} win_number={} taskbar_hidden={}",
+                        "starting start_on_win={} launcher={} win_number={} taskbar_hidden={}",
                         KB_START_ON_WIN.load(Ordering::Relaxed),
+                        KB_LAUNCHER_ON.load(Ordering::Relaxed),
                         KB_WIN_NUMBER_ON.load(Ordering::Relaxed),
                         NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                     ),
@@ -231,6 +239,30 @@ fn bloom_start_on_win_key() -> bool {
     start.as_deref() != Some("windows") && win_key.as_deref() != Some("false")
 }
 
+/// Alt+Space opens the notch's Quick Launcher unless turned off.
+fn launcher_shortcut_enabled() -> bool {
+    let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {
+        return false;
+    };
+    crate::utils::get_setting_str(app, "bloom-launcher-shortcut").as_deref() != Some("false")
+}
+
+/// Asks the notch to open (or, if it holds it open, close) the Quick Launcher.
+fn emit_notch_open_launcher() {
+    let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() else {
+        return;
+    };
+    tauri::async_runtime::spawn(async move {
+        let _ = app.emit_to("main", "notch-open-launcher", ());
+    });
+}
+
+/// Ctrl state straight from the OS (Ctrl+Alt is AltGr on many layouts).
+fn ctrl_key_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
+    unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0 }
+}
+
 /// Asks the dock to open Bloom's Start, off the hook thread.
 fn emit_dock_open_start() {
     let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() else {
@@ -349,9 +381,10 @@ unsafe extern "system" fn keyboard_hook_proc(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LWIN, VK_RWIN};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LWIN, VK_RWIN, VK_SPACE};
     use windows::Win32::UI::WindowsAndMessaging::{
-        KBDLLHOOKSTRUCT, LLKHF_INJECTED, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
+        WM_SYSKEYUP,
     };
     if code >= 0 {
         KB_LAST_EVENT_TICK.store(
@@ -366,6 +399,28 @@ unsafe extern "system" fn keyboard_hook_proc(
         // Only physical presses drive the Win+Number replacement; injected
         // events (our own Start taps and mask key) must not re-enter it.
         if (kb.flags.0 & LLKHF_INJECTED.0) == 0 {
+            // Alt+Space: the notch's Quick Launcher instead of the window menu.
+            // The mask key goes out first so letting go of Alt doesn't then
+            // put the app's menu bar in focus (Alt alone does that).
+            if vk_code == VK_SPACE {
+                if is_up && ALT_SPACE_HELD.swap(false, Ordering::Relaxed) {
+                    return windows::Win32::Foundation::LRESULT(1);
+                }
+                let alt = (kb.flags.0 & LLKHF_ALTDOWN.0) != 0;
+                if is_down
+                    && alt
+                    && KB_LAUNCHER_ON.load(Ordering::Relaxed)
+                    && !WIN_KEY_DOWN.load(Ordering::Relaxed)
+                    && !ctrl_key_down()
+                {
+                    // Key repeat sends more downs while held; open once.
+                    if !ALT_SPACE_HELD.swap(true, Ordering::Relaxed) {
+                        send_start_menu_mask();
+                        emit_notch_open_launcher();
+                    }
+                    return windows::Win32::Foundation::LRESULT(1);
+                }
+            }
             if vk_code == VK_LWIN || vk_code == VK_RWIN {
                 if is_down {
                     // Key repeat sends more downs while Win is held; only the
@@ -847,15 +902,23 @@ unsafe extern "system" fn taskbar_event_proc(
     _dw_event_thread: u32,
     _dwms_event_time: u32,
 ) {
-    if NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed) {
-        let mut class_name = [0u8; 256];
-        let len = windows::Win32::UI::WindowsAndMessaging::GetClassNameA(hwnd, &mut class_name);
-        let class_str = std::str::from_utf8(&class_name[..len as usize]).unwrap_or("");
+    // Location changes fire for every caret and cursor move too; only whole
+    // windows matter, and nothing while Bloom itself shows the tray.
+    if _id_object != 0
+        || !NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
+        || SYSTEM_TRAY_OPEN.load(Ordering::Relaxed)
+        || TRAY_INTERACTION_ACTIVE.load(Ordering::Relaxed)
+    {
+        return;
+    }
+    let mut class_name = [0u8; 256];
+    let len = windows::Win32::UI::WindowsAndMessaging::GetClassNameA(hwnd, &mut class_name);
+    let class_str = std::str::from_utf8(&class_name[..len as usize]).unwrap_or("");
 
-        if class_str == "Shell_TrayWnd" || class_str == "Shell_SecondaryTrayWnd" {
-            // Taskbar is trying to show or move: slap it back down.
-            set_taskbar_visibility(false, false);
-        }
+    if class_str == "Shell_TrayWnd" || class_str == "Shell_SecondaryTrayWnd" {
+        // Explorer is showing or moving the taskbar: keep it cloaked and
+        // hidden, cheaply. The 150 ms check puts it back off screen.
+        crate::utils::suppress_taskbar_window(hwnd);
     }
 }
 

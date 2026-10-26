@@ -287,8 +287,8 @@ pub fn secondary_taskbar_windows() -> Vec<windows::Win32::Foundation::HWND> {
 /// taskbar Explorer brings back shows nothing and takes no clicks.
 pub fn cloak_taskbar(hwnd: windows::Win32::Foundation::HWND, cloak: bool) {
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongA, SetLayeredWindowAttributes, SetWindowLongA, GWL_EXSTYLE, LWA_ALPHA,
-        WS_EX_LAYERED, WS_EX_TRANSPARENT,
+        GetLayeredWindowAttributes, GetWindowLongA, SetLayeredWindowAttributes, SetWindowLongA,
+        GWL_EXSTYLE, LAYERED_WINDOW_ATTRIBUTES_FLAGS, LWA_ALPHA, WS_EX_LAYERED, WS_EX_TRANSPARENT,
     };
     let bits = WS_EX_LAYERED.0 as i32 | WS_EX_TRANSPARENT.0 as i32;
     unsafe {
@@ -297,12 +297,22 @@ pub fn cloak_taskbar(hwnd: windows::Win32::Foundation::HWND, cloak: bool) {
             if ex & bits != bits {
                 let _ = SetWindowLongA(hwnd, GWL_EXSTYLE, ex | bits);
             }
-            let _ = SetLayeredWindowAttributes(
-                hwnd,
-                windows::Win32::Foundation::COLORREF(0),
-                0,
-                LWA_ALPHA,
-            );
+            // Only write when it isn't cloaked already: every write makes the
+            // taskbar repaint, which is wasted work on a hot path.
+            let mut alpha = 255u8;
+            let mut flags = LAYERED_WINDOW_ATTRIBUTES_FLAGS(0);
+            let cloaked = ex & bits == bits
+                && GetLayeredWindowAttributes(hwnd, None, Some(&mut alpha), Some(&mut flags)).is_ok()
+                && (flags.0 & LWA_ALPHA.0) != 0
+                && alpha == 0;
+            if !cloaked {
+                let _ = SetLayeredWindowAttributes(
+                    hwnd,
+                    windows::Win32::Foundation::COLORREF(0),
+                    0,
+                    LWA_ALPHA,
+                );
+            }
         } else if ex & bits != 0 {
             let _ = SetLayeredWindowAttributes(
                 hwnd,
@@ -311,6 +321,24 @@ pub fn cloak_taskbar(hwnd: windows::Win32::Foundation::HWND, cloak: bool) {
                 LWA_ALPHA,
             );
             let _ = SetWindowLongA(hwnd, GWL_EXSTYLE, ex & !bits);
+        }
+    }
+}
+
+/// The cheap half of hiding a taskbar, for the WinEvent hook: cloak it and, if
+/// Explorer has shown it, hide it again. Explorer brings an auto-hide taskbar
+/// back on its own when an app asks for attention (a new notification, a
+/// window opened from the tray flashing its button), and answering each of
+/// those frames with the full `set_taskbar_visibility` (which re-sends the
+/// AppBar state and moves the window, both of which fire more events) turned
+/// into a fight that made the taskbar flicker. Cloaked, it shows nothing and
+/// takes no clicks wherever Explorer puts it.
+pub fn suppress_taskbar_window(hwnd: windows::Win32::Foundation::HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{IsWindowVisible, ShowWindow, SW_HIDE};
+    cloak_taskbar(hwnd, true);
+    unsafe {
+        if IsWindowVisible(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_HIDE);
         }
     }
 }
@@ -513,14 +541,28 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
             1 // Force Auto-hide when hiding
         };
 
-        // 1. Set the taskbar state (Auto-hide or Always-on-top)
-        let mut abd = APPBARDATA {
+        // 1. Set the taskbar state (Auto-hide or Always-on-top), only when it
+        //    differs: each ABM_SETSTATE makes Explorer re-lay out the taskbar
+        //    and notify every AppBar (the notch and the dock among them), so
+        //    re-sending it on every enforcement pass made things jump.
+        let mut get_abd = APPBARDATA {
             cbSize: std::mem::size_of::<APPBARDATA>() as u32,
             hWnd: tray_hwnd,
-            lParam: windows::Win32::Foundation::LPARAM(state_val),
             ..Default::default()
         };
-        SHAppBarMessage(ABM_SETSTATE, &mut abd);
+        // Older Windows always reports ABS_ALWAYSONTOP alongside auto-hide, so
+        // hiding only checks the auto-hide bit.
+        let current = SHAppBarMessage(ABM_GETSTATE, &mut get_abd) as isize;
+        let needs_state = if visible { current != state_val } else { current & 1 == 0 };
+        if needs_state {
+            let mut abd = APPBARDATA {
+                cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+                hWnd: tray_hwnd,
+                lParam: windows::Win32::Foundation::LPARAM(state_val),
+                ..Default::default()
+            };
+            SHAppBarMessage(ABM_SETSTATE, &mut abd);
+        }
 
         // 2. Control visibility of the primary taskbar
         let mut primary_positioned = true;

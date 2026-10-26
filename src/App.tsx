@@ -1631,6 +1631,12 @@ function App() {
 	const bloomModeRef = useRef<BloomMode>("status");
 	const rememberPanelRef = useRef<(panel: NotchPanel) => void>(() => {});
 	const notchPinnedRef = useRef(false);
+	// Alt+Space (the keyboard hook) opens the Quick Launcher and holds it open,
+	// whatever the pointer does, until Esc, Alt+Space again or focus leaves.
+	const launcherHeldRef = useRef(false);
+	const launcherPrevFocusRef = useRef(0);
+	const [launcherFocusToken, setLauncherFocusToken] = useState(0);
+	const toggleHeldLauncherRef = useRef<() => void>(() => {});
 	const releaseDeferredRef = useRef(false);
 	// Page-switch grace period (see releaseNotchHover).
 	const pageSwitchAtRef = useRef(0);
@@ -1642,6 +1648,8 @@ function App() {
 	// reports the pointer left the (now click-through) notch window. Closes an
 	// open notch, remembering its panel, and returns to the resting mode.
 	const releaseNotchHover = () => {
+		// Alt+Space holds the Quick Launcher open until Esc or a click elsewhere.
+		if (launcherHeldRef.current) return;
 		// A view being typed into (a Wi-Fi password) keeps the notch open; the
 		// release happens once it lets go, if the pointer is still away.
 		if (notchPinnedRef.current) {
@@ -2251,6 +2259,67 @@ function App() {
 		invoke("save_setting", { key: "bloom-notch-last-panel", value: panel }).catch(console.error);
 	};
 	rememberPanelRef.current = rememberPanel;
+
+	const closeHeldLauncher = (restoreFocus: boolean) => {
+		if (!launcherHeldRef.current) return;
+		launcherHeldRef.current = false;
+		if (restoreFocus) {
+			invoke("restore_foreground", { previous: launcherPrevFocusRef.current }).catch(() => {});
+		}
+		launcherPrevFocusRef.current = 0;
+		(document.activeElement as HTMLElement | null)?.blur?.();
+		notchPinnedRef.current = false;
+		releaseDeferredRef.current = false;
+		pageSwitchAtRef.current = 0;
+		releaseNotchHover();
+	};
+	const closeHeldLauncherRef = useRef(closeHeldLauncher);
+	closeHeldLauncherRef.current = closeHeldLauncher;
+
+	toggleHeldLauncherRef.current = () => {
+		if (launcherHeldRef.current) {
+			closeHeldLauncher(true);
+			return;
+		}
+		if (bloomModeRef.current === "announcement") return;
+		launcherHeldRef.current = true;
+		// Hovered keeps an auto-hiding notch on screen while it's held.
+		setIsHovered(true);
+		setIsOpen(true);
+		setBloomMode("launcher");
+		invoke<number>("focus_dock_window")
+			.then((previous) => {
+				launcherPrevFocusRef.current = previous ?? 0;
+			})
+			.catch(() => {})
+			.finally(() => setLauncherFocusToken((t) => t + 1));
+	};
+
+	useEffect(() => {
+		if (windowLabel !== "main") return;
+		const unlisten = listen("notch-open-launcher", () => toggleHeldLauncherRef.current());
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && launcherHeldRef.current) closeHeldLauncherRef.current(true);
+		};
+		// A click anywhere outside Bloom takes the focus away.
+		const onBlur = () => closeHeldLauncherRef.current(false);
+		window.addEventListener("keydown", onKey);
+		window.addEventListener("blur", onBlur);
+		return () => {
+			unlisten.then((f) => f());
+			window.removeEventListener("keydown", onKey);
+			window.removeEventListener("blur", onBlur);
+		};
+	}, [windowLabel]);
+
+	// Anything else closing the launcher (a reminder, an announcement, picking
+	// another page) ends the hold.
+	useEffect(() => {
+		if (launcherHeldRef.current && (!isOpen || bloomMode !== "launcher")) {
+			launcherHeldRef.current = false;
+			launcherPrevFocusRef.current = 0;
+		}
+	}, [isOpen, bloomMode]);
 
 	// Called by views that take typed input; see releaseNotchHover.
 	const setNotchPinned = useCallback((pinned: boolean) => {
@@ -4614,7 +4683,11 @@ function App() {
 											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
-											<QuickLauncher onHeightChange={setLauncherHeight} onPinChange={setNotchPinned} />
+											<QuickLauncher
+												onHeightChange={setLauncherHeight}
+												onPinChange={setNotchPinned}
+												focusToken={launcherFocusToken}
+											/>
 										</motion.div>
 									)}
 								</AnimatePresence>

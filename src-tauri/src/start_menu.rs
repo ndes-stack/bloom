@@ -184,9 +184,9 @@ pub fn open_settings_page(uri: String) -> Result<(), String> {
     tauri_plugin_opener::open_url(&uri, None::<&str>).map_err(|e| e.to_string())
 }
 
-/// Gives the dock keyboard focus (it normally never takes it), so Start's
-/// search box can be typed into. Returns the window that had focus, for
-/// `restore_foreground` when Start closes.
+/// Gives the calling window keyboard focus (the dock and the notch normally
+/// never take it), so Start's or the Quick Launcher's search box can be typed
+/// into. Returns the window that had focus, for `restore_foreground`.
 #[tauri::command]
 pub fn focus_dock_window(window: tauri::WebviewWindow) -> isize {
     use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
