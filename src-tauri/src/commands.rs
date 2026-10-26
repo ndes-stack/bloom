@@ -122,7 +122,12 @@ pub fn shelf_drag_icon() -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn update_dock_rect(rect: IntRect) {
+pub async fn update_dock_rect(rect: IntRect, shown: Option<bool>) {
+    if shown.unwrap_or(true) {
+        if let Ok(mut r) = crate::state::DOCK_FOOTPRINT_RECT.lock() {
+            *r = Some(rect);
+        }
+    }
     if let Ok(mut r) = DOCK_RECT.lock() {
         *r = Some(rect);
     }

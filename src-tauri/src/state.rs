@@ -27,6 +27,11 @@ pub static TASKBAR_HEAL_TICKS: std::sync::atomic::AtomicU32 = std::sync::atomic:
 pub static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
 pub static DOCK_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
+/// The dock's rect the last time it was fully on screen. Smart mode judges
+/// overlap against this: once hidden, the dock shrinks to a small pill, and
+/// judging by that shape made a window in a bottom corner stop "overlapping",
+/// so the dock came back, overlapped again and hid, over and over.
+pub static DOCK_FOOTPRINT_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static NOTCH_RECT: Mutex<Option<IntRect>> = Mutex::new(None);
 pub static DOCK_IS_HOVERED: AtomicBool = AtomicBool::new(false);
 pub static NOTCH_IS_HOVERED: AtomicBool = AtomicBool::new(false);

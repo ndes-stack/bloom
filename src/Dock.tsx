@@ -426,6 +426,8 @@ const Dock = memo(function Dock() {
 		};
 	}, []);
 
+	// Read by updateRect, which is set up before dockShown is worked out.
+	const dockShownRef = useRef(false);
 	useEffect(() => {
 		const updateRect = () => {
 			if (dockRef.current) {
@@ -437,7 +439,9 @@ const Dock = memo(function Dock() {
 						y: Math.round(rect.y) - (hasPreview ? 320 : 0),
 						width: Math.round(rect.width) + (hasPreview ? 1000 : 0),
 						height: Math.round(rect.height) + (hasPreview ? 320 : 0)
-					}
+					},
+					// Only the fully shown dock counts for smart mode's overlap check.
+					shown: dockShownRef.current && !hasPreview
 				}).catch(() => {});
 			}
 		};
@@ -451,7 +455,7 @@ const Dock = memo(function Dock() {
 			window.removeEventListener("resize", updateRect);
 			observer.disconnect();
 		};
-	}, [pinnedApps, activeApps, isHidden, previewData, scale]);
+	}, [pinnedApps, activeApps, isHidden, isExpanded, isVisible, previewData, scale]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -1197,6 +1201,7 @@ const Dock = memo(function Dock() {
 	};
 
 	const dockShown = isExpanded && !isHidden && isVisible;
+	dockShownRef.current = dockShown;
 
 	// Blurred materials, as on the notch: a small screenshot of what's behind
 	// the dock window (with the dock left out of it), blurred here and laid

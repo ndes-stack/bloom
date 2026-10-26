@@ -1635,6 +1635,7 @@ function App() {
 	// whatever the pointer does, until Esc, Alt+Space again or focus leaves.
 	const launcherHeldRef = useRef(false);
 	const launcherPrevFocusRef = useRef(0);
+	const launcherOpenedAtRef = useRef(0);
 	const [launcherFocusToken, setLauncherFocusToken] = useState(0);
 	const toggleHeldLauncherRef = useRef<() => void>(() => {});
 	const releaseDeferredRef = useRef(false);
@@ -2283,6 +2284,7 @@ function App() {
 		}
 		if (bloomModeRef.current === "announcement") return;
 		launcherHeldRef.current = true;
+		launcherOpenedAtRef.current = performance.now();
 		// Hovered keeps an auto-hiding notch on screen while it's held.
 		setIsHovered(true);
 		setIsOpen(true);
@@ -2301,8 +2303,21 @@ function App() {
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && launcherHeldRef.current) closeHeldLauncherRef.current(true);
 		};
-		// A click anywhere outside Bloom takes the focus away.
-		const onBlur = () => closeHeldLauncherRef.current(false);
+		// A click anywhere outside Bloom takes the focus away. Right after the
+		// shortcut, though, the app it was pressed in can grab focus back as the
+		// keys are let go (browsers do, on Alt's release); take it back once
+		// rather than closing.
+		const onBlur = () => {
+			if (!launcherHeldRef.current) return;
+			if (performance.now() - launcherOpenedAtRef.current < 800) {
+				launcherOpenedAtRef.current = 0;
+				invoke("focus_dock_window")
+					.catch(() => {})
+					.finally(() => setLauncherFocusToken((t) => t + 1));
+				return;
+			}
+			closeHeldLauncherRef.current(false);
+		};
 		window.addEventListener("keydown", onKey);
 		window.addEventListener("blur", onBlur);
 		return () => {

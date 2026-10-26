@@ -1626,3 +1626,36 @@ input:checked + .slider:before {
 	box-shadow: inset 6px 0 0 -2px var(--bloom-accent, #0a84ff);
 	z-index: 1;
 }
+
+/* Quick Launcher shortcut recorder (LauncherShortcutSetting). */
+.shortcut-chip,
+.shortcut-reset {
+	background: var(--bloom-group-bg, rgba(255, 255, 255, 0.1));
+	border: 1px solid var(--bloom-border, rgba(255, 255, 255, 0.05));
+	color: var(--bloom-text, white);
+	font: inherit;
+	font-size: 11px;
+	border-radius: 6px;
+	padding: 4px 9px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.shortcut-chip {
+	min-width: 80px;
+	font-weight: 600;
+}
+
+.shortcut-chip:hover,
+.shortcut-reset:hover {
+	background: var(--bloom-border, rgba(255, 255, 255, 0.15));
+}
+
+.shortcut-chip.recording {
+	border-color: var(--bloom-accent, #0a84ff);
+	box-shadow: 0 0 0 1px var(--bloom-accent, #0a84ff);
+}
+
+.shortcut-reset {
+	opacity: 0.75;
+}

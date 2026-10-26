@@ -45,11 +45,80 @@ static KEYBOARD_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
 /// locking the settings cache while a key is held.
 static KB_WIN_NUMBER_ON: AtomicBool = AtomicBool::new(true);
 static KB_START_ON_WIN: AtomicBool = AtomicBool::new(false);
-/// Alt+Space opens the notch's Quick Launcher (`bloom-launcher-shortcut`).
+/// A shortcut (Alt+Space unless changed) opens the notch's Quick Launcher
+/// (`bloom-launcher-shortcut`, `bloom-launcher-hotkey`).
 static KB_LAUNCHER_ON: AtomicBool = AtomicBool::new(false);
-/// Set from a swallowed Alt+Space press until its Space release, which is
+/// The shortcut's key and modifiers (see `parse_hotkey`).
+static KB_LAUNCHER_VK: AtomicU32 = AtomicU32::new(0x20);
+static KB_LAUNCHER_MODS: AtomicU32 = AtomicU32::new(HOTKEY_ALT);
+/// Set from a swallowed shortcut press until its key's release, which is
 /// swallowed too.
-static ALT_SPACE_HELD: AtomicBool = AtomicBool::new(false);
+static LAUNCHER_KEY_HELD: AtomicBool = AtomicBool::new(false);
+
+pub const HOTKEY_CTRL: u32 = 1;
+pub const HOTKEY_ALT: u32 = 2;
+pub const HOTKEY_SHIFT: u32 = 4;
+pub const HOTKEY_WIN: u32 = 8;
+
+/// "Ctrl+Alt+Space" -> (virtual key, modifier bits). Key names follow the
+/// browser's `KeyboardEvent.code` with `Key`/`Digit` dropped, which is what
+/// the Settings recorder writes. A shortcut needs a modifier, except F1-F24.
+pub fn parse_hotkey(text: &str) -> Option<(u32, u32)> {
+    let mut mods = 0;
+    let mut key = None;
+    for part in text.split('+').map(str::trim).filter(|p| !p.is_empty()) {
+        match part.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" => mods |= HOTKEY_CTRL,
+            "alt" => mods |= HOTKEY_ALT,
+            "shift" => mods |= HOTKEY_SHIFT,
+            "win" | "meta" | "super" => mods |= HOTKEY_WIN,
+            _ if key.is_some() => return None,
+            _ => key = Some(hotkey_vk(part)?),
+        }
+    }
+    let vk = key?;
+    let function_key = (0x70..=0x87).contains(&vk);
+    (mods != 0 || function_key).then_some((vk, mods))
+}
+
+fn hotkey_vk(name: &str) -> Option<u32> {
+    let upper = name.to_ascii_uppercase();
+    let bytes = upper.as_bytes();
+    if bytes.len() == 1 && (bytes[0].is_ascii_uppercase() || bytes[0].is_ascii_digit()) {
+        return Some(bytes[0] as u32);
+    }
+    if let Some(n) = upper.strip_prefix('F').and_then(|n| n.parse::<u32>().ok()) {
+        return (1..=24).contains(&n).then_some(0x6F + n);
+    }
+    Some(match upper.as_str() {
+        "SPACE" => 0x20,
+        "ENTER" => 0x0D,
+        "TAB" => 0x09,
+        "BACKSPACE" => 0x08,
+        "INSERT" => 0x2D,
+        "DELETE" => 0x2E,
+        "HOME" => 0x24,
+        "END" => 0x23,
+        "PAGEUP" => 0x21,
+        "PAGEDOWN" => 0x22,
+        "ARROWLEFT" => 0x25,
+        "ARROWUP" => 0x26,
+        "ARROWRIGHT" => 0x27,
+        "ARROWDOWN" => 0x28,
+        "BACKQUOTE" => 0xC0,
+        "MINUS" => 0xBD,
+        "EQUAL" => 0xBB,
+        "BRACKETLEFT" => 0xDB,
+        "BRACKETRIGHT" => 0xDD,
+        "BACKSLASH" => 0xDC,
+        "SEMICOLON" => 0xBA,
+        "QUOTE" => 0xDE,
+        "COMMA" => 0xBC,
+        "PERIOD" => 0xBE,
+        "SLASH" => 0xBF,
+        _ => return None,
+    })
+}
 /// GetTickCount() of the last key event the hook saw.
 static KB_LAST_EVENT_TICK: AtomicU32 = AtomicU32::new(0);
 
@@ -84,7 +153,12 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
                 bloom_start_on_win_key() && crate::utils::dock_enabled(),
                 Ordering::Relaxed,
             );
-            KB_LAUNCHER_ON.store(launcher_shortcut_enabled(), Ordering::Relaxed);
+            let hotkey = launcher_hotkey();
+            if let Some((vk, mods)) = hotkey {
+                KB_LAUNCHER_VK.store(vk, Ordering::Relaxed);
+                KB_LAUNCHER_MODS.store(mods, Ordering::Relaxed);
+            }
+            KB_LAUNCHER_ON.store(hotkey.is_some(), Ordering::Relaxed);
             let wanted = (NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
                 && KB_WIN_NUMBER_ON.load(Ordering::Relaxed))
                 || KB_START_ON_WIN.load(Ordering::Relaxed)
@@ -239,12 +313,21 @@ fn bloom_start_on_win_key() -> bool {
     start.as_deref() != Some("windows") && win_key.as_deref() != Some("false")
 }
 
-/// Alt+Space opens the notch's Quick Launcher unless turned off.
-fn launcher_shortcut_enabled() -> bool {
-    let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {
-        return false;
-    };
-    crate::utils::get_setting_str(app, "bloom-launcher-shortcut").as_deref() != Some("false")
+/// The Quick Launcher's shortcut, unless turned off. A shortcut that can't be
+/// read falls back to Alt+Space.
+fn launcher_hotkey() -> Option<(u32, u32)> {
+    let app = KEYBOARD_HOOK_APP_HANDLE.get()?;
+    if crate::utils::get_setting_str(app, "bloom-launcher-shortcut").as_deref() == Some("false") {
+        return None;
+    }
+    crate::utils::get_setting_str(app, "bloom-launcher-hotkey")
+        .and_then(|text| parse_hotkey(&text))
+        .or(Some((0x20, HOTKEY_ALT)))
+}
+
+fn key_down(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    unsafe { (GetAsyncKeyState(vk.0 as i32) as u16 & 0x8000) != 0 }
 }
 
 /// Asks the notch to open (or, if it holds it open, close) the Quick Launcher.
@@ -257,11 +340,6 @@ fn emit_notch_open_launcher() {
     });
 }
 
-/// Ctrl state straight from the OS (Ctrl+Alt is AltGr on many layouts).
-fn ctrl_key_down() -> bool {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
-    unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0 }
-}
 
 /// Asks the dock to open Bloom's Start, off the hook thread.
 fn emit_dock_open_start() {
@@ -381,7 +459,9 @@ unsafe extern "system" fn keyboard_hook_proc(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY, VK_LWIN, VK_RWIN, VK_SPACE};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        VIRTUAL_KEY, VK_CONTROL, VK_LWIN, VK_RWIN, VK_SHIFT,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
         KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
         WM_SYSKEYUP,
@@ -399,26 +479,43 @@ unsafe extern "system" fn keyboard_hook_proc(
         // Only physical presses drive the Win+Number replacement; injected
         // events (our own Start taps and mask key) must not re-enter it.
         if (kb.flags.0 & LLKHF_INJECTED.0) == 0 {
-            // Alt+Space: the notch's Quick Launcher instead of the window menu.
-            // The mask key goes out first so letting go of Alt doesn't then
-            // put the app's menu bar in focus (Alt alone does that).
-            if vk_code == VK_SPACE {
-                if is_up && ALT_SPACE_HELD.swap(false, Ordering::Relaxed) {
+            // The Quick Launcher's shortcut (Alt+Space unless changed). The
+            // mask key goes out first so letting go of Alt or Win doesn't
+            // then focus the app's menu bar or open Start.
+            if KB_LAUNCHER_ON.load(Ordering::Relaxed)
+                && kb.vkCode == KB_LAUNCHER_VK.load(Ordering::Relaxed)
+            {
+                if is_up && LAUNCHER_KEY_HELD.swap(false, Ordering::Relaxed) {
                     return windows::Win32::Foundation::LRESULT(1);
                 }
-                let alt = (kb.flags.0 & LLKHF_ALTDOWN.0) != 0;
-                if is_down
-                    && alt
-                    && KB_LAUNCHER_ON.load(Ordering::Relaxed)
-                    && !WIN_KEY_DOWN.load(Ordering::Relaxed)
-                    && !ctrl_key_down()
-                {
-                    // Key repeat sends more downs while held; open once.
-                    if !ALT_SPACE_HELD.swap(true, Ordering::Relaxed) {
-                        send_start_menu_mask();
-                        emit_notch_open_launcher();
+                if is_down {
+                    let win = WIN_KEY_DOWN.load(Ordering::Relaxed) && win_key_physically_down();
+                    let mut mods = 0;
+                    if key_down(VK_CONTROL) {
+                        mods |= HOTKEY_CTRL;
                     }
-                    return windows::Win32::Foundation::LRESULT(1);
+                    if (kb.flags.0 & LLKHF_ALTDOWN.0) != 0 {
+                        mods |= HOTKEY_ALT;
+                    }
+                    if key_down(VK_SHIFT) {
+                        mods |= HOTKEY_SHIFT;
+                    }
+                    if win {
+                        mods |= HOTKEY_WIN;
+                    }
+                    if mods == KB_LAUNCHER_MODS.load(Ordering::Relaxed) {
+                        if win {
+                            WIN_COMBO_USED.store(true, Ordering::Relaxed);
+                        }
+                        // Key repeat sends more downs while held; open once.
+                        if !LAUNCHER_KEY_HELD.swap(true, Ordering::Relaxed) {
+                            if mods & (HOTKEY_ALT | HOTKEY_WIN) != 0 {
+                                send_start_menu_mask();
+                            }
+                            emit_notch_open_launcher();
+                        }
+                        return windows::Win32::Foundation::LRESULT(1);
+                    }
                 }
             }
             if vk_code == VK_LWIN || vk_code == VK_RWIN {
@@ -919,6 +1016,45 @@ unsafe extern "system" fn taskbar_event_proc(
         // Explorer is showing or moving the taskbar: keep it cloaked and
         // hidden, cheaply. The 150 ms check puts it back off screen.
         crate::utils::suppress_taskbar_window(hwnd);
+        note_taskbar_fight("winevent");
+    }
+}
+
+static DOCK_OVERLAP_FLIPS: AtomicU32 = AtomicU32::new(0);
+static DOCK_OVERLAP_LOG_MS: AtomicI64 = AtomicI64::new(0);
+
+/// Smart mode hides the dock while a window covers it. Logged like the
+/// taskbar fights above, so a dock that keeps hiding and coming back shows
+/// what it was reacting to.
+fn note_dock_overlap_flip(overlap: bool) {
+    let count = DOCK_OVERLAP_FLIPS.fetch_add(1, Ordering::Relaxed) + 1;
+    let now = crate::utils::get_now_ms();
+    if now - DOCK_OVERLAP_LOG_MS.load(Ordering::Relaxed) >= 2000 {
+        DOCK_OVERLAP_LOG_MS.store(now, Ordering::Relaxed);
+        DOCK_OVERLAP_FLIPS.store(0, Ordering::Relaxed);
+        crate::diagnostics::record(
+            "dock_overlap",
+            &format!("covered={overlap} (changes x{count}); front: {}", foreground_summary()),
+        );
+    }
+}
+
+static TASKBAR_FIGHTS: AtomicU32 = AtomicU32::new(0);
+static TASKBAR_FIGHT_LOG_MS: AtomicI64 = AtomicI64::new(0);
+
+/// Counts Explorer bringing back the hidden taskbar and logs the count at
+/// most every 2 s, with what was in front, so a flicker shows up in the
+/// diagnostics log without flooding it.
+fn note_taskbar_fight(source: &str) {
+    let count = TASKBAR_FIGHTS.fetch_add(1, Ordering::Relaxed) + 1;
+    let now = crate::utils::get_now_ms();
+    if now - TASKBAR_FIGHT_LOG_MS.load(Ordering::Relaxed) >= 2000 {
+        TASKBAR_FIGHT_LOG_MS.store(now, Ordering::Relaxed);
+        TASKBAR_FIGHTS.store(0, Ordering::Relaxed);
+        crate::diagnostics::record(
+            "taskbar",
+            &format!("re-hid Windows' taskbar x{count} ({source}); front: {}", foreground_summary()),
+        );
     }
 }
 
@@ -1879,8 +2015,13 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                         should_maximized = is_maximized && !current_is_fs;
                                     } else if is_primary {
                                         should_overlap = false;
-                                        if let Ok(dock_rect_lock) = DOCK_RECT.lock() {
-                                            if let Some(dr) = *dock_rect_lock {
+                                        let footprint = DOCK_FOOTPRINT_RECT
+                                            .lock()
+                                            .ok()
+                                            .and_then(|r| *r)
+                                            .or_else(|| DOCK_RECT.lock().ok().and_then(|r| *r));
+                                        {
+                                            if let Some(dr) = footprint {
                                                 let scale = cached_scale;
                                                 let d_left = (dr.x as f64 * scale) as i32;
                                                 let d_right =
@@ -1947,6 +2088,9 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     .store(if should_notch_overlap { 1 } else { 0 }, Ordering::Relaxed);
                 CURRENT_FOREGROUND_FULLSCREEN.store(current_is_fs, Ordering::Relaxed);
 
+                if Some(effective_dock_overlap) != last_dock_overlap {
+                    note_dock_overlap_flip(effective_dock_overlap);
+                }
                 if Some(effective_dock_overlap) != last_dock_overlap
                     || last_emit.elapsed() >= Duration::from_secs(3)
                 {
@@ -1993,6 +2137,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     && (refresh_taskbar_owner() || any_native_taskbar_visible())
                 {
                     set_taskbar_visibility(false, false);
+                    note_taskbar_fight("check");
                 }
 
                 // Self-heal: Windows' taskbar is showing behind a visible dock
@@ -4866,6 +5011,18 @@ mod tests {
         notch_mode_reserves_work_area, pack_cursor, trim_thumbnail_cache, unpack_cursor,
         win_number_index,
     };
+
+    #[test]
+    fn parses_launcher_hotkeys() {
+        assert_eq!(parse_hotkey("Alt+Space"), Some((0x20, HOTKEY_ALT)));
+        assert_eq!(parse_hotkey("Ctrl+Shift+K"), Some((0x4B, HOTKEY_CTRL | HOTKEY_SHIFT)));
+        assert_eq!(parse_hotkey("Win+Alt+1"), Some((0x31, HOTKEY_WIN | HOTKEY_ALT)));
+        assert_eq!(parse_hotkey("F9"), Some((0x78, 0)));
+        assert_eq!(parse_hotkey("Ctrl+Backquote"), Some((0xC0, HOTKEY_CTRL)));
+        assert_eq!(parse_hotkey("Space"), None);
+        assert_eq!(parse_hotkey("Ctrl+A+B"), None);
+        assert_eq!(parse_hotkey("Ctrl+Nonsense"), None);
+    }
 
     #[test]
     fn recognizes_start_menu_hosts_without_relying_on_localized_titles() {

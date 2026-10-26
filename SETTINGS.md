@@ -60,7 +60,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-page-switch-grace` | milliseconds `"0"`–`"2000"`     | `"800"`   | After switching notch pages (which can shrink the notch out from under the pointer), how long it stays open while the pointer is outside. Coming back within this time keeps it open. `"0"` turns it off. |
 | `bloom-notch-panel-order` | JSON array of panel ids          | `["calendar","timer","launcher","command-center"]` | Order scrolling and the panel arrows move through the notch pages. Unknown ids are ignored and missing pages are appended. |
 | `bloom-launcher-items`   | JSON array                        | `[]`      | Quick Launcher pins, in order: `{"id","kind":"app"|"folder"|"file"|"url","name","target"}`. |
-| `bloom-launcher-shortcut` | `"true"` / `"false"`             | `"true"`  | Alt+Space opens the notch's Quick Launcher with the search box ready, instead of the window menu. It stays open until Esc, Alt+Space again or a click outside Bloom. |
+| `bloom-launcher-shortcut` | `"true"` / `"false"`             | `"true"`  | A keyboard shortcut (see `bloom-launcher-hotkey`) opens the notch's Quick Launcher with the search box ready. It stays open until Esc, the shortcut again or a click outside Bloom. |
+| `bloom-launcher-hotkey`  | shortcut string                   | `"Alt+Space"` | The Quick Launcher's shortcut: any of `Ctrl`, `Alt`, `Shift`, `Win`, then one key (`A`-`Z`, `0`-`9`, `F1`-`F24`, `Space`, `Enter`, `Tab`, `Backquote` and other `KeyboardEvent.code` names), joined by `+`. Needs a modifier unless the key is F1-F24. Recorded in Settings > Notch. |
 
 ### Weather
 
