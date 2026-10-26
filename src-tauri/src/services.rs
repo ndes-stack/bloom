@@ -5014,6 +5014,7 @@ mod tests {
 
     #[test]
     fn parses_launcher_hotkeys() {
+        use super::{parse_hotkey, HOTKEY_ALT, HOTKEY_CTRL, HOTKEY_SHIFT, HOTKEY_WIN};
         assert_eq!(parse_hotkey("Alt+Space"), Some((0x20, HOTKEY_ALT)));
         assert_eq!(parse_hotkey("Ctrl+Shift+K"), Some((0x4B, HOTKEY_CTRL | HOTKEY_SHIFT)));
         assert_eq!(parse_hotkey("Win+Alt+1"), Some((0x31, HOTKEY_WIN | HOTKEY_ALT)));
