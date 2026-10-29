@@ -25,6 +25,7 @@ import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
 import type { NotchPanel } from "../notchPanels";
 import { PanelOrderList } from "./PanelOrderList";
 import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
+import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
@@ -215,6 +216,11 @@ export function NotchTab({
 						/>
 					</SettingRow>
 				)}
+
+				<OtherDisplaySetting
+					settingKey="bloom-notch-remote-edge"
+					desc="Rest the mouse on the top edge of another display to open the notch"
+				/>
 
 				<SettingRow
 					icon={MousePointer2}

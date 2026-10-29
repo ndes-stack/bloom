@@ -30,6 +30,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-start-icon`                 | icon key / `custom:<data URI>`   | `"default"`   | Start button icon: `default`, `bloom-colorful`, `bloom-golden`, `bloom-biscuit`, `windows`, or `custom:` followed by an uploaded image's data URI.                               |
 | `bloom-dock-task-view`             | `"true"` / `"false"`             | `"false"`     | Show a Task View button beside Start that opens Task View, like the taskbar's. Right-click it to hide it again.                                                                  |
 | `bloom-dock-tray`                  | `"true"` / `"false"`             | `"true"`      | Show the tray end of the dock: one button for Wi-Fi, sound and battery that opens Bloom's quick settings, the keyboard language, and a clock that opens notifications and the calendar. |
+| `bloom-dock-remote-edge`           | `"true"` / `"false"`             | `"true"`      | With more than one display, resting the mouse on the bottom edge of a display other than the main one shows the dock, and keeps it up for 2.5 s after the cursor leaves that edge. |
 | `bloom-dock-material-link`         | `"true"` / `"false"`             | `"true"`      | Match the notch: the dock bar, its tray panels and Start use the notch's material, blur and tint. Off, they use the three `bloom-dock-*` material keys below. |
 | `bloom-dock-material`              | `"solid"` / `"frosted"` / `"glass"` / `"custom"` | `"solid"` | The dock's own material while the link is off. Same looks as `bloom-notch-material`, blurring what is behind the dock. |
 | `bloom-dock-blur`                  | integer string                   | `"28"`        | Blur radius in px for the dock's `custom` material (8 to 60). |
@@ -62,6 +63,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-launcher-items`   | JSON array                        | `[]`      | Quick Launcher pins, in order: `{"id","kind":"app"|"folder"|"file"|"url","name","target"}`. |
 | `bloom-launcher-shortcut` | `"true"` / `"false"`             | `"true"`  | A keyboard shortcut (see `bloom-launcher-hotkey`) opens the notch's Quick Launcher with the search box ready. It stays open until Esc, the shortcut again or a click outside Bloom. |
 | `bloom-launcher-hotkey`  | shortcut string                   | `"Alt+Space"` | The Quick Launcher's shortcut: any of `Ctrl`, `Alt`, `Shift`, `Win`, then one key (`A`-`Z`, `0`-`9`, `F1`-`F24`, `Space`, `Enter`, `Tab`, `Backquote` and other `KeyboardEvent.code` names), joined by `+`. Needs a modifier unless the key is F1-F24. Recorded in Settings > Notch. |
+| `bloom-notch-remote-edge` | `"true"` / `"false"`             | `"true"`  | With more than one display, resting the mouse on the top edge of a display other than the main one (300 ms) opens the notch, held open until the pointer reaches it or 2.5 s after it leaves that edge. Not while a full-screen window fills that display. |
 
 ### Weather
 

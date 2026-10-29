@@ -180,6 +180,10 @@ function canScrollWithin(target: HTMLElement, root: HTMLElement, dx: number, dy:
 	return false;
 }
 
+// How long another display's edge keeps the notch (or dock) open after the
+// cursor leaves it without coming over.
+const REMOTE_EDGE_HOLD_MS = 2500;
+
 // The Command Center dashboard (controls | live stats).
 const COMMAND_CENTER_WIDTH = 340;
 const COMMAND_CENTER_HEIGHT = 140;
@@ -1799,6 +1803,13 @@ function App() {
 	const launcherOpenedAtRef = useRef(0);
 	const [launcherFocusToken, setLauncherFocusToken] = useState(0);
 	const toggleHeldLauncherRef = useRef<() => void>(() => {});
+	// Resting the mouse on the top edge of another display opens the notch
+	// here (remote_edges.rs). Nothing is under the pointer to hover, so the
+	// notch is held open until the pointer reaches it, or for a while after
+	// the cursor leaves that edge without coming over.
+	const remoteHeldRef = useRef(false);
+	const remoteReleaseTimerRef = useRef<number | null>(null);
+	const remoteEdgeRef = useRef<(active: boolean) => void>(() => {});
 	const releaseDeferredRef = useRef(false);
 	// Page-switch grace period (see releaseNotchHover).
 	const pageSwitchAtRef = useRef(0);
@@ -1810,8 +1821,10 @@ function App() {
 	// reports the pointer left the (now click-through) notch window. Closes an
 	// open notch, remembering its panel, and returns to the resting mode.
 	const releaseNotchHover = () => {
-		// Alt+Space holds the Quick Launcher open until Esc or a click elsewhere.
-		if (launcherHeldRef.current) return;
+		// The launcher shortcut holds the Quick Launcher open until Esc or a
+		// click elsewhere; another display's top edge holds the notch open
+		// until the pointer gets here (see remoteEdgeRef).
+		if (launcherHeldRef.current || remoteHeldRef.current) return;
 		// A view being typed into (a Wi-Fi password) keeps the notch open; the
 		// release happens once it lets go, if the pointer is still away.
 		if (notchPinnedRef.current) {
@@ -2469,8 +2482,37 @@ function App() {
 			.finally(() => setLauncherFocusToken((t) => t + 1));
 	};
 
+	const clearRemoteRelease = () => {
+		if (remoteReleaseTimerRef.current !== null) {
+			window.clearTimeout(remoteReleaseTimerRef.current);
+			remoteReleaseTimerRef.current = null;
+		}
+	};
+	remoteEdgeRef.current = (active: boolean) => {
+		clearRemoteRelease();
+		if (active) {
+			if (launcherHeldRef.current || bloomModeRef.current === "announcement") return;
+			if (isOpenRef.current) return;
+			remoteHeldRef.current = true;
+			// Hovered keeps an auto-hiding notch on screen while it's held.
+			setIsHovered(true);
+			setIsOpen(true);
+			setBloomMode(openingPanel());
+			return;
+		}
+		if (!remoteHeldRef.current) return;
+		remoteReleaseTimerRef.current = window.setTimeout(() => {
+			remoteReleaseTimerRef.current = null;
+			if (!remoteHeldRef.current) return;
+			remoteHeldRef.current = false;
+			pageSwitchAtRef.current = 0;
+			releaseNotchHover();
+		}, REMOTE_EDGE_HOLD_MS);
+	};
+
 	useEffect(() => {
 		if (windowLabel !== "main") return;
+		const unlistenRemote = listen<boolean>("notch-remote-edge", (e) => remoteEdgeRef.current(!!e.payload));
 		const unlisten = listen("notch-open-launcher", () => toggleHeldLauncherRef.current());
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && launcherHeldRef.current) closeHeldLauncherRef.current(true);
@@ -2494,10 +2536,21 @@ function App() {
 		window.addEventListener("blur", onBlur);
 		return () => {
 			unlisten.then((f) => f());
+			unlistenRemote.then((f) => f());
 			window.removeEventListener("keydown", onKey);
 			window.removeEventListener("blur", onBlur);
 		};
 	}, [windowLabel]);
+
+	// A closed notch has nothing left to hold.
+	useEffect(() => {
+		if (!isOpen && remoteHeldRef.current) {
+			remoteHeldRef.current = false;
+			clearRemoteRelease();
+		}
+		// clearRemoteRelease only touches a ref.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isOpen]);
 
 	// Anything else closing the launcher (a reminder, an announcement, picking
 	// another page) ends the hold.
@@ -3941,6 +3994,10 @@ function App() {
 						if (!isOpen) openNotch(openingPanel());
 					}}
 					onHoverStart={() => {
+						// The pointer made it here: normal hover takes over from a
+						// hold that another display's edge started.
+						remoteHeldRef.current = false;
+						clearRemoteRelease();
 						releaseDeferredRef.current = false;
 						pointerBackRef.current = true;
 						setIsHovered(true);

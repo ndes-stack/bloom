@@ -12,6 +12,7 @@ mod dock_extras;
 mod dock_layout;
 mod jack;
 mod privacy;
+mod remote_edges;
 mod tray_panels;
 mod services;
 mod shelf;
@@ -389,6 +390,7 @@ fn main() {
 
             watch_webview_processes(app.handle());
             setup_mouse_hook(app.handle().clone());
+            remote_edges::setup(app.handle().clone());
             setup_display_change_monitor(app.handle().clone());
             setup_window_change_hook(app.handle().clone());
             {

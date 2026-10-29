@@ -354,7 +354,24 @@ const Dock = memo(function Dock() {
 		}
 	}, [showAddPopup, scale]);
 
-	const isCurrentlyHovered = isDockHovered || isEdgeHovered;
+	// Resting the mouse on the bottom edge of another display shows the dock
+	// here (remote_edges.rs), and keeps it up for a while after the cursor
+	// leaves that edge, long enough to come over to it.
+	const [remoteEdge, setRemoteEdge] = useState(false);
+	useEffect(() => {
+		let timer: number | null = null;
+		const unlisten = listen<boolean>("dock-remote-edge", (e) => {
+			if (timer !== null) window.clearTimeout(timer);
+			timer = null;
+			if (e.payload) setRemoteEdge(true);
+			else timer = window.setTimeout(() => setRemoteEdge(false), 2500);
+		});
+		return () => {
+			if (timer !== null) window.clearTimeout(timer);
+			unlisten.then((f) => f());
+		};
+	}, []);
+	const isCurrentlyHovered = isDockHovered || isEdgeHovered || remoteEdge;
 	const [interactionState, setInteractionState] = useState<"active" | "grace" | "none">("none");
 	const isAnyInteraction =
 		isCurrentlyHovered ||
