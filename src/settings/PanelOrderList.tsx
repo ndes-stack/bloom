@@ -15,14 +15,24 @@ import {
 	verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, ChevronDown, ChevronUp, GripVertical, LayoutGrid, SlidersHorizontal, Timer } from "lucide-react";
+import {
+	CalendarDays,
+	ChevronDown,
+	ChevronUp,
+	GripVertical,
+	Headphones,
+	LayoutGrid,
+	SlidersHorizontal,
+	Timer
+} from "lucide-react";
 import { PANEL_LABELS, type NotchPanel } from "../notchPanels";
 
 const PANEL_ICONS: Record<NotchPanel, typeof Timer> = {
 	calendar: CalendarDays,
 	timer: Timer,
 	launcher: LayoutGrid,
-	"command-center": SlidersHorizontal
+	"command-center": SlidersHorizontal,
+	devices: Headphones
 };
 
 interface PanelOrderListProps {

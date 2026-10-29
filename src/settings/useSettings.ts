@@ -13,7 +13,7 @@ import {
 } from "../notchMaterial";
 import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
 import { parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "../notchPanels";
-import { ACCENT_COLOR_KEY, parseAccentColor, applyTheme } from "../theme";
+import { ACCENT_COLOR_KEY, parseAccentColor } from "../theme";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -39,11 +39,16 @@ export function useSettings() {
 	const [saveError, setSaveError] = useState(
 		() => sessionStorage.getItem("bloom-settings-save-error") !== null
 	);
+	const [saveErrorDetail, setSaveErrorDetail] = useState(
+		() => sessionStorage.getItem("bloom-settings-save-error-detail") || ""
+	);
 	const saveQueue = useRef<Promise<void>>(Promise.resolve());
 	const saveFailed = useRef(false);
 	const [autostart, setAutostart] = useState(false);
 	const [weatherEnabled, setWeatherEnabled] = useState(true);
 	const [calendarEnabled, setCalendarEnabled] = useState(true);
+	const [controlsPanelEnabled, setControlsPanelEnabled] = useState(true);
+	const [devicesPanelEnabled, setDevicesPanelEnabled] = useState(false);
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -230,6 +235,8 @@ export function useSettings() {
 
 			apply(getVal("bloom-weather-enabled"), setWeatherEnabled, readBool);
 			apply(getVal("bloom-calendar-enabled"), setCalendarEnabled, readBool);
+			apply(getVal("bloom-notch-command-center-enabled"), setControlsPanelEnabled, readBool);
+			apply(getVal("bloom-notch-devices-enabled"), setDevicesPanelEnabled, readBool);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
@@ -316,6 +323,8 @@ export function useSettings() {
 				console.error(`Failed to save ${key}:`, error);
 				saveFailed.current = true;
 				sessionStorage.setItem("bloom-settings-save-error", "true");
+				sessionStorage.setItem("bloom-settings-save-error-detail", String(error));
+				setSaveErrorDetail(String(error));
 				setSaveError(true);
 				window.setTimeout(() => window.location.reload(), 0);
 				return false;
@@ -324,6 +333,7 @@ export function useSettings() {
 				if (value === null) localStorage.removeItem(key);
 				else localStorage.setItem(key, value);
 				sessionStorage.removeItem("bloom-settings-save-error");
+				sessionStorage.removeItem("bloom-settings-save-error-detail");
 			} catch (error) {
 				// The file is saved; a mirror failure must not be reported as a failed write.
 				console.warn("Settings mirror update failed:", error);
@@ -346,6 +356,8 @@ export function useSettings() {
 				console.error(`Failed to save ${key}:`, error);
 				saveFailed.current = true;
 				sessionStorage.setItem("bloom-settings-save-error", "true");
+				sessionStorage.setItem("bloom-settings-save-error-detail", String(error));
+				setSaveErrorDetail(String(error));
 				setSaveError(true);
 				window.setTimeout(() => window.location.reload(), 0);
 				return false;
@@ -353,6 +365,7 @@ export function useSettings() {
 			try {
 				localStorage.removeItem(key);
 				sessionStorage.removeItem("bloom-settings-save-error");
+				sessionStorage.removeItem("bloom-settings-save-error-detail");
 			} catch (error) {
 				console.warn("Settings mirror cleanup failed:", error);
 			}
@@ -365,6 +378,8 @@ export function useSettings() {
 
 	const dismissSaveError = () => {
 		sessionStorage.removeItem("bloom-settings-save-error");
+		sessionStorage.removeItem("bloom-settings-save-error-detail");
+		setSaveErrorDetail("");
 		setSaveError(false);
 	};
 
@@ -406,6 +421,8 @@ export function useSettings() {
 		"bloom-dock-extras-custom-folders": setDockExtrasCustomFolders,
 		"bloom-weather-enabled": setWeatherEnabled,
 		"bloom-calendar-enabled": setCalendarEnabled,
+		"bloom-notch-command-center-enabled": setControlsPanelEnabled,
+		"bloom-notch-devices-enabled": setDevicesPanelEnabled,
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
@@ -569,10 +586,29 @@ export function useSettings() {
 		saveSetting("bloom-weather-enabled", String(next));
 	};
 
+	// The notch needs at least one panel, so the last one on can't be turned off.
+	const enabledPanelCount =
+		Number(calendarEnabled) + Number(controlsPanelEnabled) + Number(devicesPanelEnabled);
+
 	const toggleCalendar = () => {
 		const next = !calendarEnabled;
+		if (!next && enabledPanelCount <= 1) return;
 		setCalendarEnabled(next);
 		saveSetting("bloom-calendar-enabled", String(next));
+	};
+
+	const toggleControlsPanel = () => {
+		const next = !controlsPanelEnabled;
+		if (!next && enabledPanelCount <= 1) return;
+		setControlsPanelEnabled(next);
+		saveSetting("bloom-notch-command-center-enabled", String(next));
+	};
+
+	const toggleDevicesPanel = () => {
+		const next = !devicesPanelEnabled;
+		if (!next && enabledPanelCount <= 1) return;
+		setDevicesPanelEnabled(next);
+		saveSetting("bloom-notch-devices-enabled", String(next));
 	};
 
 	const toggleTimerSound = () => {
@@ -593,24 +629,11 @@ export function useSettings() {
 		saveSetting("bloom-notch-remember-panel", String(next));
 	};
 
-	const applyThemeFromLocalStorage = () => {
-		applyTheme(
-			localStorage.getItem("bloom-theme-mode") || "dark",
-			localStorage.getItem("bloom-theme-color") || "#007aff"
-		);
-	};
-
-	// Accent colour: null = follow the theme. Applied in every window by theme.ts.
+	// Accent colour: null = follow the theme. theme.ts paints it in every
+	// window once the save is committed, like the other theme settings.
 	const handleAccentColorChange = (color: string | null) => {
 		const next = parseAccentColor(color);
 		setAccentColor(next);
-		try {
-			if (next) localStorage.setItem(ACCENT_COLOR_KEY, next);
-			else localStorage.removeItem(ACCENT_COLOR_KEY);
-		} catch {
-			// settings.json below still records it.
-		}
-		applyThemeFromLocalStorage();
 		saveSetting(ACCENT_COLOR_KEY, next);
 	};
 
@@ -1048,6 +1071,7 @@ export function useSettings() {
 
 	return {
 		saveError,
+		saveErrorDetail,
 		dismissSaveError,
 		// System
 		autostart,
@@ -1098,6 +1122,11 @@ export function useSettings() {
 		handleNotchTintChange,
 		calendarEnabled,
 		toggleCalendar,
+		controlsPanelEnabled,
+		toggleControlsPanel,
+		devicesPanelEnabled,
+		toggleDevicesPanel,
+		enabledPanelCount,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,

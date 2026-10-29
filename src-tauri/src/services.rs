@@ -1891,6 +1891,13 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 if !found_window {
                     hwnd = HWND(std::ptr::null_mut());
                 }
+                // Overlap uses the expanded content width. Hit-testing still
+                // uses DOCK_RECT, which includes the live pill and previews.
+                let overlap_span = DOCK_OVERLAP_RECT
+                    .lock()
+                    .ok()
+                    .and_then(|r| *r)
+                    .map(|r| dock_span_px(r, cached_scale));
 
                 let mut should_overlap = false;
                 let mut should_notch_overlap = false;
@@ -2015,27 +2022,12 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                                         should_maximized = is_maximized && !current_is_fs;
                                     } else if is_primary {
                                         should_overlap = false;
-                                        let footprint = DOCK_FOOTPRINT_RECT
-                                            .lock()
-                                            .ok()
-                                            .and_then(|r| *r)
-                                            .or_else(|| DOCK_RECT.lock().ok().and_then(|r| *r));
-                                        {
-                                            if let Some(dr) = footprint {
-                                                let scale = cached_scale;
-                                                let d_left = (dr.x as f64 * scale) as i32;
-                                                let d_right =
-                                                    d_left + (dr.width as f64 * scale) as i32;
-                                                let res_h = (56.0 * scale) as i32;
-                                                let trigger_y = screen_rect.bottom - res_h;
-
-                                                if rect.left < d_right - 4
-                                                    && rect.right > d_left + 4
-                                                    && rect.bottom > trigger_y + 4
-                                                {
-                                                    should_overlap = true;
-                                                }
-                                            }
+                                        if let Some(span) = overlap_span {
+                                            should_overlap = window_reaches_dock(
+                                                span,
+                                                (rect.left, rect.right, rect.bottom),
+                                                screen_rect.bottom - (56.0 * cached_scale) as i32,
+                                            );
                                         }
 
                                         if let Ok(notch_rect_lock) = NOTCH_RECT.lock() {
@@ -2193,6 +2185,15 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
     });
 
     tx
+}
+
+fn dock_span_px(dock: IntRect, scale: f64) -> (i32, i32) {
+    let left = (dock.x as f64 * scale) as i32;
+    (left, left + (dock.width as f64 * scale) as i32)
+}
+
+fn window_reaches_dock(span: (i32, i32), window: (i32, i32, i32), trigger_y: i32) -> bool {
+    window.0 < span.1 - 4 && window.1 > span.0 + 4 && window.2 > trigger_y + 4
 }
 
 fn set_physical_monitors_brightness(brightness: u32) {
@@ -3857,6 +3858,16 @@ pub fn trigger_app_scan() {
                                         } else {
                                             name.clone()
                                         };
+                                        // Classic programs under Program Files come back as
+                                        // `{known-folder GUID}\…\app.exe`; store the real path
+                                        // so launching, icons and exe matching all work.
+                                        let path = if path.starts_with('{') {
+                                            crate::tray::resolve_path(&path)
+                                                .filter(|p| std::path::Path::new(p).exists())
+                                                .unwrap_or(path)
+                                        } else {
+                                            path
+                                        };
 
                                         if is_launchable_entry(&name, &path) {
                                             // AUMIDs have no executable of their own; storing the
@@ -4583,9 +4594,43 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         || lowercase_path.contains("\\windowsapps\\")
                         || is_browser_host
                     {
-                        crate::utils::get_window_app_user_model_id(hwnd)
+                        crate::utils::get_window_app_user_model_id(hwnd).or_else(|| {
+                            // A packaged app's window can carry no AUMID of its own
+                            // (Snipping Tool); the taskbar then groups it by the
+                            // package identity of its process.
+                            if lowercase_path.contains("\\windowsapps\\") && !is_uwp_frame {
+                                crate::utils::process_app_user_model_id(process_handle)
+                            } else {
+                                None
+                            }
+                        })
                     } else {
                         None
+                    };
+                    // Classic apps whose UI window belongs to a helper process name
+                    // their real executable in the window's relaunch command, which
+                    // is what the taskbar groups and pins (Steam's window belongs to
+                    // steamwebhelper.exe and relaunches Steam.exe). Use it as the
+                    // window's identity so it joins the app's dock item.
+                    let relaunch_exe = if !is_uwp_frame
+                        && !is_browser_host
+                        && !lowercase_path.contains("\\windowsapps\\")
+                    {
+                        crate::utils::get_window_relaunch_command(hwnd)
+                            .and_then(|command| crate::utils::relaunch_executable(&command))
+                            .filter(|exe| !exe.eq_ignore_ascii_case(&path))
+                    } else {
+                        None
+                    };
+                    let (path, exe_name) = match relaunch_exe {
+                        Some(exe) => {
+                            let file = Path::new(&exe)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .map(|s| s.to_string());
+                            (exe, file)
+                        }
+                        None => (path, exe_name),
                     };
                     let is_browser_pwa = is_browser_host
                         && window_aumid
@@ -4643,10 +4688,61 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                     }
                 }
                 let _ = CloseHandle(process_handle);
+            } else if process_exe_name(process_id)
+                .is_some_and(|exe| exe.eq_ignore_ascii_case("consent.exe"))
+            {
+                // A UAC prompt that Windows parked because the program asking
+                // for elevation wasn't in the foreground. The taskbar shows it
+                // as a flashing button; with the taskbar hidden, the dock is
+                // the only place to reach it besides Alt+Tab. consent.exe runs
+                // as SYSTEM, so Bloom can't open it to read its path.
+                if !apps.iter().any(|a| a.hwnd == Some(hwnd.0 as isize)) {
+                    let system_root =
+                        std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+                    apps.push(AppInfo {
+                        name: title,
+                        path: format!(r"{system_root}\System32\consent.exe"),
+                        icon: None,
+                        is_running: true,
+                        hwnd: Some(hwnd.0 as isize),
+                        executable: Some("consent.exe".into()),
+                        all_hwnds: None,
+                    });
+                }
             }
         }
     }
     true.into()
+}
+
+/// The executable name of a process Bloom can't open, such as one running as
+/// SYSTEM, from the system's process list, which needs no access to it.
+unsafe fn process_exe_name(process_id: u32) -> Option<String> {
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+    let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
+    let mut entry = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+    let mut found = None;
+    let mut more = Process32FirstW(snapshot, &mut entry).is_ok();
+    while more {
+        if entry.th32ProcessID == process_id {
+            let len = entry
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(entry.szExeFile.len());
+            found = Some(String::from_utf16_lossy(&entry.szExeFile[..len]));
+            break;
+        }
+        more = Process32NextW(snapshot, &mut entry).is_ok();
+    }
+    let _ = CloseHandle(snapshot);
+    found
 }
 
 pub fn unregister_appbar_native(hwnd: HWND) {
@@ -5006,10 +5102,44 @@ mod tests {
         // Tick counts wrap after 49 days.
         assert!(missed(1_500, u32::MAX - 500, u32::MAX - 600, 1_800));
     }
+    #[test]
+    fn smart_dock_overlap_uses_the_expanded_bar_instead_of_the_live_pill() {
+        let expanded = super::dock_span_px(
+            crate::types::IntRect {
+                x: 320,
+                y: 0,
+                width: 640,
+                height: 56,
+            },
+            1.5,
+        );
+        assert_eq!(expanded, (480, 1440));
+        let pill = (935, 985);
+        let run_dialog = (12, 620, 1190);
+        let trigger_y = 1116;
+        assert!(super::window_reaches_dock(expanded, run_dialog, trigger_y));
+        assert!(!super::window_reaches_dock(pill, run_dialog, trigger_y));
+        assert!(!super::window_reaches_dock(
+            expanded,
+            (12, 620, 900),
+            trigger_y
+        ));
+        assert!(!super::window_reaches_dock(
+            expanded,
+            (0, 400, 1190),
+            trigger_y
+        ));
+        assert!(!super::window_reaches_dock(
+            expanded,
+            (1500, 1800, 1190),
+            trigger_y
+        ));
+    }
+
     use super::{
         is_helper_name, is_launchable_entry, is_primary_monitor, is_start_menu_process_path,
-        notch_mode_reserves_work_area, pack_cursor, trim_thumbnail_cache, unpack_cursor,
-        win_number_index,
+        notch_mode_reserves_work_area, pack_cursor, process_exe_name, trim_thumbnail_cache,
+        unpack_cursor, win_number_index,
     };
 
     #[test]
@@ -5023,6 +5153,16 @@ mod tests {
         assert_eq!(parse_hotkey("Space"), None);
         assert_eq!(parse_hotkey("Ctrl+A+B"), None);
         assert_eq!(parse_hotkey("Ctrl+Nonsense"), None);
+    }
+
+    #[test]
+    fn names_a_process_from_the_process_list() {
+        let own = std::env::current_exe().unwrap();
+        let expected = own.file_name().unwrap().to_string_lossy().to_string();
+        let found = unsafe { process_exe_name(std::process::id()) };
+        assert_eq!(found.as_deref(), Some(expected.as_str()));
+        // Process IDs are multiples of 4, so this one is never in use.
+        assert_eq!(unsafe { process_exe_name(u32::MAX - 3) }, None);
     }
 
     #[test]

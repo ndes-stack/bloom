@@ -6,9 +6,15 @@
 // missing from a stored list is added back at the end, so a newer version
 // with more pages never loses one.
 
-export type NotchPanel = "calendar" | "timer" | "launcher" | "command-center";
+export type NotchPanel = "calendar" | "timer" | "launcher" | "command-center" | "devices";
 
-export const DEFAULT_PANEL_ORDER: readonly NotchPanel[] = ["calendar", "timer", "launcher", "command-center"];
+export const DEFAULT_PANEL_ORDER: readonly NotchPanel[] = [
+	"calendar",
+	"timer",
+	"launcher",
+	"command-center",
+	"devices"
+];
 
 export const PANEL_ORDER_KEY = "bloom-notch-panel-order";
 
@@ -16,7 +22,8 @@ export const PANEL_LABELS: Record<NotchPanel, string> = {
 	calendar: "Calendar",
 	timer: "Timer",
 	launcher: "Quick Launcher",
-	"command-center": "Command Center"
+	"command-center": "Command Center",
+	devices: "Connected devices"
 };
 
 export function isNotchPanel(value: unknown): value is NotchPanel {

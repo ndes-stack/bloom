@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { reloadIfMirrorWasStale } from "./hooks/settingsMirror";
+import { mirrorSetting } from "./hooks/settingsEvents";
+
+let themeRevision = 0;
 
 // Convert a hex color string to rgba with a specified alpha
 function hexToRgba(hex: string, alpha: number): string {
@@ -144,6 +147,7 @@ export async function applyTheme(
 	saturation?: number,
 	brightness?: number
 ) {
+	const revision = ++themeRevision;
 	const root = document.documentElement;
 
 	// "system" follows the Windows light/dark app mode. Paint the best guess
@@ -230,6 +234,7 @@ export async function applyTheme(
 	} else if (mode === "adaptive") {
 		try {
 			const accentHex = await invoke<string>("get_system_accent_color");
+			if (revision !== themeRevision) return;
 			const hsl = hexToHsl(accentHex);
 			hsl.s = saturation * 100;
 			hsl.l = brightness * 100;
@@ -266,6 +271,7 @@ export async function applyTheme(
 				root.classList.remove("light-mode");
 			}
 		} catch (e) {
+			if (revision !== themeRevision) return;
 			console.error("Failed to apply adaptive theme:", e);
 			applyTheme("dark", customColor, op, saturation, brightness);
 		}
@@ -373,118 +379,87 @@ function applyAccentOverride(root: HTMLElement) {
 	root.style.setProperty("--bloom-on-accent-fill", textOnAccent(readable));
 }
 
+const THEME_DEFAULTS: Record<string, string> = {
+	"bloom-theme-mode": "dark",
+	"bloom-theme-color": "#007aff",
+	"bloom-theme-opacity": "0.8",
+	"bloom-theme-saturation": "0.5",
+	"bloom-theme-brightness": "0.15",
+	// Empty = the theme's own accent. applyAccentOverride reads the mirror.
+	[ACCENT_COLOR_KEY]: ""
+};
+
 export function initTheme() {
-	const syncMode = localStorage.getItem("bloom-theme-mode") || "dark";
-	const syncColor = localStorage.getItem("bloom-theme-color") || "#007aff";
-	const syncOpacityVal = localStorage.getItem("bloom-theme-opacity");
-	const syncOpacity = syncOpacityVal !== null ? parseFloat(syncOpacityVal) : 0.8;
-	const syncSaturationVal = localStorage.getItem("bloom-theme-saturation");
-	const syncSaturation = syncSaturationVal !== null ? parseFloat(syncSaturationVal) : 0.5;
-	const syncBrightnessVal = localStorage.getItem("bloom-theme-brightness");
-	const syncBrightness = syncBrightnessVal !== null ? parseFloat(syncBrightnessVal) : 0.15;
+	const changedKeys = new Set<string>();
+	const values = Object.fromEntries(
+		Object.entries(THEME_DEFAULTS).map(([key, fallback]) => [
+			key,
+			localStorage.getItem(key) ?? fallback
+		])
+	);
+	let disposed = false;
+	const applyCurrentTheme = () =>
+		applyTheme(
+			values["bloom-theme-mode"],
+			values["bloom-theme-color"],
+			parseFloat(values["bloom-theme-opacity"]),
+			parseFloat(values["bloom-theme-saturation"]),
+			parseFloat(values["bloom-theme-brightness"])
+		);
 
-	// Fast synchronous draw using cached localStorage
-	applyTheme(syncMode, syncColor, syncOpacity, syncSaturation, syncBrightness);
-
-	// Sync settings.json in background to avoid flickers
-	invoke<Record<string, any>>("load_settings")
+	// Paint the startup mirror, then use committed values in memory. Painting
+	// must not depend on a cache write succeeding (e.g. localStorage quota).
+	applyCurrentTheme();
+	invoke<Record<string, unknown>>("load_settings")
 		.then(async (settings) => {
-			// Don't write a stale mirror value back while the window reloads.
-			if (await reloadIfMirrorWasStale(settings)) return;
-			const mode = settings["bloom-theme-mode"] ? String(settings["bloom-theme-mode"]) : syncMode;
-			const color = settings["bloom-theme-color"]
-				? String(settings["bloom-theme-color"])
-				: syncColor;
-			const opacityVal = settings["bloom-theme-opacity"]
-				? parseFloat(String(settings["bloom-theme-opacity"]))
-				: syncOpacity;
-			const saturationVal = settings["bloom-theme-saturation"]
-				? parseFloat(String(settings["bloom-theme-saturation"]))
-				: syncSaturation;
-			const brightnessVal = settings["bloom-theme-brightness"]
-				? parseFloat(String(settings["bloom-theme-brightness"]))
-				: syncBrightness;
-
-			// Accent colour lives in settings.json as well; mirror it before drawing.
-			const storedAccent = parseAccentColor(settings[ACCENT_COLOR_KEY]) ?? "";
-			const accentChanged = storedAccent !== (localStorage.getItem(ACCENT_COLOR_KEY) ?? "");
-			if (accentChanged) {
-				if (storedAccent) localStorage.setItem(ACCENT_COLOR_KEY, storedAccent);
-				else localStorage.removeItem(ACCENT_COLOR_KEY);
+			if (disposed || (await reloadIfMirrorWasStale(settings))) return;
+			if (disposed) return;
+			for (const key of Object.keys(THEME_DEFAULTS)) {
+				// A delayed startup read cannot undo a newer event, including
+				// a deletion that has already restored the default.
+				if (changedKeys.has(key)) continue;
+				if (settings[key] != null) {
+					values[key] = String(settings[key]);
+					mirrorSetting(key, values[key]);
+				} else if (key === ACCENT_COLOR_KEY) {
+					// No accent saved: follow the theme, even if the mirror had one.
+					values[key] = "";
+					mirrorAccent(null);
+				}
 			}
-
-			if (
-				accentChanged ||
-				mode !== syncMode ||
-				color !== syncColor ||
-				opacityVal !== syncOpacity ||
-				saturationVal !== syncSaturation ||
-				brightnessVal !== syncBrightness
-			) {
-				localStorage.setItem("bloom-theme-mode", mode);
-				localStorage.setItem("bloom-theme-color", color);
-				localStorage.setItem("bloom-theme-opacity", String(opacityVal));
-				localStorage.setItem("bloom-theme-saturation", String(saturationVal));
-				localStorage.setItem("bloom-theme-brightness", String(brightnessVal));
-				applyTheme(mode, color, opacityVal, saturationVal, brightnessVal);
-			}
+			applyCurrentTheme();
 		})
 		.catch(console.error);
 
-	// Helper: read all theme values from localStorage and apply
-	const applyThemeFromStorage = () => {
-		const mode = localStorage.getItem("bloom-theme-mode") || "dark";
-		const color = localStorage.getItem("bloom-theme-color") || "#007aff";
-		const opacity = parseFloat(localStorage.getItem("bloom-theme-opacity") || "0.80");
-		const saturation = parseFloat(localStorage.getItem("bloom-theme-saturation") || "0.50");
-		const brightness = parseFloat(localStorage.getItem("bloom-theme-brightness") || "0.15");
-		applyTheme(mode, color, opacity, saturation, brightness);
-	};
-
-	const bloomThemeKeys = [
-		"bloom-theme-mode",
-		"bloom-theme-color",
-		"bloom-theme-opacity",
-		"bloom-theme-saturation",
-		"bloom-theme-brightness",
-		ACCENT_COLOR_KEY
-	];
-
-	// Listen to setting changes broadcasted from settings window
-	// (localStorage sync is handled by saveAndLocal in Settings.tsx; we just apply the theme)
-	const settingsPromise = listen<{ key: string; value: any }>("settings-changed", (event) => {
+	const onSetting = (event: { payload: { key: string; value: unknown } }) => {
 		const { key, value } = event.payload;
+		if (disposed || !Object.prototype.hasOwnProperty.call(THEME_DEFAULTS, key)) return;
+		changedKeys.add(key);
+		values[key] = value == null ? THEME_DEFAULTS[key] : String(value);
 		if (key === ACCENT_COLOR_KEY) mirrorAccent(value);
-		if (bloomThemeKeys.includes(key)) {
-			applyThemeFromStorage();
-		}
-	});
-
-	// Listen to system accent color updates in case of adaptive theme
-	const accentPromise = listen<string>("system-accent-changed", (event) => {
-		const currentMode = localStorage.getItem("bloom-theme-mode") || "dark";
-		if (currentMode === "adaptive") {
-			const opacity = parseFloat(localStorage.getItem("bloom-theme-opacity") || "0.80");
-			const saturation = parseFloat(localStorage.getItem("bloom-theme-saturation") || "0.50");
-			const brightness = parseFloat(localStorage.getItem("bloom-theme-brightness") || "0.15");
-			applyTheme("adaptive", event.payload, opacity, saturation, brightness);
-		}
+		else mirrorSetting(key, value);
+		applyCurrentTheme();
+	};
+	// save_setting emits only after persisting. Never paint an optimistic
+	// control value or read the previous mirror while its promise resolves.
+	const settingsPromise = listen("settings-changed", onSetting);
+	const externalPromise = listen("settings-external-changed", onSetting);
+	const accentPromise = listen<string>("system-accent-changed", () => {
+		if (!disposed && values["bloom-theme-mode"] === "adaptive") applyCurrentTheme();
 	});
 
 	// Windows switched between light and dark app mode. Only matters in "system" mode.
 	const systemThemePromise = listen<string>("system-theme-changed", (event) => {
 		cachedSystemTheme = event.payload === "light" ? "light" : "dark";
-		if ((localStorage.getItem("bloom-theme-mode") || "dark") === "system") {
-			applyThemeFromStorage();
-		}
+		if (!disposed && values["bloom-theme-mode"] === "system") applyCurrentTheme();
 	});
 
 	// Backup trigger: the webview also reports the OS colour scheme changing.
 	let colorSchemeQuery: MediaQueryList | null = null;
 	const onColorSchemeChange = () => {
-		if ((localStorage.getItem("bloom-theme-mode") || "dark") === "system") {
+		if (!disposed && values["bloom-theme-mode"] === "system") {
 			cachedSystemTheme = null;
-			applyThemeFromStorage();
+			applyCurrentTheme();
 		}
 	};
 	try {
@@ -494,20 +469,8 @@ export function initTheme() {
 		colorSchemeQuery = null;
 	}
 
-	// Listen to external edits (e.g. settings.json edited outside the app)
-	// localStorage sync is handled by useSettingsSync hook; we just apply the theme
-	const externalPromise = listen<{ key: string; value: any }>(
-		"settings-external-changed",
-		(event) => {
-			const { key, value } = event.payload;
-			if (key === ACCENT_COLOR_KEY) mirrorAccent(value);
-			if (bloomThemeKeys.includes(key)) {
-				applyThemeFromStorage();
-			}
-		}
-	);
-
 	return () => {
+		disposed = true;
 		settingsPromise.then((f) => f());
 		accentPromise.then((f) => f());
 		externalPromise.then((f) => f());

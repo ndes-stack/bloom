@@ -884,6 +884,64 @@ pub fn resolve_executable_path(name: &str) -> Option<String> {
     known_install_location(&file)
 }
 
+/// The version in a Squirrel version folder's name: `app-1.0.9264` is
+/// `[1, 0, 9264]`. Compared as numbers, so `app-1.0.10000` is newer.
+fn squirrel_folder_version(name: &str) -> Option<Vec<u64>> {
+    let version = name
+        .get(..4)?
+        .eq_ignore_ascii_case("app-")
+        .then(|| &name[4..])?;
+    version
+        .split('.')
+        .map(|part| part.parse::<u64>().ok())
+        .collect()
+}
+
+/// The newest of a Squirrel app's version folders, by name.
+fn newest_squirrel_folder<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
+    names
+        .into_iter()
+        .filter_map(|name| squirrel_folder_version(name).map(|v| (v, name)))
+        .max_by(|a, b| a.0.cmp(&b.0))
+        .map(|(_, name)| name)
+}
+
+/// Where an app installed by Squirrel (Discord, Slack, GitHub Desktop, Teams
+/// classic, Postman, Figma) lives now. Squirrel keeps each version in its own
+/// `app-<version>` folder next to `Update.exe` and deletes the old one after an
+/// update, so a path saved earlier, such as a dock pin, can point at a folder
+/// that's gone. Returns the same executable in the newest version folder (or in
+/// `current`, which some apps use), or None when the path still exists or isn't
+/// in a version folder.
+pub fn moved_squirrel_exe(path: &str) -> Option<String> {
+    let path = std::path::Path::new(path.trim().trim_matches('"'));
+    if path.exists() {
+        return None;
+    }
+    let folder = path.parent()?;
+    let folder_name = folder.file_name()?.to_str()?;
+    if squirrel_folder_version(folder_name).is_none()
+        && !folder_name.eq_ignore_ascii_case("current")
+    {
+        return None;
+    }
+    let root = folder.parent()?;
+    let exe = path.file_name()?;
+    let names: Vec<String> = std::fs::read_dir(root)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.path().join(exe).is_file())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    let newest = newest_squirrel_folder(names.iter().map(String::as_str)).or_else(|| {
+        names
+            .iter()
+            .find(|n| n.eq_ignore_ascii_case("current"))
+            .map(String::as_str)
+    })?;
+    Some(root.join(newest).join(exe).to_string_lossy().into_owned())
+}
+
 /// Reads `HKCU`/`HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths\<file>`.
 fn app_paths_lookup(file: &str) -> Option<String> {
     use windows::Win32::System::Registry::{
@@ -1010,6 +1068,59 @@ fn known_install_location(file: &str) -> Option<String> {
 /// the browser's web app id. Unlike the process command line it is always
 /// available on the window itself.
 pub fn get_window_app_user_model_id(hwnd: HWND) -> Option<String> {
+    get_window_string_property(hwnd, 5)
+}
+
+/// Reads the `System.AppUserModel.RelaunchCommand` shell property of a window:
+/// the command the taskbar pins and relaunches for it. Apps whose UI window is
+/// owned by a helper process set it to their real executable (Steam's window
+/// belongs to steamwebhelper.exe but relaunches Steam.exe).
+pub fn get_window_relaunch_command(hwnd: HWND) -> Option<String> {
+    get_window_string_property(hwnd, 2)
+}
+
+/// The executable named by a relaunch command, when the command is a bare,
+/// existing `.exe` path without arguments. Commands with arguments (browser
+/// profiles, launchers) are not an app identity and are ignored.
+pub fn relaunch_executable(command: &str) -> Option<String> {
+    let command = command.trim();
+    let exe = match command.strip_prefix('"') {
+        Some(rest) => {
+            let end = rest.find('"')?;
+            if !rest[end + 1..].trim().is_empty() {
+                return None;
+            }
+            &rest[..end]
+        }
+        None => command,
+    };
+    if !exe.to_lowercase().ends_with(".exe") || !std::path::Path::new(exe).is_file() {
+        return None;
+    }
+    Some(exe.to_string())
+}
+
+/// Package AppUserModelID of a packaged process, which the taskbar uses when
+/// the window itself carries none (Snipping Tool's `XamlWindow`).
+pub unsafe fn process_app_user_model_id(
+    process: windows::Win32::Foundation::HANDLE,
+) -> Option<String> {
+    use windows::Win32::Storage::Packaging::Appx::GetApplicationUserModelId;
+    let mut buf = [0u16; 256];
+    let mut len = buf.len() as u32;
+    let status = GetApplicationUserModelId(
+        process,
+        &mut len,
+        Some(windows::core::PWSTR(buf.as_mut_ptr())),
+    );
+    if status.0 != 0 || len == 0 {
+        return None;
+    }
+    let text = String::from_utf16_lossy(&buf[..(len as usize).saturating_sub(1)]);
+    Some(text.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn get_window_string_property(hwnd: HWND, pid: u32) -> Option<String> {
     unsafe {
         use windows::Win32::Foundation::PROPERTYKEY;
         use windows::Win32::System::Com::StructuredStorage::{
@@ -1019,21 +1130,27 @@ pub fn get_window_app_user_model_id(hwnd: HWND) -> Option<String> {
             IPropertyStore, SHGetPropertyStoreForWindow,
         };
 
-        const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
+        const PKEY_APP_USER_MODEL: PROPERTYKEY = PROPERTYKEY {
             fmtid: windows::core::GUID {
                 data1: 0x9F4C2855,
                 data2: 0x9F79,
                 data3: 0x4B39,
                 data4: [0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3],
             },
-            pid: 5,
+            pid: 0,
+        };
+        let key = PROPERTYKEY {
+            pid,
+            ..PKEY_APP_USER_MODEL
         };
 
         let store: IPropertyStore = SHGetPropertyStoreForWindow(hwnd).ok()?;
-        let mut prop = store.GetValue(&PKEY_APP_USER_MODEL_ID).ok()?;
-        let result = PropVariantToStringAlloc(&prop)
-            .ok()
-            .map(|pwstr| String::from_utf16_lossy(pwstr.as_wide()).trim().to_string());
+        let mut prop = store.GetValue(&key).ok()?;
+        let result = PropVariantToStringAlloc(&prop).ok().map(|pwstr| {
+            let value = String::from_utf16_lossy(pwstr.as_wide()).trim().to_string();
+            windows::Win32::System::Com::CoTaskMemFree(Some(pwstr.0 as _));
+            value
+        });
         let _ = PropVariantClear(&mut prop);
         result.filter(|s| !s.is_empty())
     }
@@ -1138,7 +1255,21 @@ pub fn atomic_write_file(path: &std::path::Path, content: &[u8]) -> Result<(), S
         let _ = std::fs::remove_file(&temp);
         return Err(format!("Could not write {}: {e}", temp.display()));
     }
-    if let Err(e) = std::fs::rename(&temp, path) {
+    // Antivirus, indexers and editors can briefly open the destination without
+    // FILE_SHARE_DELETE. Keep the original intact and retry only these Windows
+    // sharing/access errors; a permanent failure is still returned to Settings.
+    let mut replaced = std::fs::rename(&temp, path);
+    for delay_ms in [25, 50, 100, 200] {
+        if !replaced
+            .as_ref()
+            .is_err_and(|e| matches!(e.raw_os_error(), Some(5 | 32 | 33)))
+        {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        replaced = std::fs::rename(&temp, path);
+    }
+    if let Err(e) = replaced {
         let _ = std::fs::remove_file(&temp);
         return Err(format!("Could not replace {}: {e}", path.display()));
     }
@@ -1446,9 +1577,77 @@ pub fn capture_hwnd_to_base64(hwnd: HWND, max_width: u32, max_height: u32) -> Op
 #[cfg(test)]
 mod tests {
     use super::{
-        click_through_style, expand_env_vars, is_placed_rect, marker_contents, parse_marker_pid,
-        parse_marker_rect, parse_marker_secondaries, parse_marker_state,
+        click_through_style, expand_env_vars, is_placed_rect, marker_contents, moved_squirrel_exe,
+        newest_squirrel_folder, parse_marker_pid, parse_marker_rect, parse_marker_secondaries,
+        parse_marker_state, relaunch_executable,
     };
+
+    #[test]
+    fn picks_the_newest_squirrel_version_by_number() {
+        assert_eq!(
+            newest_squirrel_folder(["app-1.0.9264", "app-1.0.10000", "app-1.0.999", "packages"]),
+            Some("app-1.0.10000")
+        );
+        assert_eq!(
+            newest_squirrel_folder(["App-3.2", "app-3.10"]),
+            Some("app-3.10")
+        );
+        assert_eq!(
+            newest_squirrel_folder(["app-beta", "current", "packages"]),
+            None
+        );
+    }
+
+    #[test]
+    fn finds_a_squirrel_app_after_an_update() {
+        let root = std::env::temp_dir().join(format!("bloom-squirrel-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for version in ["app-1.0.9264", "app-1.0.10000"] {
+            std::fs::create_dir_all(root.join(version)).unwrap();
+            std::fs::write(root.join(version).join("Discord.exe"), b"").unwrap();
+        }
+        // A newer folder without the exe (an update still unpacking) is skipped.
+        std::fs::create_dir_all(root.join("app-1.0.20000")).unwrap();
+        let stale = root.join("app-1.0.9262").join("Discord.exe");
+        let moved = moved_squirrel_exe(&stale.to_string_lossy());
+        assert_eq!(
+            moved.as_deref(),
+            Some(
+                root.join("app-1.0.10000")
+                    .join("Discord.exe")
+                    .to_string_lossy()
+                    .as_ref()
+            )
+        );
+        // A path that still exists, or that isn't in a version folder, stays put.
+        let current = root.join("app-1.0.9264").join("Discord.exe");
+        assert_eq!(moved_squirrel_exe(&current.to_string_lossy()), None);
+        assert_eq!(
+            moved_squirrel_exe(&root.join("Discord.exe").to_string_lossy()),
+            None
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn relaunch_identity_requires_an_existing_executable_without_arguments() {
+        let exe = std::env::current_exe()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(relaunch_executable(&exe), Some(exe.clone()));
+        assert_eq!(
+            relaunch_executable(&format!("\"{exe}\"")),
+            Some(exe.clone())
+        );
+        assert_eq!(
+            relaunch_executable(&format!("\"{exe}\" --profile-directory=Default")),
+            None
+        );
+        assert_eq!(relaunch_executable(&format!("{exe} --argument")), None);
+        assert_eq!(relaunch_executable("C:\\does\\not\\exist.exe"), None);
+        assert_eq!(relaunch_executable(""), None);
+    }
 
     #[test]
     fn click_through_keeps_the_window_layered() {
@@ -1528,6 +1727,32 @@ mod tests {
     }
 
     #[test]
+    fn atomic_settings_save_retries_a_temporary_windows_file_lock() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
+        let path = test_settings_path();
+        std::fs::write(&path, "{\"bloom-existing\":\"true\"}").unwrap();
+        // Allow reads and writes, but withhold FILE_SHARE_DELETE as an editor
+        // or scanner can do. Replacing this file fails until the handle closes.
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(3)
+            .open(&path)
+            .unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            drop(held);
+        });
+        super::save_setting_file(&path, "bloom-new".into(), "false".into()).unwrap();
+        release.join().unwrap();
+        let settings = super::read_settings_file(&path).unwrap();
+        assert_eq!(settings["bloom-existing"], "true");
+        assert_eq!(settings["bloom-new"], "false");
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_dir(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
     fn taskbar_marker_round_trips_the_original_state() {
         for state in [0, 1, 2, 3] {
             let rect = windows::Win32::Foundation::RECT {
@@ -1542,6 +1767,43 @@ mod tests {
             assert_eq!(parse_marker_rect(&contents, "primary="), Some(rect));
             assert!(parse_marker_secondaries(&contents).is_empty());
         }
+    }
+
+    #[test]
+    fn a_failed_setting_write_keeps_the_file_and_cache_then_allows_retry() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let _guard = TEST_SETTINGS_LOCK.lock().unwrap();
+        let path = test_settings_path();
+        super::save_setting_file(&path, "bloom-theme-mode".into(), "dark".into()).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(3)
+            .open(&path)
+            .unwrap();
+        let result = super::save_setting_file(&path, "bloom-theme-mode".into(), "light".into());
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        assert_eq!(
+            crate::state::SETTINGS_CACHE.get().unwrap().lock().unwrap()["bloom-theme-mode"],
+            "dark"
+        );
+        assert_eq!(
+            std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+            1
+        );
+        drop(held);
+        super::save_setting_file(&path, "bloom-theme-mode".into(), "light".into()).unwrap();
+        assert_eq!(
+            super::read_settings_file(&path).unwrap()["bloom-theme-mode"],
+            "light"
+        );
+        assert_eq!(
+            crate::state::SETTINGS_CACHE.get().unwrap().lock().unwrap()["bloom-theme-mode"],
+            "light"
+        );
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_dir(path.parent().unwrap()).unwrap();
     }
 
     #[test]

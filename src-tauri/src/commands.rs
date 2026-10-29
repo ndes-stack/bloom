@@ -122,14 +122,14 @@ pub fn shelf_drag_icon() -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn update_dock_rect(rect: IntRect, shown: Option<bool>) {
-    if shown.unwrap_or(true) {
-        if let Ok(mut r) = crate::state::DOCK_FOOTPRINT_RECT.lock() {
-            *r = Some(rect);
-        }
-    }
+pub async fn update_dock_rect(rect: IntRect, overlap_rect: Option<IntRect>) {
     if let Ok(mut r) = DOCK_RECT.lock() {
         *r = Some(rect);
+    }
+    if let Some(rect) = overlap_rect {
+        if let Ok(mut r) = DOCK_OVERLAP_RECT.lock() {
+            *r = Some(rect);
+        }
     }
 }
 
@@ -547,14 +547,7 @@ fn get_uwp_launch_cmd(exe_path: &str) -> Option<String> {
     None
 }
 
-/// Duplicate-event guard. Kept well below the double-click interval so a
-/// double-click still toggles twice.
-const START_TOGGLE_DEBOUNCE_MS: i64 = 80;
-/// Hold time for the Windows key so the shell registers a deliberate tap.
-/// A zero-length tap is dropped by the shell and never opens Start.
-const START_WIN_KEY_HOLD_MS: u64 = 40;
-
-fn send_key_tap(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY, hold_ms: u64) {
+fn send_key_tap(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, KEYBDINPUT, KEYEVENTF_KEYUP,
     };
@@ -584,9 +577,6 @@ fn send_key_tap(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY, ho
     }];
     unsafe {
         SendInput(&down, std::mem::size_of::<INPUT>() as i32);
-        if hold_ms > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(hold_ms));
-        }
         SendInput(&up, std::mem::size_of::<INPUT>() as i32);
     }
 }
@@ -633,12 +623,8 @@ pub fn is_start_menu_open() -> bool {
     }
 }
 
-/// Toggle the native Start menu. Checks whether the menu currently owns the
-/// foreground window instead of blindly tapping Win: rapid Win taps are ignored
-/// by the shell while the menu animates, which made a second click replay the
-/// open animation. When the menu is open it is dismissed with Escape, which is
-/// deterministic. The tiny debounce only coalesces duplicate events; it must
-/// stay well below the double-click interval so a double-click still closes.
+/// Open Start through Explorer, independently of the foreground app's integrity
+/// level. An open menu is dismissed with Escape rather than another open request.
 ///
 /// Start also closes itself on the press of a click outside it, the Start
 /// button included, so by the time the click arrives the menu is often gone.
@@ -646,20 +632,29 @@ pub fn is_start_menu_open() -> bool {
 /// was, the press closed it and the click leaves it closed, however long the
 /// button was held.
 fn toggle_start_menu() {
-    let now = get_now_ms();
-    if now - LAST_START_TOGGLE_MS.load(Ordering::Relaxed) < START_TOGGLE_DEBOUNCE_MS {
-        return;
-    }
-    LAST_START_TOGGLE_MS.store(now, Ordering::Relaxed);
     // Taken here, so a press is only ever used by the click it started.
     let open_at_press = START_OPEN_AT_PRESS.swap(false, Ordering::Relaxed);
 
     tauri::async_runtime::spawn_blocking(move || {
-        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_ESCAPE, VK_LWIN};
+        use windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, PostMessageW, SC_TASKLIST, WM_SYSCOMMAND,
+        };
         if is_start_menu_open() {
-            send_key_tap(VK_ESCAPE, 0);
+            send_key_tap(VK_ESCAPE);
         } else if !open_at_press {
-            send_key_tap(VK_LWIN, START_WIN_KEY_HOLD_MS);
+            // Ask Explorer directly. SendInput can be blocked while an elevated
+            // app owns the foreground; opening Settings happened to avoid that.
+            unsafe {
+                if let Ok(tray) = FindWindowW(windows::core::w!("Shell_TrayWnd"), None) {
+                    let _ = PostMessageW(
+                        Some(tray),
+                        WM_SYSCOMMAND,
+                        windows::Win32::Foundation::WPARAM(SC_TASKLIST as usize),
+                        windows::Win32::Foundation::LPARAM(0),
+                    );
+                }
+            }
         }
     });
 }
@@ -782,44 +777,21 @@ fn launch_path(path: &str) {
         }
 
         use std::path::Path;
-        let mut final_path = path.to_string();
+        // AppsFolder entries of classic programs can be saved as a path under a
+        // known-folder GUID (`{7C5A40EF-…}\\Steam\\Steam.exe`), which
+        // ShellExecute cannot open. Resolve it to the real file first.
+        let mut final_path = if path.starts_with('{') {
+            crate::tray::resolve_path(path)
+                .filter(|resolved| Path::new(resolved).exists())
+                .unwrap_or_else(|| path.to_string())
+        } else {
+            path.to_string()
+        };
 
-        if !Path::new(&final_path).exists() {
-            let file_name = Path::new(&final_path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("")
-                .to_lowercase();
-
-            // Handle Discord/Slack style auto-updaters (app-x.x.x folder structure)
-            if file_name == "discord.exe"
-                || file_name == "slack.exe"
-                || file_name == "githubdesktop.exe"
-                || file_name == "zentwilight.exe"
-            {
-                if let Some(parent) = Path::new(&final_path).parent().and_then(|p| p.parent()) {
-                    if parent.exists() {
-                        if let Ok(entries) = std::fs::read_dir(parent) {
-                            let mut app_dirs = Vec::new();
-                            for entry in entries.flatten() {
-                                let name = entry.file_name().to_string_lossy().to_string();
-                                if (name.starts_with("app-") || name.starts_with("current"))
-                                    && entry.path().is_dir()
-                                {
-                                    app_dirs.push(entry.path());
-                                }
-                            }
-                            app_dirs.sort();
-                            if let Some(latest) = app_dirs.last() {
-                                let exe = latest.join(Path::new(&final_path).file_name().unwrap());
-                                if exe.exists() {
-                                    final_path = exe.to_string_lossy().to_string();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // An app installed by Squirrel moves to a new version folder when it
+        // updates (Discord, Slack, GitHub Desktop).
+        if let Some(moved) = crate::utils::moved_squirrel_exe(&final_path) {
+            final_path = moved;
         }
 
         let wide_path: Vec<u16> = final_path
@@ -1725,6 +1697,12 @@ pub async fn get_app_icon(
         if let Some(resolved) = resolve_executable_path(&path) {
             path = resolved;
         }
+    }
+    // A pin to a Squirrel app (Discord, Slack) can point at a version folder
+    // its updater has since deleted. The icon was cached under that path, so
+    // this only shows once the cache is cleared; take the current version's.
+    if let Some(moved) = crate::utils::moved_squirrel_exe(&path) {
+        path = moved;
     }
 
     // Strategy 2: Shell-resolved app icons (Store/UWP/PWA packages) and executables
@@ -3148,8 +3126,12 @@ fn re_register_appbars(app: &AppHandle, settings: &HashMap<String, serde_json::V
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Result<(), String> {
+    // Async command workers must emit in commit order: a later save must not
+    // broadcast before an earlier one and leave windows on an older value.
+    static SAVE_COMMAND_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _save_guard = SAVE_COMMAND_LOCK.lock().map_err(|e| e.to_string())?;
     let path = app
         .path()
         .app_config_dir()
@@ -3158,7 +3140,10 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let settings = crate::utils::save_setting_file(&path, key.clone(), value)?;
+    let settings = crate::utils::save_setting_file(&path, key.clone(), value).map_err(|error| {
+        crate::diagnostics::record("settings_save_failed", &format!("key={key} error={error}"));
+        error
+    })?;
 
     // Broadcast so all windows sync — emit the key as-is (bloom-prefixed)
     let _ = app.emit(
@@ -3961,8 +3946,6 @@ pub fn setup_settings_watcher(app: AppHandle) {
             CreateFileW, ReadDirectoryChangesW, FILE_FLAG_BACKUP_SEMANTICS, FILE_LIST_DIRECTORY,
             FILE_NOTIFY_CHANGE_FILE_NAME, FILE_NOTIFY_CHANGE_LAST_WRITE, OPEN_EXISTING,
         };
-        use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
-        use windows::Win32::System::IO::OVERLAPPED;
 
         unsafe {
             let dir_path: Vec<u16> = config_dir
@@ -3986,28 +3969,19 @@ pub fn setup_settings_watcher(app: AppHandle) {
                 _ => return,
             };
 
-            let h_event = match CreateEventW(None, false, false, None) {
-                Ok(e) => e,
-                Err(_) => {
-                    let _ = CloseHandle(dir_handle);
-                    return;
-                }
-            };
-
-            let mut notify_buffer = [0u8; 4096];
+            // ReadDirectoryChangesW requires DWORD-aligned storage.
+            let mut notify_buffer = [0u32; 1024];
             let mut bytes_returned = 0u32;
-            let mut overlapped = OVERLAPPED::default();
-            overlapped.hEvent = h_event;
 
             loop {
                 let success = ReadDirectoryChangesW(
                     dir_handle,
                     notify_buffer.as_mut_ptr() as *mut _,
-                    notify_buffer.len() as u32,
+                    std::mem::size_of_val(&notify_buffer) as u32,
                     false,
                     FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
                     Some(&mut bytes_returned),
-                    Some(&mut overlapped),
+                    None,
                     None,
                 );
 
@@ -4015,8 +3989,9 @@ pub fn setup_settings_watcher(app: AppHandle) {
                     break;
                 }
 
-                WaitForSingleObject(h_event, INFINITE);
-
+                // The directory was opened synchronously: ReadDirectoryChangesW
+                // already waited. An OVERLAPPED event on this handle is ignored
+                // and waiting on it would stall the watcher after its first change.
                 std::thread::sleep(std::time::Duration::from_millis(200));
 
                 // Keep the file read and cache comparison in the same
@@ -4068,7 +4043,6 @@ pub fn setup_settings_watcher(app: AppHandle) {
                 }
             }
 
-            let _ = CloseHandle(h_event);
             let _ = CloseHandle(dir_handle);
         }
     });
