@@ -29,6 +29,26 @@ interface FeedState {
 let feed: FeedState = { status: "off", calendar: null, error: null, fetchedAt: 0 };
 let inflight: Promise<void> | null = null;
 let generation = 0;
+// A failed download is retried soon, sooner than the 10-minute refresh:
+// at login Bloom often starts before Wi-Fi is up, and the calendar used to
+// stay empty (as if the link were gone) until the next refresh.
+let retryTimer: number | null = null;
+let retryDelay = 0;
+const RETRY_MIN_MS = 5_000;
+const RETRY_MAX_MS = 2 * 60 * 1000;
+function scheduleRetry() {
+	if (retryTimer !== null || subscribers.size === 0) return;
+	retryDelay = retryDelay ? Math.min(retryDelay * 2, RETRY_MAX_MS) : RETRY_MIN_MS;
+	retryTimer = window.setTimeout(() => {
+		retryTimer = null;
+		refreshCalendarFeed();
+	}, retryDelay);
+}
+function clearRetry() {
+	if (retryTimer !== null) window.clearTimeout(retryTimer);
+	retryTimer = null;
+	retryDelay = 0;
+}
 const subscribers = new Set<(s: FeedState) => void>();
 
 function publish(next: FeedState) {
@@ -44,6 +64,7 @@ export function refreshCalendarFeed(): Promise<void> {
 	const request: Promise<void> = invoke<string | null>("fetch_calendar_ics")
 		.then((text) => {
 			if (gen !== generation) return; // Link changed mid-download.
+			clearRetry();
 			if (text === null) {
 				publish({ status: "off", calendar: null, error: null, fetchedAt: Date.now() });
 			} else {
@@ -59,6 +80,7 @@ export function refreshCalendarFeed(): Promise<void> {
 				error: String(err),
 				fetchedAt: Date.now()
 			});
+			scheduleRetry();
 		})
 		.finally(() => {
 			// A reset may already have started a newer request; leave that one alone.
@@ -72,6 +94,7 @@ export function refreshCalendarFeed(): Promise<void> {
 function resetFeed() {
 	generation++;
 	inflight = null;
+	clearRetry();
 	publish({ status: "off", calendar: null, error: null, fetchedAt: 0 });
 }
 
@@ -88,6 +111,13 @@ function watchCalendarSetting() {
 	};
 	listen<{ key: string }>("settings-changed", onChange);
 	listen<{ key: string }>("settings-external-changed", onChange);
+	// Back online after a failure: try again straight away.
+	window.addEventListener("online", () => {
+		if (feed.error && subscribers.size > 0) {
+			clearRetry();
+			refreshCalendarFeed();
+		}
+	});
 }
 
 /** The linked calendar feed, refreshed while any calendar view is on screen. */

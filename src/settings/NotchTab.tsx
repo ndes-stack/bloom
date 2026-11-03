@@ -135,6 +135,12 @@ export function NotchTab({
 	const [calendarFocused, setCalendarFocused] = useState(false);
 	useEffect(() => setCalendarDraft(calendarIcsUrl), [calendarIcsUrl]);
 	const commitCalendarDraft = () => {
+		// An emptied field never removes the link on its own; that's the X
+		// button's job. Otherwise one stray select-all and click away lost it.
+		if (!calendarDraft.trim() && calendarIcsUrl.trim()) {
+			setCalendarDraft(calendarIcsUrl);
+			return;
+		}
 		if (calendarDraft.trim() !== calendarIcsUrl.trim()) saveCalendarIcsUrl(calendarDraft);
 	};
 	const calendarDesc =

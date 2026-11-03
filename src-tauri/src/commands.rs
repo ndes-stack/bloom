@@ -2197,6 +2197,68 @@ pub fn hide_native_osd() {
 
 #[tauri::command]
 pub fn open_settings_window(app: AppHandle) {
+    // Settings is only created the first time it's opened, not at startup:
+    // a hidden WebView loading all of Settings (and checking for updates)
+    // slowed every launch for a window most launches never show. Built off
+    // this thread: a sync command creating a window can deadlock on Windows.
+    if app.get_webview_window("settings").is_none() {
+        tauri::async_runtime::spawn(async move {
+            let config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|w| w.label == "settings")
+                .cloned();
+            let Some(config) = config else {
+                return;
+            };
+            // Shown once the page has loaded, so it never flashes up empty.
+            // Only the first load: Settings reloads itself now and then.
+            let first_load = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let built = tauri::WebviewWindowBuilder::from_config(&app, &config).and_then(|b| {
+                b.on_page_load(move |win, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Finished
+                        && first_load.swap(false, Ordering::Relaxed)
+                    {
+                        show_settings_window(win.app_handle());
+                    }
+                })
+                .build()
+            });
+            match built {
+                Ok(win) => {
+                    prepare_settings_window(&win);
+                    // In case the load event is missed.
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                    if !win.is_visible().unwrap_or(true) {
+                        show_settings_window(&app);
+                    }
+                }
+                Err(e) => crate::diagnostics::record("settings_window", &format!("couldn't create: {e}")),
+            }
+        });
+        return;
+    }
+    show_settings_window(&app);
+}
+
+/// Mica, and closing hides rather than destroys, so the next open is instant.
+pub fn prepare_settings_window(win: &tauri::WebviewWindow) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = window_vibrancy::apply_mica(win, None);
+    }
+    let win_clone = win.clone();
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = win_clone.hide();
+        }
+    });
+}
+
+fn show_settings_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
         let _ = win.unminimize();
@@ -3139,6 +3201,11 @@ pub fn save_setting(app: AppHandle, key: String, value: serde_json::Value) -> Re
         .join("settings.json");
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    // The calendar link is a secret, so only whether it was set is logged.
+    if key == crate::calendar::CALENDAR_URL_KEY {
+        let set = value.as_str().is_some_and(|v| !v.trim().is_empty());
+        crate::diagnostics::record("calendar_link", if set { "saved" } else { "removed" });
     }
     let settings = crate::utils::save_setting_file(&path, key.clone(), value).map_err(|error| {
         crate::diagnostics::record("settings_save_failed", &format!("key={key} error={error}"));

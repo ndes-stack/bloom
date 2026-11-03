@@ -286,6 +286,17 @@ fn main() {
             // invoke save_setting as soon as it loads, which happens before the
             // rest of this hook runs.
             crate::utils::init_settings_cache(app.handle());
+            // Whether the calendar link survived the restart (never the link itself).
+            diagnostics::record(
+                "calendar_link",
+                if crate::utils::get_setting_str(app.handle(), crate::calendar::CALENDAR_URL_KEY)
+                    .is_some_and(|v| !v.trim().is_empty())
+                {
+                    "present at startup"
+                } else {
+                    "not set at startup"
+                },
+            );
             // Crash-recovery: if a previous session was force-killed while the native
             // taskbar was hidden, restore it now. Runs before the frontend re-hides it
             // (init_dock fires after a delay), so the flag must be removed first.
@@ -460,19 +471,7 @@ fn main() {
                 }
             }
 
-            if let Some(settings_win) = app.get_webview_window("settings") {
-                #[cfg(target_os = "windows")]
-                {
-                    let _ = window_vibrancy::apply_mica(&settings_win, None);
-                }
-                let win_clone = settings_win.clone();
-                settings_win.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        let _ = win_clone.hide();
-                    }
-                });
-            }
+            // The Settings window is created on first open (commands.rs).
             {
                 use tauri::menu::{Menu, MenuItem};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
