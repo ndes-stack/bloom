@@ -254,6 +254,33 @@ fn main() {
             jack::jack_list_devices
         ])
         .setup(|app| {
+            // "Start at login" saves the path of whichever bloom.exe turned it
+            // on. Opened once from a zip (which Windows runs from a temporary
+            // folder) or replaced by a reinstall, that path stops existing and
+            // Bloom silently stops starting. Re-saving it on every launch keeps
+            // it pointing at the copy that's actually running, but only while
+            // it's on, so turning it off in Settings or Task Manager sticks, and
+            // never from a temporary folder.
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let exe = std::env::current_exe().unwrap_or_default();
+                    if utils::is_temporary_path(&exe) {
+                        diagnostics::record(
+                            "autostart",
+                            &format!("running from a temporary folder ({}); left the login entry alone", exe.display()),
+                        );
+                        return;
+                    }
+                    let manager = handle.autolaunch();
+                    if manager.is_enabled().unwrap_or(false) {
+                        if let Err(e) = manager.enable() {
+                            diagnostics::record("autostart", &format!("couldn't refresh the login entry: {e}"));
+                        }
+                    }
+                });
+            }
             init_taskbar_marker(app.handle());
             // Populate the settings cache before anything else: a webview can
             // invoke save_setting as soon as it loads, which happens before the

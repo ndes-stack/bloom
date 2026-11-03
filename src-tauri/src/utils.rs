@@ -1923,3 +1923,16 @@ mod tests {
         assert!(!dock_setting_enabled(Some(&serde_json::json!(true))));
     }
 }
+
+/// Whether `path` is inside the temporary folder, where Windows unpacks an exe
+/// opened straight from a zip and later clears it out.
+pub fn is_temporary_path(path: &std::path::Path) -> bool {
+    let temp = std::env::temp_dir();
+    let lower = |p: &std::path::Path| p.to_string_lossy().to_lowercase().replace('/', "\\");
+    let (path, temp) = (lower(path), lower(&temp));
+    let temp = temp.trim_end_matches('\\');
+    // TEMP is often a short 8.3 path (C:\Users\NAME~1\...) while the exe's
+    // path is long, so the usual location counts as well.
+    (!temp.is_empty() && path.starts_with(&format!("{temp}\\")))
+        || path.contains("\\appdata\\local\\temp\\")
+}
