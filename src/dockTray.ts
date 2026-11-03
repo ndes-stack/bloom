@@ -143,7 +143,13 @@ export interface TimerBroadcast {
 	running: boolean;
 	finished: boolean;
 	total: number;
+	/** Counting up: `seconds` is the time so far, and it never finishes. */
+	countUp?: boolean;
 }
+
+/** A Focus timer is on: time left counting down, or started counting up. */
+export const focusOn = (t: TimerBroadcast | null): t is TimerBroadcast =>
+	!!t && !t.finished && (t.seconds > 0 || (!!t.countUp && t.running));
 
 export const TIMER_STATE_EVENT = "timer-state";
 export const TIMER_STATE_REQUEST_EVENT = "timer-state-request";

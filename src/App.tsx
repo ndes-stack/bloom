@@ -1014,6 +1014,13 @@ function App() {
 	const [timerSeconds, setTimerSeconds] = useState(0);
 	const [isTimerRunning, setIsTimerRunning] = useState(false);
 	const [isTimerFinished, setIsTimerFinished] = useState(false);
+	// Count-up mode (the Up chip): timerSeconds is the time so far rather than
+	// the time left, and the timer never finishes on its own.
+	const [timerCountUp, setTimerCountUp] = useState(
+		() => localStorage.getItem("bloom-timer-count-up") === "true"
+	);
+	// A timer is set: counting down with time left, or counting up and started.
+	const timerSet = timerCountUp ? isTimerRunning || timerSeconds > 0 : timerSeconds > 0;
 	// Settings > Live Activities > Keep Timer On Screen: a running timer and
 	// "Time's up" keep the notch out even in auto-hide and peek modes.
 	const [keepTimerVisible, setKeepTimerVisible] = useState(
@@ -1022,7 +1029,7 @@ function App() {
 	const isHidden =
 		!startupAnimating &&
 		!reminderActive &&
-		!(keepTimerVisible && (timerSeconds > 0 || isTimerFinished)) &&
+		!(keepTimerVisible && (timerSet || isTimerFinished)) &&
 		!deviceAlertOnScreen &&
 		((notchMode === "smart" && isOverlapped && interactionState === "none") ||
 			(notchMode === "peek" && interactionState === "none" && !eventPeek));
@@ -2324,6 +2331,7 @@ function App() {
 		getTimerChimeCtx();
 		autoPickStudyModule();
 		setModulePickerOpen(false);
+		setCountUpMode(false);
 		timerEditActiveRef.current = false;
 		setIsEditingTimer(false);
 		setTimerSeconds(seconds);
@@ -2333,7 +2341,34 @@ function App() {
 		setIsTimerFinished(false);
 	};
 
+	const setCountUpMode = (on: boolean) => {
+		setTimerCountUp(on);
+		try {
+			localStorage.setItem("bloom-timer-count-up", String(on));
+		} catch {
+			// Only remembers the mode for next time.
+		}
+	};
+
+	// The Up chip: a stopwatch from 0:00 that runs until it's paused or reset.
+	const startCountUp = () => {
+		getTimerChimeCtx();
+		autoPickStudyModule();
+		setModulePickerOpen(false);
+		timerEditActiveRef.current = false;
+		setIsEditingTimer(false);
+		setCountUpMode(true);
+		setTimerSeconds(0);
+		setIsTimerFinished(false);
+		setIsTimerRunning(true);
+	};
+
 	const resetTimer = () => {
+		// A count-up session of 5 minutes or more counts as a finished one.
+		if (timerCountUp && timerSeconds >= 5 * 60) {
+			setStudyLog((log) => addDone(log, new Date()));
+			studyDirtyRef.current = true;
+		}
 		timerEditActiveRef.current = false;
 		setIsEditingTimer(false);
 		setIsTimerRunning(false);
@@ -2347,9 +2382,11 @@ function App() {
 			commitTimerEdit(true);
 		} else if (isTimerRunning) {
 			setIsTimerRunning(false);
-		} else if (timerSeconds > 0) {
+		} else if (timerSet) {
 			getTimerChimeCtx();
 			setIsTimerRunning(true);
+		} else if (timerCountUp) {
+			startCountUp();
 		} else {
 			startTimer(lastDurationSeconds);
 		}
@@ -2360,7 +2397,7 @@ function App() {
 	const beginTimerEdit = () => {
 		if (isTimerRunning || isEditingTimer) return;
 		if (isTimerFinished) resetTimer();
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
+		const base = timerSeconds > 0 && !timerCountUp ? timerSeconds : lastDurationSeconds;
 		setTimerEditDigits(timerSecondsToDigits(base));
 		timerEditActiveRef.current = true;
 		setIsEditingTimer(true);
@@ -2372,11 +2409,12 @@ function App() {
 		setIsEditingTimer(false);
 		const total = timerDigitsToSeconds(timerEditDigits);
 		if (total === null) return;
-		const base = timerSeconds > 0 ? timerSeconds : lastDurationSeconds;
+		const base = timerSeconds > 0 && !timerCountUp ? timerSeconds : lastDurationSeconds;
 		// A tap that changes nothing (e.g. paused timer) must not reset the state.
 		if (!start && total === base) return;
 		localStorage.setItem("bloom-timer-last-duration", String(total));
 		setLastDurationSeconds(total);
+		setCountUpMode(false);
 		setTimerSeconds(start ? total : 0);
 		setIsTimerRunning(start);
 		setIsTimerFinished(false);
@@ -2401,26 +2439,32 @@ function App() {
 			? "finished"
 			: isTimerRunning
 				? "running"
-				: timerSeconds > 0
+				: timerSet
 					? "paused"
 					: "idle";
-	const timerDisplaySeconds =
-		timerSeconds > 0 || isTimerFinished ? timerSeconds : lastDurationSeconds;
+	const timerDisplaySeconds = timerCountUp
+		? timerSeconds
+		: timerSeconds > 0 || isTimerFinished
+			? timerSeconds
+			: lastDurationSeconds;
 	// Share of the current duration still to go, for the timer page's bar.
-	const timerProgress = isTimerFinished
+	// Counting up, the bar fills through each hour.
+	const timerProgress = timerCountUp
+		? (timerSeconds % 3600) / 3600
+		: isTimerFinished
 		? 0
 		: timerSeconds > 0 && lastDurationSeconds > 0
 			? Math.min(1, timerSeconds / lastDurationSeconds)
 			: 1;
 	const primaryTimerLabel = isTimerRunning
 		? "Pause"
-		: timerSeconds > 0
+		: timerSet
 			? "Resume"
 			: isTimerFinished
 				? "Restart"
 				: "Start";
 	const timerEndTime =
-		timerSeconds > 0 && !isTimerFinished
+		!timerCountUp && timerSeconds > 0 && !isTimerFinished
 			? new Date(Date.now() + timerSeconds * 1000).toLocaleTimeString([], {
 					hour: "2-digit",
 					minute: "2-digit",
@@ -2446,7 +2490,13 @@ function App() {
 		.map((digit, i, arr) => ({ digit, key: `s${arr.length - i}` }));
 
 	useEffect(() => {
-		if (isTimerRunning && timerSeconds > 0) {
+		if (isTimerRunning && timerCountUp) {
+			timerIntervalRef.current = setInterval(() => {
+				setTimerSeconds((s) => s + 1);
+				setStudyLog((log) => addFocus(log, new Date(), studyModuleRef.current, 1));
+				studyDirtyRef.current = true;
+			}, 1000);
+		} else if (isTimerRunning && timerSeconds > 0) {
 			timerIntervalRef.current = setInterval(() => {
 				setTimerSeconds((s) => s - 1);
 				setStudyLog((log) => addFocus(log, new Date(), studyModuleRef.current, 1));
@@ -2461,7 +2511,7 @@ function App() {
 		return () => {
 			if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 		};
-	}, [isTimerRunning, timerSeconds === 0]);
+	}, [isTimerRunning, timerSeconds === 0, timerCountUp]);
 
 	// Save the study log 15 s after it changes, at once when the timer stops,
 	// and when the window goes away.
@@ -2491,13 +2541,14 @@ function App() {
 		seconds: timerSeconds,
 		running: isTimerRunning,
 		finished: isTimerFinished,
-		total: lastDurationSeconds
+		total: timerCountUp ? 0 : lastDurationSeconds,
+		countUp: timerCountUp
 	};
 	const timerBroadcastRef = useRef(timerBroadcast);
 	timerBroadcastRef.current = timerBroadcast;
 	useEffect(() => {
 		emit(TIMER_STATE_EVENT, timerBroadcastRef.current).catch(() => {});
-	}, [timerSeconds, isTimerRunning, isTimerFinished, lastDurationSeconds]);
+	}, [timerSeconds, isTimerRunning, isTimerFinished, lastDurationSeconds, timerCountUp]);
 	useEffect(() => {
 		const subs = [
 			listen<FocusTimerCommand>(FOCUS_TIMER_EVENT, (e) => {
@@ -2544,7 +2595,7 @@ function App() {
 	// time. Music fades a few seconds after playback stops. A set timer
 	// (running, paused or just finished) takes the pill, and music then moves to
 	// its own bubble beside it.
-	const timerActive = timerSeconds > 0 || isTimerFinished;
+	const timerActive = timerSet || isTimerFinished;
 	const musicActivity =
 		settingsMusicModeEnabled && settingsMusicCompactNotch && mediaInfo.has_media && musicActivityVisible;
 	// Other live activity styles show music and timers outside the pill.
@@ -3397,7 +3448,7 @@ function App() {
 		// Once open, it is a shortcut to the calendar.
 		if (!isOpen) {
 			openNotch(openingPanel());
-		} else if ((timerSeconds > 0 || isTimerRunning) && settingsTimerPageEnabled) {
+		} else if ((timerSet || isTimerRunning) && settingsTimerPageEnabled) {
 			// With a timer set, the clock shows its countdown: open the timer page.
 			setBloomMode("timer");
 		} else if (settingsCalendarEnabled) {
@@ -3701,15 +3752,19 @@ function App() {
 				alert: true,
 				dismissable: true
 			});
-		} else if (timerSeconds > 0) {
+		} else if (timerSet) {
 			liveActivities.push({
 				id: "timer",
 				kind: "timer",
 				label: "Timer",
-				title: isTimerRunning ? "Timer" : "Paused",
+				title: isTimerRunning ? (timerCountUp ? "Focusing" : "Timer") : "Paused",
 				value: formatTimerTime(timerSeconds),
 				tone: "accent",
-				progress: lastDurationSeconds > 0 ? Math.min(1, timerSeconds / lastDurationSeconds) : 1,
+				progress: timerCountUp
+					? undefined
+					: lastDurationSeconds > 0
+						? Math.min(1, timerSeconds / lastDurationSeconds)
+						: 1,
 				alert: false
 			});
 		}
@@ -3948,7 +4003,7 @@ function App() {
 	// While a timer is set, the calendar header shows its time left; clicking it
 	// jumps to the timer page.
 	const timerChip =
-		isTimerRunning || isTimerFinished || timerSeconds > 0 ? (
+		isTimerRunning || isTimerFinished || timerSet ? (
 			<button
 				className={`calendar-timer-chip state-${timerState}`}
 				onClick={() => setBloomMode("timer")}
@@ -4670,7 +4725,7 @@ function App() {
 																</AnimatePresence>
 																<div className="time-flip-container" onClick={toggleCalendarMode}>
 																	<AnimatePresence initial={false}>
-																		{islandStyle && (timerSeconds > 0 || isTimerFinished) ? (
+																		{islandStyle && (timerSet || isTimerFinished) ? (
 																			<motion.span
 																				key="timer"
 																				className={`time compact-timer ${isTimerFinished ? "timer-finished" : ""}`}
@@ -5252,7 +5307,13 @@ function App() {
 													<div className="timer-slim-status">
 														{isEditingTimer
 															? "Type, then Enter"
-															: isTimerFinished
+															: timerCountUp
+																? timerState === "running"
+																	? "Counting up"
+																	: timerState === "paused"
+																		? "Paused"
+																		: "Counts up from 0:00"
+																: isTimerFinished
 																? "Time's up"
 																: timerEndTime
 																	? `${timerState === "paused" ? "Paused · " : ""}ends ${timerEndTime}`
@@ -5353,13 +5414,22 @@ function App() {
 																key={mins}
 																onClick={() => startTimer(mins * 60)}
 																className={
-																	lastDurationSeconds === mins * 60 && !isTimerFinished ? "active" : ""
+																	!timerCountUp && lastDurationSeconds === mins * 60 && !isTimerFinished
+																		? "active"
+																		: ""
 																}
 																title={`Start a ${mins} minute timer`}
 															>
 																{mins}m
 															</button>
 														))}
+														<button
+															onClick={startCountUp}
+															className={timerCountUp ? "active" : ""}
+															title="Count up from 0:00 until you stop"
+														>
+															Up
+														</button>
 													</div>
 													)}
 												</div>
@@ -5368,7 +5438,7 @@ function App() {
 													<button
 														onClick={resetTimer}
 														className="timer-slim-reset"
-														disabled={timerSeconds === 0 && !isTimerFinished}
+														disabled={!timerSet && !isTimerFinished}
 														aria-label="Reset"
 														title="Reset"
 													>

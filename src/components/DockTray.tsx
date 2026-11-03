@@ -53,6 +53,7 @@ import {
 	type BatteryInfo,
 	type FocusTimerCommand,
 	type NotificationList,
+	focusOn,
 	type TimerBroadcast,
 	type TrayNotification,
 	type TrayPanelKind
@@ -967,7 +968,7 @@ export function QuickSettingsPanel({
 		}
 	};
 
-	const focusRunning = !!timer && timer.seconds > 0 && !timer.finished;
+	const focusRunning = focusOn(timer);
 	const dir = sub ? 1 : -1;
 	const wifiSub = !wifi?.enabled ? "Off" : wifi.connected ? (wifi.ssid ?? "Connected") : "Not connected";
 	const btSub = !bluetooth ? "Off" : btNames.length ? btNames.join(", ") : "Not connected";
@@ -1405,7 +1406,7 @@ export function CalendarPanel({
 		setSelected(date);
 	};
 
-	const focusActive = !!timer && timer.seconds > 0 && !timer.finished;
+	const focusActive = focusOn(timer);
 	// Notifications get their own column only when there are some to show;
 	// otherwise they fold into one line above the calendar.
 	const twoColumns = status.notifications.access === "allowed" && status.notifications.items.length > 0;
@@ -1536,7 +1537,9 @@ export function CalendarPanel({
 								<Hourglass className="tf-icon" />
 								<span className="tf-label">
 									<b>{timer!.running ? "Focusing" : "Paused"}</b>
-									<span>{countdownText(timer!.seconds)} left</span>
+									<span>
+										{countdownText(timer!.seconds)} {timer!.countUp ? "so far" : "left"}
+									</span>
 								</span>
 								<button type="button" className="tp-chip" onClick={() => onFocus({ action: "stop" })}>
 									Stop
