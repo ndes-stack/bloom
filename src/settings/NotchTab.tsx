@@ -4,7 +4,6 @@ import {
 	Hourglass,
 	MousePointer2,
 	CalendarSync,
-	Calendar,
 	BellRing,
 	Music,
 	Minimize2,
@@ -14,8 +13,6 @@ import {
 	CloudSun,
 	Timer,
 	Archive,
-	Headphones,
-	SlidersHorizontal,
 	X
 } from "lucide-react";
 import { SettingRow } from "./SettingRow";
@@ -23,22 +20,13 @@ import { StatusWidgetConfig } from "../components/StatusWidgetConfig";
 import type { NotchPanelChoice, WidgetConfig } from "./types";
 import { MAX_PAGE_SWITCH_GRACE_MS } from "../pageSwitchGrace";
 import type { NotchPanel } from "../notchPanels";
-import { PanelOrderList } from "./PanelOrderList";
+import { PagesList } from "./PagesList";
 import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
-
-/** The notch's panels, for the Default Panel choice. */
-const PANEL_CHOICES: readonly (readonly [NotchPanelChoice, string])[] = [
-	["calendar", "Calendar"],
-	["timer", "Timer"],
-	["launcher", "Quick Launcher"],
-	["command-center", "Command Center"],
-	["devices", "Connected devices"]
-];
 
 interface NotchTabProps {
 	notchMode: string;
@@ -51,13 +39,8 @@ interface NotchTabProps {
 	handlePageSwitchGraceChange: (val: number) => void;
 	panelOrder: NotchPanel[];
 	handlePanelOrderChange: (order: NotchPanel[]) => void;
-	calendarEnabled: boolean;
-	toggleCalendar: () => void;
-	controlsPanelEnabled: boolean;
-	toggleControlsPanel: () => void;
-	devicesPanelEnabled: boolean;
-	toggleDevicesPanel: () => void;
-	enabledPanelCount: number;
+	pageEnabled: Record<NotchPanel, boolean>;
+	togglePage: (panel: NotchPanel) => void;
 	notchRememberPanel: boolean;
 	toggleNotchRememberPanel: () => void;
 	notchDefaultPanel: NotchPanelChoice;
@@ -110,13 +93,8 @@ export function NotchTab({
 	handlePageSwitchGraceChange,
 	panelOrder,
 	handlePanelOrderChange,
-	calendarEnabled,
-	toggleCalendar,
-	controlsPanelEnabled,
-	toggleControlsPanel,
-	devicesPanelEnabled,
-	toggleDevicesPanel,
-	enabledPanelCount,
+	pageEnabled,
+	togglePage,
 	notchRememberPanel,
 	toggleNotchRememberPanel,
 	notchDefaultPanel,
@@ -165,19 +143,6 @@ export function NotchTab({
 			: calendarIcsUrl
 				? "Linked · events show as dots on the calendar"
 				: "Paste your Google Calendar's secret iCal link";
-
-	const panelOn: Record<NotchPanelChoice, boolean> = {
-		calendar: calendarEnabled,
-		timer: calendarEnabled,
-		launcher: true,
-		"command-center": controlsPanelEnabled,
-		devices: devicesPanelEnabled
-	};
-	const firstPanelOn = PANEL_CHOICES.find(([panel]) => panelOn[panel])?.[0] ?? "command-center";
-	// The notch needs at least one panel, so the last one on stays on.
-	const isLastPanel = (on: boolean) => on && enabledPanelCount <= 1;
-	const lastPanelTitle = (on: boolean) =>
-		isLastPanel(on) ? "The notch needs at least one panel" : undefined;
 
 	return (
 		<>
@@ -262,35 +227,45 @@ export function NotchTab({
 
 			</div>
 
-			<div className="setting-group-label">Panels</div>
+			<div className="setting-group-label">Pages</div>
 			<div className="setting-group">
-				<SettingRow icon={Calendar} label="Calendar & Timer" desc="Enable productivity split-view">
-					<label className="toggle-switch" title={lastPanelTitle(calendarEnabled)}>
-						<input
-							type="checkbox"
-							checked={calendarEnabled}
-							disabled={isLastPanel(calendarEnabled)}
-							onChange={toggleCalendar}
-						/>
+				<div className="panel-order-help">
+					Turn pages on or off and drag to set the order you scroll through them.
+					{notchRememberPanel
+						? " A click reopens the page you last used."
+						: " The star marks the page a click opens."}
+				</div>
+				<PagesList
+					order={panelOrder}
+					onOrderChange={handlePanelOrderChange}
+					enabled={pageEnabled}
+					onToggle={togglePage}
+					defaultPanel={notchRememberPanel ? null : notchDefaultPanel}
+					onDefaultChange={(panel) => changeNotchDefaultPanel(panel)}
+				/>
+				<SettingRow
+					icon={PanelTop}
+					label="Remember Last Panel"
+					desc="Reopen the page you last used; turn off to pick one with the star"
+				>
+					<label className="toggle-switch">
+						<input type="checkbox" checked={notchRememberPanel} onChange={toggleNotchRememberPanel} />
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
+				<LauncherShortcutSetting />
+			</div>
+
+			<div className="setting-group-label">Calendar &amp; Timer</div>
+			<div className="setting-group">
+				<SettingRow icon={BellRing} label="Timer Sound" desc="Play a chime when the timer finishes">
+					<label className="toggle-switch">
+						<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
 
-				{calendarEnabled && (
-					<SettingRow
-						icon={BellRing}
-						label="Timer Sound"
-						desc="Play a chime when the timer finishes"
-					>
-						<label className="toggle-switch">
-							<input type="checkbox" checked={timerSoundEnabled} onChange={toggleTimerSound} />
-							<span className="slider"></span>
-						</label>
-					</SettingRow>
-				)}
-
-				{calendarEnabled && (
-					<>
+				<>
 						<SettingRow icon={CalendarSync} label="Google Calendar" desc={calendarDesc}>
 							<span
 								className={`calendar-link-status state-${calendarIcsUrl ? calendarSync.state : "idle"}`}
@@ -338,62 +313,6 @@ export function NotchTab({
 							</div>
 						</div>
 					</>
-				)}
-
-				<SettingRow icon={SlidersHorizontal} label="Command Center" desc="Quick toggles, Wi-Fi and Bluetooth">
-					<label className="toggle-switch" title={lastPanelTitle(controlsPanelEnabled)}>
-						<input
-							type="checkbox"
-							checked={controlsPanelEnabled}
-							disabled={isLastPanel(controlsPanelEnabled)}
-							onChange={toggleControlsPanel}
-						/>
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
-				<SettingRow
-					icon={Headphones}
-					label="Connected Devices"
-					desc="Batteries and audio of your connected devices"
-				>
-					<label className="toggle-switch" title={lastPanelTitle(devicesPanelEnabled)}>
-						<input
-							type="checkbox"
-							checked={devicesPanelEnabled}
-							disabled={isLastPanel(devicesPanelEnabled)}
-							onChange={toggleDevicesPanel}
-						/>
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
-				<SettingRow
-					icon={PanelTop}
-					label="Remember Last Panel"
-					desc="Reopen the panel you last used; turn off to choose a fixed default"
-				>
-					<label className="toggle-switch">
-						<input type="checkbox" checked={notchRememberPanel} onChange={toggleNotchRememberPanel} />
-						<span className="slider"></span>
-					</label>
-				</SettingRow>
-
-				{!notchRememberPanel && (
-					<SettingRow icon={PanelTop} label="Default Panel" desc="Open this panel when you click the notch">
-						<select
-							className="settings-select"
-							value={panelOn[notchDefaultPanel] ? notchDefaultPanel : firstPanelOn}
-							onChange={(e) => changeNotchDefaultPanel(e.target.value as NotchPanelChoice)}
-						>
-							{PANEL_CHOICES.map(([panel, label]) => (
-								<option key={panel} value={panel} disabled={!panelOn[panel]}>
-									{label}
-								</option>
-							))}
-						</select>
-					</SettingRow>
-				)}
 			</div>
 
 			<div className="setting-group-label">Music</div>
@@ -472,7 +391,7 @@ export function NotchTab({
 
 			<div className="setting-group-label">Class Reminders</div>
 			<div className="setting-group">
-				<ReminderSettings hasCalendar={calendarEnabled && !!calendarIcsUrl.trim()} />
+				<ReminderSettings hasCalendar={!!calendarIcsUrl.trim()} />
 			</div>
 
 			<div className="setting-group-label">Shelf</div>
@@ -488,24 +407,6 @@ export function NotchTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
-			</div>
-
-			<div className="setting-group-label">Page Order</div>
-			<div className="setting-group">
-				<div className="panel-order-help">
-					Scrolling and the arrows by the clock move through the pages in this order. Drag to
-					rearrange.
-				</div>
-				<PanelOrderList
-					order={panelOrder}
-					onChange={handlePanelOrderChange}
-					disabled={[
-						...(calendarEnabled ? [] : (["calendar", "timer"] as const)),
-						...(controlsPanelEnabled ? [] : (["command-center"] as const)),
-						...(devicesPanelEnabled ? [] : (["devices"] as const))
-					]}
-				/>
-				<LauncherShortcutSetting />
 			</div>
 
 			<div className="setting-group-label">Weather</div>

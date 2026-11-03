@@ -12,7 +12,13 @@ import {
 	type NotchMaterial
 } from "../notchMaterial";
 import { parseNotchPanelChoice, type NotchPanelChoice } from "./types";
-import { parsePanelOrder, PANEL_ORDER_KEY, type NotchPanel } from "../notchPanels";
+import {
+	PANEL_ENABLED_KEYS,
+	panelEnabledValue,
+	parsePanelOrder,
+	PANEL_ORDER_KEY,
+	type NotchPanel
+} from "../notchPanels";
 import { ACCENT_COLOR_KEY, parseAccentColor } from "../theme";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -49,6 +55,10 @@ export function useSettings() {
 	const [calendarEnabled, setCalendarEnabled] = useState(true);
 	const [controlsPanelEnabled, setControlsPanelEnabled] = useState(true);
 	const [devicesPanelEnabled, setDevicesPanelEnabled] = useState(false);
+	// Pages added after the original three; on unless turned off.
+	const [timerPageEnabled, setTimerPageEnabled] = useState(true);
+	const [statsPageEnabled, setStatsPageEnabled] = useState(true);
+	const [launcherPageEnabled, setLauncherPageEnabled] = useState(true);
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
 	);
@@ -237,6 +247,9 @@ export function useSettings() {
 			apply(getVal("bloom-calendar-enabled"), setCalendarEnabled, readBool);
 			apply(getVal("bloom-notch-command-center-enabled"), setControlsPanelEnabled, readBool);
 			apply(getVal("bloom-notch-devices-enabled"), setDevicesPanelEnabled, readBool);
+			apply(getVal(PANEL_ENABLED_KEYS.timer), setTimerPageEnabled, readBool);
+			apply(getVal(PANEL_ENABLED_KEYS.stats), setStatsPageEnabled, readBool);
+			apply(getVal(PANEL_ENABLED_KEYS.launcher), setLauncherPageEnabled, readBool);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
 			apply(getVal("bloom-notch-remember-panel") ?? getVal("bloom-notch-click-to-open"),
@@ -423,6 +436,10 @@ export function useSettings() {
 		"bloom-calendar-enabled": setCalendarEnabled,
 		"bloom-notch-command-center-enabled": setControlsPanelEnabled,
 		"bloom-notch-devices-enabled": setDevicesPanelEnabled,
+		[PANEL_ENABLED_KEYS.timer]: (v: unknown) => setTimerPageEnabled(panelEnabledValue("timer", v)),
+		[PANEL_ENABLED_KEYS.stats]: (v: unknown) => setStatsPageEnabled(panelEnabledValue("stats", v)),
+		[PANEL_ENABLED_KEYS.launcher]: (v: unknown) =>
+			setLauncherPageEnabled(panelEnabledValue("launcher", v)),
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
 		"bloom-music-mode-enabled": setMusicModeEnabled,
 		"bloom-notch-remember-panel": setNotchRememberPanel,
@@ -587,8 +604,31 @@ export function useSettings() {
 	};
 
 	// The notch needs at least one panel, so the last one on can't be turned off.
-	const enabledPanelCount =
-		Number(calendarEnabled) + Number(controlsPanelEnabled) + Number(devicesPanelEnabled);
+	const pageEnabled: Record<NotchPanel, boolean> = {
+		calendar: calendarEnabled,
+		timer: timerPageEnabled,
+		stats: statsPageEnabled,
+		launcher: launcherPageEnabled,
+		"command-center": controlsPanelEnabled,
+		devices: devicesPanelEnabled
+	};
+	const enabledPanelCount = Object.values(pageEnabled).filter(Boolean).length;
+
+	// Settings > Notch > Pages. The notch always keeps at least one page.
+	const togglePage = (panel: NotchPanel) => {
+		const next = !pageEnabled[panel];
+		if (!next && enabledPanelCount <= 1) return;
+		const setters: Record<NotchPanel, (v: boolean) => void> = {
+			calendar: setCalendarEnabled,
+			timer: setTimerPageEnabled,
+			stats: setStatsPageEnabled,
+			launcher: setLauncherPageEnabled,
+			"command-center": setControlsPanelEnabled,
+			devices: setDevicesPanelEnabled
+		};
+		setters[panel](next);
+		saveSetting(PANEL_ENABLED_KEYS[panel], String(next));
+	};
 
 	const toggleCalendar = () => {
 		const next = !calendarEnabled;
@@ -1127,6 +1167,8 @@ export function useSettings() {
 		devicesPanelEnabled,
 		toggleDevicesPanel,
 		enabledPanelCount,
+		pageEnabled,
+		togglePage,
 		timerSoundEnabled,
 		toggleTimerSound,
 		musicModeEnabled,

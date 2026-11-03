@@ -36,6 +36,22 @@ import {
 	type CalendarViewMode
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
+import { StudyStats, STUDY_PAGE_HEIGHT, STUDY_PAGE_WIDTH } from "./components/StudyStats";
+import {
+	STUDY_LOG_KEY,
+	STUDY_MODULE_KEY,
+	STUDY_MODULES_KEY,
+	addDone,
+	addFocus,
+	moduleChoices,
+	moduleCode,
+	moduleColor,
+	moduleColorMap,
+	normalizeModule,
+	parseModuleList,
+	parseStudyLog,
+	type StudyLog
+} from "./study";
 import { TodayCard } from "./components/TodayCard";
 import { useCalendarDays } from "./hooks/useCalendarEvents";
 import {
@@ -83,6 +99,8 @@ import {
 } from "./reminders";
 import {
 	DEFAULT_PANEL_ORDER,
+	PANEL_ENABLED_KEYS,
+	panelEnabledValue,
 	isNotchPanel,
 	parsePanelOrder,
 	PANEL_ORDER_KEY,
@@ -141,8 +159,10 @@ import {
 	Megaphone,
 	Type,
 	X,
+	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
+	Plus,
 	Inbox,
 	Music,
 	Timer as TimerIcon,
@@ -190,7 +210,8 @@ const COMMAND_CENTER_HEIGHT = 140;
 
 // Sizes of the timer and launcher pages.
 const TIMER_PAGE_WIDTH = 440;
-const TIMER_PAGE_HEIGHT = 114;
+// Taller than it used to be: the module row sits above the progress bar.
+const TIMER_PAGE_HEIGHT = 136;
 
 // The Connected devices panel grows with its list between these heights;
 // the maximum is the size the panel had before it grew to fit.
@@ -514,6 +535,7 @@ type BloomMode =
 	| "music"
 	| "calendar"
 	| "timer"
+	| "stats"
 	| "launcher"
 	| "command-center"
 	| "announcement"
@@ -1184,6 +1206,16 @@ function App() {
 	const [settingsDevicesPanelEnabled, setSettingsDevicesPanelEnabled] = useState(
 		() => localStorage.getItem("bloom-notch-devices-enabled") === "true"
 	);
+	// Pages added later than the three above, each with its own switch.
+	const [settingsTimerPageEnabled, setSettingsTimerPageEnabled] = useState(() =>
+		panelEnabledValue("timer", localStorage.getItem(PANEL_ENABLED_KEYS.timer))
+	);
+	const [settingsStatsPageEnabled, setSettingsStatsPageEnabled] = useState(() =>
+		panelEnabledValue("stats", localStorage.getItem(PANEL_ENABLED_KEYS.stats))
+	);
+	const [settingsLauncherPageEnabled, setSettingsLauncherPageEnabled] = useState(() =>
+		panelEnabledValue("launcher", localStorage.getItem(PANEL_ENABLED_KEYS.launcher))
+	);
 	const connectedDevices = useConnectedDevices(windowLabel === "main" && settingsDevicesPanelEnabled);
 	const [settingsTimerSoundEnabled, setSettingsTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
@@ -1290,6 +1322,14 @@ function App() {
 					getVal("bloom-notch-command-center-enabled", "true") !== "false"
 				);
 				setSettingsDevicesPanelEnabled(getVal("bloom-notch-devices-enabled", "false") === "true");
+				setSettingsTimerPageEnabled(panelEnabledValue("timer", getVal(PANEL_ENABLED_KEYS.timer)));
+				if (!studyDirtyRef.current) setStudyLog(parseStudyLog(getVal(STUDY_LOG_KEY)));
+				setStudyModuleState(getVal(STUDY_MODULE_KEY) ?? "");
+				setCustomModules(parseModuleList(getVal(STUDY_MODULES_KEY)));
+				setSettingsStatsPageEnabled(panelEnabledValue("stats", getVal(PANEL_ENABLED_KEYS.stats)));
+				setSettingsLauncherPageEnabled(
+					panelEnabledValue("launcher", getVal(PANEL_ENABLED_KEYS.launcher))
+				);
 				setSettingsTimerSoundEnabled(getVal("bloom-timer-sound-enabled", "true") !== "false");
 				setSettingsMusicModeEnabled(getVal("bloom-music-mode-enabled", "true") !== "false");
 				setRememberPanelEnabled(
@@ -1413,6 +1453,10 @@ function App() {
 			"bloom-calendar-enabled": setSettingsCalendarEnabled,
 			"bloom-notch-command-center-enabled": setSettingsControlsPanelEnabled,
 			"bloom-notch-devices-enabled": setSettingsDevicesPanelEnabled,
+			[PANEL_ENABLED_KEYS.timer]: (v: unknown) => setSettingsTimerPageEnabled(panelEnabledValue("timer", v)),
+			[PANEL_ENABLED_KEYS.stats]: (v: unknown) => setSettingsStatsPageEnabled(panelEnabledValue("stats", v)),
+			[PANEL_ENABLED_KEYS.launcher]: (v: unknown) =>
+				setSettingsLauncherPageEnabled(panelEnabledValue("launcher", v)),
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
 			"bloom-music-mode-enabled": setSettingsMusicModeEnabled,
 			"bloom-notch-remember-panel": setRememberPanelEnabled,
@@ -2129,11 +2173,12 @@ function App() {
 	};
 
 	function panelEnabled(panel: NotchPanel) {
-		// The timer shares the "Calendar & Timer" setting.
-		if (panel === "calendar" || panel === "timer") return settingsCalendarEnabled;
+		if (panel === "calendar") return settingsCalendarEnabled;
+		if (panel === "timer") return settingsTimerPageEnabled;
+		if (panel === "stats") return settingsStatsPageEnabled;
+		if (panel === "launcher") return settingsLauncherPageEnabled;
 		if (panel === "command-center") return settingsControlsPanelEnabled;
-		if (panel === "devices") return settingsDevicesPanelEnabled;
-		return true;
+		return settingsDevicesPanelEnabled;
 	}
 
 	// Settings keeps at least one panel on; if a hand-edited settings file turns
@@ -2205,6 +2250,64 @@ function App() {
 		const stored = parseInt(localStorage.getItem("bloom-timer-last-duration") || "", 10);
 		return Number.isFinite(stored) && stored > 0 ? stored : 25 * 60;
 	});
+	// ── Study stats ──
+	// While the timer runs, every second counts towards the chosen module
+	// (study.ts). The log is saved as one setting, a little after changes and
+	// whenever the timer stops.
+	const [studyLog, setStudyLog] = useState<StudyLog>(() => parseStudyLog(localStorage.getItem(STUDY_LOG_KEY)));
+	const [studyModule, setStudyModuleState] = useState(() => localStorage.getItem(STUDY_MODULE_KEY) ?? "");
+	const [customModules, setCustomModules] = useState<string[]>(() =>
+		parseModuleList(localStorage.getItem(STUDY_MODULES_KEY))
+	);
+	const [modulePickerOpen, setModulePickerOpen] = useState(false);
+	const [moduleDraft, setModuleDraft] = useState<string | null>(null);
+	const studyModuleRef = useRef(studyModule);
+	studyModuleRef.current = studyModule;
+	const studyLogRef = useRef(studyLog);
+	studyLogRef.current = studyLog;
+	const studyDirtyRef = useRef(false);
+	// When the module was last picked by hand; a timer started soon after keeps it.
+	const modulePickedAtRef = useRef(0);
+	// Today's calendar events, for picking the module of the class that's on.
+	const studyTodayEventsRef = useRef<{ title: string; start: Date; end: Date; allDay: boolean }[]>([]);
+	const saveStudySetting = (key: string, value: string) => {
+		try {
+			localStorage.setItem(key, value);
+		} catch {
+			// settings.json below still records it.
+		}
+		invoke("save_setting", { key, value }).catch(() => {});
+	};
+	const flushStudyLog = () => {
+		if (!studyDirtyRef.current) return;
+		studyDirtyRef.current = false;
+		saveStudySetting(STUDY_LOG_KEY, JSON.stringify(studyLogRef.current));
+	};
+	const setStudyModule = (module: string, byHand: boolean) => {
+		setStudyModuleState(module);
+		if (byHand) modulePickedAtRef.current = Date.now();
+		saveStudySetting(STUDY_MODULE_KEY, module);
+	};
+	// The class that's on (or starts within 10 minutes) names the module,
+	// unless one was just picked by hand.
+	const autoPickStudyModule = () => {
+		if (Date.now() - modulePickedAtRef.current < 10 * 60 * 1000) return;
+		const now = Date.now();
+		const current = studyTodayEventsRef.current.find(
+			(e) => !e.allDay && e.start.getTime() - 10 * 60 * 1000 <= now && now < e.end.getTime() && moduleCode(e.title)
+		);
+		const code = current ? moduleCode(current.title) : null;
+		if (code && code !== studyModuleRef.current) setStudyModule(code, false);
+	};
+	const addCustomModule = (text: string) => {
+		const module = normalizeModule(text);
+		if (!module) return;
+		const next = [module, ...customModules.filter((m) => m !== module)].slice(0, 30);
+		setCustomModules(next);
+		saveStudySetting(STUDY_MODULES_KEY, JSON.stringify(next));
+		setStudyModule(module, true);
+	};
+
 	const timerInputRef = useRef<HTMLInputElement>(null);
 	const timerEditActiveRef = useRef(false);
 	const timerIntervalRef = useRef<any>(null);
@@ -2219,6 +2322,8 @@ function App() {
 	const startTimer = (seconds: number) => {
 		// Unlock audio here (user gesture) so the completion chime can play later.
 		getTimerChimeCtx();
+		autoPickStudyModule();
+		setModulePickerOpen(false);
 		timerEditActiveRef.current = false;
 		setIsEditingTimer(false);
 		setTimerSeconds(seconds);
@@ -2275,7 +2380,10 @@ function App() {
 		setTimerSeconds(start ? total : 0);
 		setIsTimerRunning(start);
 		setIsTimerFinished(false);
-		if (start) getTimerChimeCtx();
+		if (start) {
+			getTimerChimeCtx();
+			autoPickStudyModule();
+		}
 	};
 
 	useEffect(() => {
@@ -2341,15 +2449,39 @@ function App() {
 		if (isTimerRunning && timerSeconds > 0) {
 			timerIntervalRef.current = setInterval(() => {
 				setTimerSeconds((s) => s - 1);
+				setStudyLog((log) => addFocus(log, new Date(), studyModuleRef.current, 1));
+				studyDirtyRef.current = true;
 			}, 1000);
 		} else if (isTimerRunning && timerSeconds === 0) {
 			setIsTimerRunning(false);
 			setIsTimerFinished(true);
+			setStudyLog((log) => addDone(log, new Date()));
+			studyDirtyRef.current = true;
 		}
 		return () => {
 			if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 		};
 	}, [isTimerRunning, timerSeconds === 0]);
+
+	// Save the study log 15 s after it changes, at once when the timer stops,
+	// and when the window goes away.
+	useEffect(() => {
+		if (windowLabel !== "main" || !studyDirtyRef.current) return;
+		if (!isTimerRunning) {
+			flushStudyLog();
+			return;
+		}
+		const timer = window.setTimeout(flushStudyLog, 15_000);
+		return () => window.clearTimeout(timer);
+		// flushStudyLog reads refs only.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [studyLog, isTimerRunning, windowLabel]);
+	useEffect(() => {
+		const onUnload = () => flushStudyLog();
+		window.addEventListener("beforeunload", onUnload);
+		return () => window.removeEventListener("beforeunload", onUnload);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	// The dock's Focus controls drive this timer: it starts and stops it with
 	// events and follows it through the state broadcast below.
@@ -2591,11 +2723,16 @@ function App() {
 	// Leave a panel that has just been turned off in Settings.
 	useEffect(() => {
 		const panel = asNotchPanel(bloomMode);
+		// The launcher shortcut opens the launcher even with its page off.
+		if (panel === "launcher" && launcherHeldRef.current) return;
 		if (panel && !panelAvailable(panel)) {
 			setBloomMode(isOpen ? openingPanel() : collapsedMode);
 		}
 	}, [
 		settingsCalendarEnabled,
+		settingsTimerPageEnabled,
+		settingsStatsPageEnabled,
+		settingsLauncherPageEnabled,
 		settingsControlsPanelEnabled,
 		settingsDevicesPanelEnabled,
 		bloomMode,
@@ -3260,9 +3397,11 @@ function App() {
 		// Once open, it is a shortcut to the calendar.
 		if (!isOpen) {
 			openNotch(openingPanel());
-		} else if (settingsCalendarEnabled) {
+		} else if ((timerSeconds > 0 || isTimerRunning) && settingsTimerPageEnabled) {
 			// With a timer set, the clock shows its countdown: open the timer page.
-			setBloomMode(timerSeconds > 0 || isTimerRunning ? "timer" : "calendar");
+			setBloomMode("timer");
+		} else if (settingsCalendarEnabled) {
+			setBloomMode("calendar");
 		}
 	};
 
@@ -3423,6 +3562,26 @@ function App() {
 	// lead time, announces each occurrence once (remembered across restarts),
 	// and hides the bar after the chosen time. Hovering keeps it up.
 	const { days: reminderDays } = useCalendarDays(new Date(), 2);
+	studyTodayEventsRef.current = reminderDays[0] ?? [];
+	// Module codes come from the last two weeks and the next two of the calendar.
+	const studyDayStamp = new Date().toDateString();
+	const studyCalendarStart = useMemo(
+		() => new Date(Date.now() - 14 * 86_400_000),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[studyDayStamp]
+	);
+	const { days: studyCalendarDays } = useCalendarDays(studyCalendarStart, 28);
+	const studyModules = useMemo(
+		() => moduleChoices(customModules, studyLog, studyCalendarDays.flat().map((e) => e.title)),
+		// The log's module list only changes on a new module; days are enough.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[customModules, studyCalendarDays, Object.keys(studyLog.days).length, studyModule]
+	);
+	const studyColors = useMemo(
+		() => moduleColorMap(studyLog, studyModules),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[studyModules, Object.keys(studyLog.days).length]
+	);
 	const [reminderNow, setReminderNow] = useState(() => Date.now());
 	const reminderShownRef = useRef<Set<string> | null>(null);
 	const reminderSnoozeRef = useRef<number | undefined>(undefined);
@@ -3692,6 +3851,7 @@ function App() {
 		if (islandPill) return islandPillWidth(islandPill);
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
+		if (bloomMode === "stats") return STUDY_PAGE_WIDTH;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return COMMAND_CENTER_WIDTH;
@@ -3732,6 +3892,7 @@ function App() {
 			return calendarPanelHeight(calendarViewMode, calendarDate);
 		}
 		if (bloomMode === "timer") return TIMER_PAGE_HEIGHT;
+		if (bloomMode === "stats") return STUDY_PAGE_HEIGHT;
 		if (bloomMode === "launcher") return launcherHeight;
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
@@ -3984,8 +4145,8 @@ function App() {
 						scaleY: 1,
 						borderTopLeftRadius: isImpacted ? 0 : 18,
 						borderTopRightRadius: isImpacted ? 0 : 18,
-						borderBottomLeftRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" ? 28 : 18,
+						borderBottomLeftRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" ? 28 : 18,
+						borderBottomRightRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
@@ -5039,7 +5200,7 @@ function App() {
 
 								{/* Timer page */}
 								<AnimatePresence>
-									{settingsCalendarEnabled && bloomMode === "timer" && (
+									{settingsTimerPageEnabled && bloomMode === "timer" && (
 										<motion.div
 											className="calendar-timer-content timer-page"
 											onClick={(e) => e.stopPropagation()}
@@ -5100,6 +5261,21 @@ function App() {
 												</div>
 
 												<div className="timer-slim-middle">
+													<div className="timer-module">
+														<button
+															className={`timer-module-chip ${modulePickerOpen ? "open" : ""} ${studyModule ? "" : "none"}`}
+															onClick={() => {
+																setModuleDraft(null);
+																setModulePickerOpen((o) => !o);
+															}}
+															aria-expanded={modulePickerOpen}
+															title="Which module this focus time counts towards"
+														>
+															<i style={{ background: moduleColor(studyModule, studyColors) }} />
+															<span>{studyModule || "No module"}</span>
+															<ChevronDown size={10} strokeWidth={2.6} />
+														</button>
+													</div>
 													<div
 														className="timer-slim-progress"
 														role="progressbar"
@@ -5110,6 +5286,67 @@ function App() {
 													>
 														<div style={{ width: `${timerProgress * 100}%` }} />
 													</div>
+													{modulePickerOpen ? (
+														<div
+															className="timer-module-list"
+															onWheel={(e) => {
+																e.stopPropagation();
+																e.currentTarget.scrollLeft += e.deltaY;
+															}}
+														>
+															<button
+																className={studyModule ? "" : "on"}
+																onClick={() => {
+																	setStudyModule("", true);
+																	setModulePickerOpen(false);
+																}}
+															>
+																None
+															</button>
+															{studyModules.map((m) => (
+																<button
+																	key={m}
+																	className={m === studyModule ? "on" : ""}
+																	onClick={() => {
+																		setStudyModule(m, true);
+																		setModulePickerOpen(false);
+																	}}
+																>
+																	<i style={{ background: moduleColor(m, studyColors) }} />
+																	{m}
+																</button>
+															))}
+															{moduleDraft === null ? (
+																<button onClick={() => setModuleDraft("")} title="Add a module">
+																	<Plus size={11} strokeWidth={2.6} />
+																	Add
+																</button>
+															) : (
+																<input
+																	className="timer-module-add"
+																	autoFocus
+																	placeholder="e.g. COS 226"
+																	value={moduleDraft}
+																	maxLength={24}
+																	onChange={(e) => setModuleDraft(e.target.value)}
+																	onFocus={() => setNotchPinned(true)}
+																	onBlur={() => {
+																		setNotchPinned(false);
+																		setModuleDraft(null);
+																	}}
+																	onKeyDown={(e) => {
+																		if (e.key === "Enter" && moduleDraft.trim()) {
+																			addCustomModule(moduleDraft);
+																			setModuleDraft(null);
+																			setModulePickerOpen(false);
+																		} else if (e.key === "Escape") {
+																			setModuleDraft(null);
+																		}
+																	}}
+																/>
+															)}
+														</div>
+													) : (
 													<div className="timer-slim-presets">
 														{[5, 15, 25, 50].map((mins) => (
 															<button
@@ -5124,6 +5361,7 @@ function App() {
 															</button>
 														))}
 													</div>
+													)}
 												</div>
 
 												<div className="timer-slim-buttons">
@@ -5151,6 +5389,27 @@ function App() {
 													</button>
 												</div>
 											</div>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
+								{/* Study stats page */}
+								<AnimatePresence>
+									{settingsStatsPageEnabled && bloomMode === "stats" && (
+										<motion.div
+											className="calendar-timer-content study-page"
+											onClick={(e) => e.stopPropagation()}
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+										>
+											<StudyStats
+												log={studyLog}
+												colors={studyColors}
+												now={new Date()}
+												onStartFocus={settingsTimerPageEnabled ? () => setBloomMode("timer") : undefined}
+											/>
 										</motion.div>
 									)}
 								</AnimatePresence>

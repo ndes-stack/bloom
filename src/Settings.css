@@ -1989,3 +1989,124 @@ input:checked + .slider:before {
 .shortcut-reset {
 	opacity: 0.75;
 }
+
+/* Pages (Settings > Notch): every notch page with its switch, in scroll order. */
+.pages-list {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 8px 8px;
+	gap: 4px;
+}
+
+.pages-row {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	min-height: 46px;
+	padding: 4px 10px 4px 4px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 5%, transparent);
+	color: var(--bloom-text, #fff);
+	position: relative;
+	transition: background 0.15s ease;
+}
+
+.pages-row.dragging {
+	z-index: 2;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.pages-grip {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 30px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.45));
+	cursor: grab;
+	touch-action: none;
+}
+
+.pages-row.dragging .pages-grip {
+	cursor: grabbing;
+}
+
+.pages-icon {
+	width: 28px;
+	height: 28px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 16%, transparent);
+	color: var(--bloom-accent-text, var(--bloom-accent, #007aff));
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.pages-row.off .pages-icon {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+}
+
+.pages-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.pages-name {
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+.pages-desc {
+	font-size: 11px;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.pages-row.off .pages-name,
+.pages-row.off .pages-desc {
+	opacity: 0.55;
+}
+
+.pages-star {
+	width: 26px;
+	height: 26px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	border-radius: 7px;
+	background: transparent;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.4));
+	cursor: pointer;
+}
+
+.pages-star:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.pages-star.on {
+	color: #ffd60a;
+}
+
+.pages-star:disabled {
+	opacity: 0.25;
+	cursor: default;
+}

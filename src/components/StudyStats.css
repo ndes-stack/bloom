@@ -1,0 +1,357 @@
+/* The notch's Study stats page (StudyStats.tsx) and the timer's module picker. */
+
+.study {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 4px 18px 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	color: var(--bloom-text, #fff);
+}
+
+.study button {
+	font: inherit;
+	color: inherit;
+}
+
+.study-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.study-range {
+	display: flex;
+	padding: 2px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+}
+
+.study-range button {
+	height: 22px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 8px;
+	background: transparent;
+	font-size: 10.5px !important;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6)) !important;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.study-range button.on {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 16%, transparent);
+	color: var(--bloom-text, #fff) !important;
+}
+
+.study-badges {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 10.5px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+	font-variant-numeric: tabular-nums;
+}
+
+.study-streak,
+.study-sessions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 9px;
+	border-radius: 11px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+}
+
+.study-streak.lit {
+	color: #ff9f0a;
+	background: color-mix(in srgb, #ff9f0a 16%, transparent);
+}
+
+.study-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	gap: 18px;
+}
+
+.study-total {
+	width: 118px;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.study-total-value {
+	font-size: 28px;
+	font-weight: 700;
+	letter-spacing: -0.5px;
+	line-height: 1.05;
+	font-variant-numeric: tabular-nums;
+}
+
+.study-total-label {
+	font-size: 10.5px;
+	font-weight: 500;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.study-week {
+	margin-top: auto;
+	display: flex;
+	gap: 4px;
+	height: 50px;
+}
+
+.study-day {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+}
+
+.study-day-bar {
+	flex: 1;
+	width: 100%;
+	display: flex;
+	align-items: flex-end;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	overflow: hidden;
+}
+
+.study-day-bar > div {
+	width: 100%;
+	min-height: 0;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 70%, transparent);
+	transition: height 0.3s ease;
+}
+
+.study-day.today .study-day-bar > div {
+	background: var(--bloom-accent, #007aff);
+}
+
+.study-day span {
+	font-size: 8.5px;
+	font-weight: 600;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.5));
+}
+
+.study-day.today span {
+	color: var(--bloom-text, #fff);
+}
+
+.study-modules {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 7px;
+	padding-top: 2px;
+}
+
+.study-row {
+	display: grid;
+	grid-template-columns: 92px 1fr 46px;
+	align-items: center;
+	gap: 8px;
+	height: 18px;
+}
+
+.study-row-name {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.study-row-name i {
+	width: 7px;
+	height: 7px;
+	flex-shrink: 0;
+	border-radius: 50%;
+}
+
+.study-row-bar {
+	height: 8px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	overflow: hidden;
+}
+
+.study-row-bar > span {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.study-row-time {
+	font-size: 10.5px;
+	font-weight: 600;
+	text-align: right;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.7));
+	font-variant-numeric: tabular-nums;
+}
+
+.study-empty {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	text-align: center;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.study-empty-hint {
+	font-size: 10.5px;
+	font-weight: 500;
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.study-start {
+	margin-top: 6px;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 13px;
+	background: var(--bloom-accent-fill, var(--bloom-accent, #007aff));
+	color: var(--bloom-on-accent-fill, #fff) !important;
+	font-size: 11px !important;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+/* ── Timer page: which module the session counts towards ── */
+
+.timer-module {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+}
+
+.timer-module-chip {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	height: 20px;
+	padding: 0 8px 0 7px;
+	border: none;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	font-size: 10.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.timer-module-chip:hover,
+.timer-module-chip.open {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 15%, transparent);
+}
+
+.timer-module-chip i {
+	width: 7px;
+	height: 7px;
+	flex-shrink: 0;
+	border-radius: 50%;
+}
+
+.timer-module-chip span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.timer-module-chip.none span {
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.timer-module-list {
+	display: flex;
+	gap: 5px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	mask-image: linear-gradient(90deg, #000 88%, transparent);
+	-webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+	padding-right: 16px;
+}
+
+.timer-module-list::-webkit-scrollbar {
+	display: none;
+}
+
+.timer-module-list button,
+.timer-module-add {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 8%, transparent);
+	color: var(--bloom-text-muted, rgba(255, 255, 255, 0.8));
+	font: inherit;
+	font-size: 10.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.timer-module-list button:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 15%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.timer-module-list button.on {
+	background: color-mix(in srgb, var(--bloom-accent, #007aff) 26%, transparent);
+	color: var(--bloom-text, #fff);
+}
+
+.timer-module-list button i {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+}
+
+input.timer-module-add {
+	width: 84px;
+	outline: none;
+	box-shadow: inset 0 0 0 1.5px var(--bloom-accent, #007aff);
+	color: var(--bloom-text, #fff);
+	cursor: text;
+}
+
+.calendar-timer-content.study-page {
+	display: flex;
+	overflow: hidden;
+	border-radius: 0 0 28px 28px;
+}
