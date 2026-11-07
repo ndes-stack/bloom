@@ -22,7 +22,12 @@ interface EdgeSurfaceProps {
  * layer. Render it as the first child of a positioned, isolated element that
  * sets `--surface-bg`; the pill takes that element's corner radii.
  */
-export function EdgeSurface({ edge, flares = true, backdrop = false, visible = true }: EdgeSurfaceProps) {
+export function EdgeSurface({
+	edge,
+	flares = true,
+	backdrop = false,
+	visible = true
+}: EdgeSurfaceProps) {
 	const classes = [
 		"edge-surface",
 		`edge-surface--${edge}`,
@@ -33,9 +38,13 @@ export function EdgeSurface({ edge, flares = true, backdrop = false, visible = t
 		.filter(Boolean)
 		.join(" ");
 	return (
-		<div className={classes} aria-hidden="true">
-			<span className="edge-surface-flare edge-surface-flare--start" />
-			<span className="edge-surface-flare edge-surface-flare--end" />
-		</div>
+		<>
+			{/* Outside the masked layer, which would cut the shadow off. */}
+			{!backdrop && <div className="edge-surface-shadow" aria-hidden="true" />}
+			<div className={classes} aria-hidden="true">
+				<span className="edge-surface-flare edge-surface-flare--start" />
+				<span className="edge-surface-flare edge-surface-flare--end" />
+			</div>
+		</>
 	);
 }

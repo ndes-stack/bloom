@@ -339,7 +339,11 @@ function contrast(a: [number, number, number], b: [number, number, number]): num
 export function readableAccent(hex: string, lightMode: boolean): string {
 	const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
 	if (!m) return hex;
-	const base: [number, number, number] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+	const base: [number, number, number] = [
+		parseInt(m[1], 16),
+		parseInt(m[2], 16),
+		parseInt(m[3], 16)
+	];
 	const surface: [number, number, number] = lightMode ? [245, 245, 247] : [12, 12, 14];
 	const target: [number, number, number] = lightMode ? [0, 0, 0] : [255, 255, 255];
 	let rgb = base;
@@ -386,7 +390,9 @@ const THEME_DEFAULTS: Record<string, string> = {
 	"bloom-theme-saturation": "0.5",
 	"bloom-theme-brightness": "0.15",
 	// Empty = the theme's own accent. applyAccentOverride reads the mirror.
-	[ACCENT_COLOR_KEY]: ""
+	[ACCENT_COLOR_KEY]: "",
+	// A soft shadow under the notch, dock and overlays (EdgeSurface.css).
+	"bloom-notch-shadow": "true"
 };
 
 export function initTheme() {
@@ -398,7 +404,7 @@ export function initTheme() {
 		])
 	);
 	let disposed = false;
-	const applyCurrentTheme = () =>
+	const applyCurrentTheme = () => {
 		applyTheme(
 			values["bloom-theme-mode"],
 			values["bloom-theme-color"],
@@ -406,6 +412,11 @@ export function initTheme() {
 			parseFloat(values["bloom-theme-saturation"]),
 			parseFloat(values["bloom-theme-brightness"])
 		);
+		document.documentElement.classList.toggle(
+			"edge-shadow",
+			values["bloom-notch-shadow"] !== "false"
+		);
+	};
 
 	// Paint the startup mirror, then use committed values in memory. Painting
 	// must not depend on a cache write succeeding (e.g. localStorage quota).

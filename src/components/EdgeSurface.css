@@ -204,3 +204,24 @@
 .edge-surface--bottom.edge-surface--backdrop .edge-surface-flare {
 	background-position-y: 100%;
 }
+
+/* Optional shadow (Appearance > Edge Shadow): lifts the surface off an app of
+   the same colour, like a light notch over a light browser toolbar. The element
+   is transparent, so only the shadow outside the pill shows; it sits mostly
+   below the pill so it doesn't darken the flares where they meet the edge. */
+.edge-surface-shadow {
+	position: absolute;
+	inset: 0;
+	z-index: -2;
+	border-radius: inherit;
+	pointer-events: none;
+	opacity: 0;
+	box-shadow:
+		0 1px 0 rgba(0, 0, 0, 0.12),
+		0 4px 12px -2px rgba(0, 0, 0, 0.22);
+	transition: opacity 0.3s ease;
+}
+
+:root.edge-shadow .edge-surface-shadow {
+	opacity: 1;
+}

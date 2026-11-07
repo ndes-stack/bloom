@@ -13,6 +13,7 @@ import {
 import type { NotchMaterial } from "../notchMaterial";
 import { MaterialPicker } from "./MaterialPicker";
 import { SettingRow } from "./SettingRow";
+import { useStored } from "./useStored";
 import { ActivityStyleSettings } from "./ActivityStyleSettings";
 
 interface AppearanceTabProps {
@@ -40,7 +41,6 @@ interface AppearanceTabProps {
 	notchTint: number;
 	handleNotchTintChange: (val: number) => void;
 }
-
 
 // Accent presets (Settings > Appearance > Accent Colour).
 const ACCENT_PRESETS: { name: string; hex: string }[] = [
@@ -78,6 +78,7 @@ export function AppearanceTab({
 	notchTint,
 	handleNotchTintChange
 }: AppearanceTabProps) {
+	const [edgeShadow, setEdgeShadow] = useStored("bloom-notch-shadow", (v) => v !== "false");
 	const isPreset = accentColor !== null && ACCENT_PRESETS.some((p) => p.hex === accentColor);
 	const showCustomColor = themeMode === "custom";
 	const showAdvancedSliders = themeMode === "custom" || themeMode === "adaptive";
@@ -130,7 +131,9 @@ export function AppearanceTab({
 								style={{ background: p.hex }}
 								onClick={() => handleAccentColorChange(p.hex)}
 							>
-								{accentColor === p.hex && <Check size={11} strokeWidth={3} className="accent-check" />}
+								{accentColor === p.hex && (
+									<Check size={11} strokeWidth={3} className="accent-check" />
+								)}
 							</button>
 						))}
 						<label
@@ -250,6 +253,21 @@ export function AppearanceTab({
 				<SettingRow icon={Square} label="Screen Corners" desc="Rounded top edges">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={cornersEnabled} onChange={toggleCorners} />
+						<span className="slider"></span>
+					</label>
+				</SettingRow>
+
+				<SettingRow
+					icon={Layers}
+					label="Edge Shadow"
+					desc="A soft shadow so the notch stands out on light apps"
+				>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={edgeShadow}
+							onChange={() => setEdgeShadow(!edgeShadow)}
+						/>
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
