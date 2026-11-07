@@ -24,6 +24,7 @@ import { PagesList } from "./PagesList";
 import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
+import { GoalSetting } from "./GoalSetting";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -270,6 +271,8 @@ export function NotchTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+
+				<GoalSetting />
 
 				<>
 						<SettingRow icon={CalendarSync} label="Google Calendar" desc={calendarDesc}>

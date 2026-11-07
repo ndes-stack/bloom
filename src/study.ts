@@ -223,3 +223,20 @@ export function parseModuleList(value: unknown): string[] {
 		? raw.filter((m): m is string => typeof m === "string" && m.trim() !== "").map(normalizeModule).slice(0, 30)
 		: [];
 }
+
+/** The daily focus goal in minutes (Settings > Notch > Calendar & Timer). */
+export const STUDY_GOAL_KEY = "bloom-study-goal";
+export const GOAL_CHOICES = [60, 120, 180, 240, 360, 480] as const;
+export const DEFAULT_GOAL_MINUTES = 240;
+
+export function parseGoal(value: unknown): number {
+	const n = Number(value);
+	return Number.isFinite(n) && n >= 15 && n <= 1440 ? Math.round(n) : DEFAULT_GOAL_MINUTES;
+}
+
+/** Today's focus against the goal: seconds done, seconds wanted, and 0 to 1. */
+export function goalProgress(log: StudyLog, now: Date, goalMinutes: number) {
+	const done = Object.values(log.days[dayKey(now)] ?? {}).reduce((a, s) => a + s, 0);
+	const target = Math.max(1, goalMinutes) * 60;
+	return { done, target, progress: Math.min(1, done / target), met: done >= target };
+}

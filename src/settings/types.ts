@@ -19,10 +19,11 @@ export interface SettingRowProps {
 }
 
 /** Panels the notch can open to by default. */
-export type NotchPanelChoice = "calendar" | "timer" | "stats" | "launcher" | "command-center" | "devices";
+export type NotchPanelChoice = "home" | "calendar" | "timer" | "stats" | "launcher" | "command-center" | "devices";
 
 export function parseNotchPanelChoice(value: unknown): NotchPanelChoice {
-	return value === "timer" ||
+	return value === "home" ||
+		value === "timer" ||
 		value === "stats" ||
 		value === "launcher" ||
 		value === "command-center" ||

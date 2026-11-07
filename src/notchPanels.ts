@@ -6,9 +6,10 @@
 // missing from a stored list is added back at the end, so a newer version
 // with more pages never loses one.
 
-export type NotchPanel = "calendar" | "timer" | "stats" | "launcher" | "command-center" | "devices";
+export type NotchPanel = "home" | "calendar" | "timer" | "stats" | "launcher" | "command-center" | "devices";
 
 export const DEFAULT_PANEL_ORDER: readonly NotchPanel[] = [
+	"home",
 	"calendar",
 	"timer",
 	"stats",
@@ -20,11 +21,12 @@ export const DEFAULT_PANEL_ORDER: readonly NotchPanel[] = [
 export const PANEL_ORDER_KEY = "bloom-notch-panel-order";
 
 export const PANEL_LABELS: Record<NotchPanel, string> = {
+	home: "Home",
 	calendar: "Calendar",
 	timer: "Timer",
-	stats: "Study stats",
+	stats: "Focus stats",
 	launcher: "Quick Launcher",
-	"command-center": "Command Center",
+	"command-center": "Control",
 	devices: "Connected devices"
 };
 
@@ -45,22 +47,26 @@ export function parsePanelOrder(value: unknown): NotchPanel[] {
 	if (Array.isArray(list)) {
 		for (const item of list) if (isNotchPanel(item) && !order.includes(item)) order.push(item);
 	}
+	// Home is the newest page: an older saved order gets it first, where it belongs.
+	if (!order.includes("home")) order.unshift("home");
 	for (const panel of DEFAULT_PANEL_ORDER) if (!order.includes(panel)) order.push(panel);
 	return order;
 }
 
 /** One line under each page's name in Settings > Notch > Pages. */
 export const PANEL_DESCRIPTIONS: Record<NotchPanel, string> = {
+	home: "Music, the time, what's next and your focus goal",
 	calendar: "Month view with your linked calendar's events",
-	timer: "Focus timer, tagged with the module you're studying",
-	stats: "Focus time per module, today and this week",
+	timer: "Focus timer, tagged with what you're working on",
+	stats: "Focus time per tag, today and this week",
 	launcher: "Pinned apps, files and websites, plus search",
-	"command-center": "Quick toggles, sliders and today's next event",
+	"command-center": "Quick toggles, volume, brightness and battery",
 	devices: "Batteries and audio of your connected devices"
 };
 
 /** The setting that turns each page on or off. */
 export const PANEL_ENABLED_KEYS: Record<NotchPanel, string> = {
+	home: "bloom-notch-home-enabled",
 	calendar: "bloom-calendar-enabled",
 	timer: "bloom-notch-timer-enabled",
 	stats: "bloom-notch-stats-enabled",
@@ -71,6 +77,7 @@ export const PANEL_ENABLED_KEYS: Record<NotchPanel, string> = {
 
 /** Pages are on unless turned off, except Connected devices, which is opt-in. */
 export const PANEL_ENABLED_DEFAULTS: Record<NotchPanel, boolean> = {
+	home: true,
 	calendar: true,
 	timer: true,
 	stats: true,

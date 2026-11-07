@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
 	BarChart3,
 	CalendarDays,
+	House,
 	GripVertical,
 	Headphones,
 	LayoutGrid,
@@ -28,6 +29,7 @@ import {
 import { PANEL_DESCRIPTIONS, PANEL_LABELS, type NotchPanel } from "../notchPanels";
 
 const PANEL_ICONS: Record<NotchPanel, typeof Timer> = {
+	home: House,
 	calendar: CalendarDays,
 	timer: Timer,
 	stats: BarChart3,

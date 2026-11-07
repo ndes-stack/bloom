@@ -37,6 +37,9 @@ import {
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
 import { StudyStats, STUDY_PAGE_HEIGHT, STUDY_PAGE_WIDTH } from "./components/StudyStats";
+import { HomePage, HOME_PAGE_HEIGHT, HOME_PAGE_WIDTH } from "./components/HomePage";
+import { useStored } from "./settings/useStored";
+import { parseGoal, STUDY_GOAL_KEY } from "./study";
 import {
 	STUDY_LOG_KEY,
 	STUDY_MODULE_KEY,
@@ -52,7 +55,6 @@ import {
 	parseStudyLog,
 	type StudyLog
 } from "./study";
-import { TodayCard } from "./components/TodayCard";
 import { useCalendarDays } from "./hooks/useCalendarEvents";
 import {
 	ACTIVITY_STYLE_KEY,
@@ -205,8 +207,8 @@ function canScrollWithin(target: HTMLElement, root: HTMLElement, dx: number, dy:
 const REMOTE_EDGE_HOLD_MS = 2500;
 
 // The Command Center dashboard (controls | live stats).
-const COMMAND_CENTER_WIDTH = 340;
-const COMMAND_CENTER_HEIGHT = 140;
+const COMMAND_CENTER_WIDTH = 600;
+const COMMAND_CENTER_HEIGHT = 156;
 
 // Sizes of the timer and launcher pages.
 const TIMER_PAGE_WIDTH = 440;
@@ -533,6 +535,7 @@ interface ShelfItem {
 
 type BloomMode =
 	| "music"
+	| "home"
 	| "calendar"
 	| "timer"
 	| "stats"
@@ -1220,6 +1223,11 @@ function App() {
 	const [settingsStatsPageEnabled, setSettingsStatsPageEnabled] = useState(() =>
 		panelEnabledValue("stats", localStorage.getItem(PANEL_ENABLED_KEYS.stats))
 	);
+	const [settingsHomePageEnabled, setSettingsHomePageEnabled] = useState(() =>
+		panelEnabledValue("home", localStorage.getItem(PANEL_ENABLED_KEYS.home))
+	);
+	// Today's focus goal in minutes, for the ring on Home and Focus stats.
+	const [studyGoal] = useStored(STUDY_GOAL_KEY, parseGoal);
 	const [settingsLauncherPageEnabled, setSettingsLauncherPageEnabled] = useState(() =>
 		panelEnabledValue("launcher", localStorage.getItem(PANEL_ENABLED_KEYS.launcher))
 	);
@@ -1334,6 +1342,7 @@ function App() {
 				setStudyModuleState(getVal(STUDY_MODULE_KEY) ?? "");
 				setCustomModules(parseModuleList(getVal(STUDY_MODULES_KEY)));
 				setSettingsStatsPageEnabled(panelEnabledValue("stats", getVal(PANEL_ENABLED_KEYS.stats)));
+				setSettingsHomePageEnabled(panelEnabledValue("home", getVal(PANEL_ENABLED_KEYS.home)));
 				setSettingsLauncherPageEnabled(
 					panelEnabledValue("launcher", getVal(PANEL_ENABLED_KEYS.launcher))
 				);
@@ -1462,6 +1471,7 @@ function App() {
 			"bloom-notch-devices-enabled": setSettingsDevicesPanelEnabled,
 			[PANEL_ENABLED_KEYS.timer]: (v: unknown) => setSettingsTimerPageEnabled(panelEnabledValue("timer", v)),
 			[PANEL_ENABLED_KEYS.stats]: (v: unknown) => setSettingsStatsPageEnabled(panelEnabledValue("stats", v)),
+			[PANEL_ENABLED_KEYS.home]: (v: unknown) => setSettingsHomePageEnabled(panelEnabledValue("home", v)),
 			[PANEL_ENABLED_KEYS.launcher]: (v: unknown) =>
 				setSettingsLauncherPageEnabled(panelEnabledValue("launcher", v)),
 			"bloom-timer-sound-enabled": setSettingsTimerSoundEnabled,
@@ -2180,6 +2190,7 @@ function App() {
 	};
 
 	function panelEnabled(panel: NotchPanel) {
+		if (panel === "home") return settingsHomePageEnabled;
 		if (panel === "calendar") return settingsCalendarEnabled;
 		if (panel === "timer") return settingsTimerPageEnabled;
 		if (panel === "stats") return settingsStatsPageEnabled;
@@ -3907,6 +3918,7 @@ function App() {
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
 		if (bloomMode === "stats") return STUDY_PAGE_WIDTH;
+		if (bloomMode === "home") return HOME_PAGE_WIDTH;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return COMMAND_CENTER_WIDTH;
@@ -3948,6 +3960,7 @@ function App() {
 		}
 		if (bloomMode === "timer") return TIMER_PAGE_HEIGHT;
 		if (bloomMode === "stats") return STUDY_PAGE_HEIGHT;
+		if (bloomMode === "home") return HOME_PAGE_HEIGHT;
 		if (bloomMode === "launcher") return launcherHeight;
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
@@ -4200,8 +4213,8 @@ function App() {
 						scaleY: 1,
 						borderTopLeftRadius: isImpacted ? 0 : 18,
 						borderTopRightRadius: isImpacted ? 0 : 18,
-						borderBottomLeftRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" ? 28 : 18,
-						borderBottomRightRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" ? 28 : 18,
+						borderBottomLeftRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" || bloomMode === "home" ? 28 : 18,
+						borderBottomRightRadius: isCalendarMode || bloomMode === "timer" || bloomMode === "launcher" || bloomMode === "stats" || bloomMode === "home" ? 28 : 18,
 						filter: isVisible ? "blur(0px)" : "blur(8px)",
 						pointerEvents: isVisible ? "auto" : "none"
 					}}
@@ -4983,77 +4996,95 @@ function App() {
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
 											{/* Compact dashboard: toggles + sliders, then today + quick actions */}
-											<div className="cc-mini">
-												<div className="cc-mini-top">
-													<div className="cc-mini-toggles">
-														<button
-															className={`cc-mini-toggle ${wifiEnabled ? "on" : ""}`}
-															onClick={(e) => {
-																e.stopPropagation();
-																toggleWifi();
-															}}
-															onContextMenu={handleWifiRightClick}
-															aria-pressed={wifiEnabled}
-															aria-label="Wi-Fi"
-															title={`Wi-Fi: ${
-																wifiStatus === null
+											<div className="cc-grid">
+												<div className="cc-tiles">
+													<button
+														className={`cc-tile ${wifiEnabled ? "on" : ""}`}
+														onClick={(e) => {
+															e.stopPropagation();
+															toggleWifi();
+														}}
+														onContextMenu={handleWifiRightClick}
+														aria-pressed={wifiEnabled}
+														title="Wi-Fi (right-click for networks)"
+													>
+														<span className="cc-tile-dot">
+															<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
+														</span>
+														<span className="cc-tile-text">
+															<span className="cc-tile-name">Wi-Fi</span>
+															<span className="cc-tile-detail">
+																{wifiStatus === null
 																	? "…"
 																	: !wifiEnabled
 																		? "Off"
 																		: wifiConnected
 																			? (wifiStatus?.ssid ?? "Connected")
-																			: "Not connected"
-															} (right-click for networks)`}
-														>
-															<WifiIcon enabled={wifiEnabled} connected={wifiConnected} />
-														</button>
-														<button
-															className={`cc-mini-toggle ${bluetoothEnabled ? "on" : ""}`}
-															onClick={(e) => {
-																e.stopPropagation();
-																toggleBluetooth();
-															}}
-															onContextMenu={handleBluetoothRightClick}
-															aria-pressed={bluetoothEnabled}
-															aria-label="Bluetooth"
-															title={`Bluetooth: ${
-																!bluetoothEnabled
-																	? "Off"
-																	: btConnectedNames.length > 0
-																		? btConnectedNames.join(", ")
-																		: "On"
-															} (right-click for devices)`}
-														>
+																			: "Not connected"}
+															</span>
+														</span>
+													</button>
+													<button
+														className={`cc-tile ${bluetoothEnabled ? "on" : ""}`}
+														onClick={(e) => {
+															e.stopPropagation();
+															toggleBluetooth();
+														}}
+														onContextMenu={handleBluetoothRightClick}
+														aria-pressed={bluetoothEnabled}
+														title="Bluetooth (right-click for devices)"
+													>
+														<span className="cc-tile-dot">
 															<BluetoothIcon />
-														</button>
-														<button
-															className="cc-mini-toggle"
-															onClick={(e) => {
-																e.stopPropagation();
-																invoke("open_app", { appName: "ms-settings:notifications" }).catch(
-																	console.error
-																);
-															}}
-															aria-label="Do Not Disturb"
-															title="Do Not Disturb: open Windows notification settings"
-														>
+														</span>
+														<span className="cc-tile-text">
+															<span className="cc-tile-name">Bluetooth</span>
+															<span className="cc-tile-detail">
+																{!bluetoothEnabled ? "Off" : btConnectedNames.length > 0 ? btConnectedNames.join(", ") : "On"}
+															</span>
+														</span>
+													</button>
+													<button
+														className="cc-tile"
+														onClick={(e) => {
+															e.stopPropagation();
+															invoke("open_app", { appName: "ms-settings:notifications" }).catch(console.error);
+														}}
+														title="Do Not Disturb: open Windows notification settings"
+													>
+														<span className="cc-tile-dot">
 															<MoonIcon />
-														</button>
-														<button
-															className={`cc-mini-toggle ${batterySaverEnabled ? "on" : ""}`}
-															onClick={(e) => {
-																e.stopPropagation();
-																openBatterySaverSettings();
-															}}
-															aria-label="Energy Saver"
-															title={`Energy Saver: ${batterySaverEnabled ? "On" : "Off"}. Click to open its settings`}
-														>
+														</span>
+														<span className="cc-tile-text">
+															<span className="cc-tile-name">Do not disturb</span>
+															<span className="cc-tile-detail">Settings</span>
+														</span>
+													</button>
+													<button
+														className={`cc-tile ${batterySaverEnabled ? "on" : ""}`}
+														onClick={(e) => {
+															e.stopPropagation();
+															openBatterySaverSettings();
+														}}
+														aria-pressed={batterySaverEnabled}
+														title="Energy Saver: open its settings"
+													>
+														<span className="cc-tile-dot">
 															<BatterySaverIcon />
-														</button>
-													</div>
-
-													<div className="cc-mini-sliders">
-														<div className="cc-mini-slider" title={`Volume ${Math.round(displayVolume * 100)}%`}>
+														</span>
+														<span className="cc-tile-text">
+															<span className="cc-tile-name">Energy saver</span>
+															<span className="cc-tile-detail">{batterySaverEnabled ? "On" : "Off"}</span>
+														</span>
+													</button>
+												</div>
+												<div className="cc-sliders">
+													<div className="cc-slider-block">
+														<div className="cc-slider-head">
+															<span>Volume</span>
+															<span className="cc-value">{Math.round(displayVolume * 100)}</span>
+														</div>
+														<div className="cc-mini-slider">
 															<VolumeLowIcon />
 															<div className="cc-mini-track">
 																<input
@@ -5070,7 +5101,13 @@ function App() {
 																<div className="cc-mini-fill" style={{ width: `${displayVolume * 100}%` }} />
 															</div>
 														</div>
-														<div className="cc-mini-slider" title={`Brightness ${currentBrightness}%`}>
+													</div>
+													<div className="cc-slider-block">
+														<div className="cc-slider-head">
+															<span>Brightness</span>
+															<span className="cc-value">{currentBrightness}</span>
+														</div>
+														<div className="cc-mini-slider">
 															<SunIcon />
 															<div className="cc-mini-track">
 																<input
@@ -5089,16 +5126,29 @@ function App() {
 														</div>
 													</div>
 												</div>
-
-												<div className="cc-mini-bottom">
-													<TodayCard
-														use24h={timeFormat24h}
-														fallback={`CPU ${Math.round(cpuUsage)}% · RAM ${Math.round(ramUsage)}%`}
-														onOpenCalendar={
-															settingsCalendarEnabled ? () => setBloomMode("calendar") : undefined
-														}
-													/>
-													<div className="cc-mini-actions">
+												<div className="cc-system">
+													<div className="cc-battery">
+														<span className="cc-battery-icon" aria-hidden="true">
+															<span style={{ width: `${batteryLevel}%` }} />
+														</span>
+														<span className="cc-battery-text">
+															<span className="cc-battery-percent">{Math.round(batteryLevel)}%</span>
+															<span className="cc-tile-detail">{isCharging ? "Charging" : "On battery"}</span>
+														</span>
+													</div>
+													{[
+														["Memory", ramUsage],
+														["Processor", cpuUsage]
+													].map(([label, value]) => (
+														<div key={label as string} className="cc-meter">
+															<span>{label}</span>
+															<span className="cc-meter-track">
+																<span style={{ width: `${Math.round(value as number)}%` }} />
+															</span>
+															<span className="cc-value">{Math.round(value as number)}%</span>
+														</div>
+													))}
+													<div className="cc-actions">
 														<button
 															onClick={(e) => {
 																e.stopPropagation();
@@ -5125,7 +5175,7 @@ function App() {
 																openSettingsWindow();
 															}}
 															aria-label="Qapsule Settings"
-															title="Qapsule Settings (Restart Qapsule is under General)"
+															title="Qapsule Settings"
 														>
 															<SettingsIcon />
 														</button>
@@ -5330,10 +5380,10 @@ function App() {
 																setModulePickerOpen((o) => !o);
 															}}
 															aria-expanded={modulePickerOpen}
-															title="Which module this focus time counts towards"
+															title="Which tag this focus time counts towards"
 														>
 															<i style={{ background: moduleColor(studyModule, studyColors) }} />
-															<span>{studyModule || "No module"}</span>
+															<span>{studyModule || "No tag"}</span>
 															<ChevronDown size={10} strokeWidth={2.6} />
 														</button>
 													</div>
@@ -5378,7 +5428,7 @@ function App() {
 																</button>
 															))}
 															{moduleDraft === null ? (
-																<button onClick={() => setModuleDraft("")} title="Add a module">
+																<button onClick={() => setModuleDraft("")} title="Add a tag">
 																	<Plus size={11} strokeWidth={2.6} />
 																	Add
 																</button>
@@ -5386,7 +5436,7 @@ function App() {
 																<input
 																	className="timer-module-add"
 																	autoFocus
-																	placeholder="e.g. COS 226"
+																	placeholder="e.g. Deep work"
 																	value={moduleDraft}
 																	maxLength={24}
 																	onChange={(e) => setModuleDraft(e.target.value)}
@@ -5463,6 +5513,41 @@ function App() {
 									)}
 								</AnimatePresence>
 
+								{/* Home page */}
+								<AnimatePresence>
+									{settingsHomePageEnabled && bloomMode === "home" && (
+										<motion.div
+											className="calendar-timer-content home-page"
+											onClick={(e) => e.stopPropagation()}
+											initial={{ opacity: 0, y: -4, filter: "blur(5px)" }}
+											animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ type: "spring", stiffness: 400, damping: 30 }}
+										>
+											<HomePage
+												media={mediaInfo}
+												art={albumArtUrl}
+												onPlayPause={togglePlayPause}
+												onNext={skipNext}
+												onPrevious={skipPrevious}
+												time={time}
+												now={new Date()}
+												weather={{
+													temperature,
+													condition: weatherCondition,
+													unit: tempUnit === "fahrenheit" ? "F" : "C",
+													Icon: settingsWeatherEnabled ? WeatherIcon : null
+												}}
+												log={studyLog}
+												goal={studyGoal}
+												use24h={timeFormat24h}
+												onFocus={settingsTimerPageEnabled ? () => setBloomMode("timer") : undefined}
+												onOpenCalendar={settingsCalendarEnabled ? () => setBloomMode("calendar") : undefined}
+											/>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
 								{/* Study stats page */}
 								<AnimatePresence>
 									{settingsStatsPageEnabled && bloomMode === "stats" && (
@@ -5478,6 +5563,7 @@ function App() {
 												log={studyLog}
 												colors={studyColors}
 												now={new Date()}
+												goal={studyGoal}
 												onStartFocus={settingsTimerPageEnabled ? () => setBloomMode("timer") : undefined}
 											/>
 										</motion.div>

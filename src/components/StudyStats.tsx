@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Flame, Play } from "lucide-react";
 import { moduleColor, studyDuration, summarize, type ModuleColors, type StudyLog, type StudyRange } from "../study";
+import { GoalRing } from "./GoalRing";
 import "./StudyStats.css";
 
 export const STUDY_PAGE_WIDTH = 460;
@@ -17,10 +18,12 @@ interface StudyStatsProps {
 	now: Date;
 	/** Opens the timer page; omitted when it's turned off. */
 	onStartFocus?: () => void;
+	/** Today's focus goal in minutes; shows the goal ring on Today. */
+	goal?: number;
 }
 
-/** The notch's Study stats page: focus time per module, today or this week. */
-export function StudyStats({ log, colors, now, onStartFocus }: StudyStatsProps) {
+/** The notch's Focus stats page: focus time per tag, today or this week. */
+export function StudyStats({ log, colors, now, onStartFocus, goal }: StudyStatsProps) {
 	const [range, setRange] = useState<StudyRange>(() => {
 		try {
 			return localStorage.getItem(RANGE_KEY) === "week" ? "week" : "today";
@@ -76,7 +79,7 @@ export function StudyStats({ log, colors, now, onStartFocus }: StudyStatsProps) 
 			{summary.total === 0 ? (
 				<div className="study-empty">
 					<span>{range === "today" ? "No focus time yet today." : "No focus time yet this week."}</span>
-					<span className="study-empty-hint">Start the timer and pick a module; it counts here.</span>
+					<span className="study-empty-hint">Start the timer and pick a tag; it counts here.</span>
 					{onStartFocus && (
 						<button className="study-start" onClick={onStartFocus}>
 							<Play size={11} strokeWidth={2} fill="currentColor" />
@@ -89,6 +92,7 @@ export function StudyStats({ log, colors, now, onStartFocus }: StudyStatsProps) 
 					<div className="study-total">
 						<span className="study-total-value">{studyDuration(summary.total)}</span>
 						<span className="study-total-label">{range === "today" ? "focused today" : "focused this week"}</span>
+						{range === "today" && goal !== undefined && <GoalRing log={log} now={now} goal={goal} size={34} />}
 						{range === "week" && (
 							<div className="study-week" aria-label="Focus time per day">
 								{summary.perDay.map((secs, i) => (
@@ -109,9 +113,9 @@ export function StudyStats({ log, colors, now, onStartFocus }: StudyStatsProps) 
 					<div className="study-modules">
 						{rows.map(([mod, secs]) => (
 							<div className="study-row" key={mod || "none"}>
-								<span className="study-row-name" title={mod || "No module"}>
+								<span className="study-row-name" title={mod || "No tag"}>
 									<i style={{ background: mod === "…" ? "#636366" : moduleColor(mod, colors) }} />
-									{mod === "…" ? "Others" : mod || "No module"}
+									{mod === "…" ? "Others" : mod || "No tag"}
 								</span>
 								<span className="study-row-bar">
 									<span

@@ -58,6 +58,7 @@ export function useSettings() {
 	// Pages added after the original three; on unless turned off.
 	const [timerPageEnabled, setTimerPageEnabled] = useState(true);
 	const [statsPageEnabled, setStatsPageEnabled] = useState(true);
+	const [homePageEnabled, setHomePageEnabled] = useState(true);
 	const [launcherPageEnabled, setLauncherPageEnabled] = useState(true);
 	const [timerSoundEnabled, setTimerSoundEnabled] = useState(
 		() => localStorage.getItem("bloom-timer-sound-enabled") !== "false"
@@ -249,6 +250,7 @@ export function useSettings() {
 			apply(getVal("bloom-notch-devices-enabled"), setDevicesPanelEnabled, readBool);
 			apply(getVal(PANEL_ENABLED_KEYS.timer), setTimerPageEnabled, readBool);
 			apply(getVal(PANEL_ENABLED_KEYS.stats), setStatsPageEnabled, readBool);
+			apply(getVal(PANEL_ENABLED_KEYS.home), setHomePageEnabled, readBool);
 			apply(getVal(PANEL_ENABLED_KEYS.launcher), setLauncherPageEnabled, readBool);
 			apply(getVal("bloom-timer-sound-enabled"), setTimerSoundEnabled, readBool);
 			apply(getVal("bloom-music-mode-enabled"), setMusicModeEnabled, readBool);
@@ -438,6 +440,7 @@ export function useSettings() {
 		"bloom-notch-devices-enabled": setDevicesPanelEnabled,
 		[PANEL_ENABLED_KEYS.timer]: (v: unknown) => setTimerPageEnabled(panelEnabledValue("timer", v)),
 		[PANEL_ENABLED_KEYS.stats]: (v: unknown) => setStatsPageEnabled(panelEnabledValue("stats", v)),
+		[PANEL_ENABLED_KEYS.home]: (v: unknown) => setHomePageEnabled(panelEnabledValue("home", v)),
 		[PANEL_ENABLED_KEYS.launcher]: (v: unknown) =>
 			setLauncherPageEnabled(panelEnabledValue("launcher", v)),
 		"bloom-timer-sound-enabled": setTimerSoundEnabled,
@@ -605,6 +608,7 @@ export function useSettings() {
 
 	// The notch needs at least one panel, so the last one on can't be turned off.
 	const pageEnabled: Record<NotchPanel, boolean> = {
+		home: homePageEnabled,
 		calendar: calendarEnabled,
 		timer: timerPageEnabled,
 		stats: statsPageEnabled,
@@ -619,6 +623,7 @@ export function useSettings() {
 		const next = !pageEnabled[panel];
 		if (!next && enabledPanelCount <= 1) return;
 		const setters: Record<NotchPanel, (v: boolean) => void> = {
+			home: setHomePageEnabled,
 			calendar: setCalendarEnabled,
 			timer: setTimerPageEnabled,
 			stats: setStatsPageEnabled,

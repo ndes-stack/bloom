@@ -1,0 +1,40 @@
+/* The goal ring, shared with Focus stats. */
+.goal {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	min-width: 0;
+}
+
+.goal-track {
+	fill: none;
+	stroke: color-mix(in srgb, var(--bloom-text, #fff) 14%, transparent);
+}
+
+.goal-fill {
+	fill: none;
+	stroke: var(--bloom-accent, #007aff);
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.6s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+
+.goal-ring.met .goal-fill {
+	stroke: #34c759;
+}
+
+.goal-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.goal-done {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.goal-of {
+	font-size: 11px;
+	opacity: 0.6;
+	white-space: nowrap;
+}

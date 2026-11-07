@@ -4821,3 +4821,217 @@ img {
 .reminder-progress.deadline {
 	background: var(--tone-red, #ff6961);
 }
+
+/* Control (the Qapsule redesign): tiles, sliders, then battery and the system. */
+.cc-grid {
+	display: grid;
+	grid-template-columns: 210px minmax(0, 1fr) 150px;
+	gap: 18px;
+	width: 100%;
+	color: var(--bloom-text, #fff);
+}
+
+.cc-tiles {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px;
+	align-content: center;
+}
+
+.cc-tile {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+	height: 52px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 16px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition:
+		background 0.15s ease,
+		transform 0.12s ease;
+}
+
+.cc-tile:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.cc-tile:active {
+	transform: scale(0.95);
+}
+
+.cc-tile-dot {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+	transition: background 0.15s ease;
+}
+
+.cc-tile-dot svg {
+	width: 13px;
+	height: 13px;
+}
+
+.cc-tile.on .cc-tile-dot {
+	background: var(--bloom-accent, #007aff);
+	color: var(--bloom-on-accent, #fff);
+}
+
+.cc-tile-text {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+}
+
+.cc-tile-name {
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-tile-detail {
+	font-size: 10px;
+	opacity: 0.6;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cc-sliders {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 14px;
+	min-width: 0;
+}
+
+.cc-slider-block {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.cc-slider-head {
+	display: flex;
+	justify-content: space-between;
+	font-size: 11px;
+	font-weight: 600;
+	opacity: 0.85;
+}
+
+.cc-value {
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.cc-system {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 7px;
+	min-width: 0;
+}
+
+.cc-battery {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+}
+
+.cc-battery-icon {
+	position: relative;
+	box-sizing: border-box;
+	width: 30px;
+	height: 16px;
+	padding: 2px;
+	border: 1.5px solid color-mix(in srgb, var(--bloom-text, #fff) 70%, transparent);
+	border-radius: 5px;
+}
+
+.cc-battery-icon span {
+	display: block;
+	height: 100%;
+	border-radius: 2px;
+	background: #34c759;
+}
+
+.cc-battery-text {
+	display: flex;
+	flex-direction: column;
+}
+
+.cc-battery-percent {
+	font-size: 17px;
+	font-weight: 600;
+	line-height: 1.1;
+}
+
+.cc-meter {
+	display: grid;
+	grid-template-columns: 58px minmax(0, 1fr) 30px;
+	align-items: center;
+	gap: 6px;
+	font-size: 10px;
+	opacity: 0.85;
+}
+
+.cc-meter-track {
+	position: relative;
+	height: 4px;
+	overflow: hidden;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.cc-meter-track span {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	border-radius: 2px;
+	background: var(--bloom-accent, #007aff);
+	transition: width 0.5s ease;
+}
+
+.cc-actions {
+	display: flex;
+	gap: 4px;
+	margin-top: 2px;
+}
+
+.cc-actions button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 13px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 7%, transparent);
+	color: var(--bloom-text, #fff);
+	cursor: pointer;
+}
+
+.cc-actions button:hover {
+	background: color-mix(in srgb, var(--bloom-text, #fff) 14%, transparent);
+}
+
+.cc-actions svg {
+	width: 13px;
+	height: 13px;
+}
