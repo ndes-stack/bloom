@@ -5035,3 +5035,58 @@ img {
 	width: 13px;
 	height: 13px;
 }
+
+/* Volume and brightness in the notch: icon, bar and value across the pill. */
+.notch-hud {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: grid;
+	grid-template-columns: 18px minmax(0, 1fr) 30px;
+	align-items: center;
+	gap: 12px;
+	padding: 0 18px;
+	color: var(--bloom-text, #fff);
+	pointer-events: none;
+}
+
+.notch-hud-icon {
+	display: flex;
+	opacity: 0.9;
+}
+
+.notch-hud-icon.brightness {
+	color: #ffd60a;
+}
+
+.notch-hud-track {
+	position: relative;
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 15%, transparent);
+}
+
+.notch-hud-fill {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	border-radius: inherit;
+	background: var(--bloom-text, #fff);
+}
+
+.notch-hud-fill.brightness {
+	background: #ffd60a;
+}
+
+.notch-hud-track.muted .notch-hud-fill {
+	opacity: 0.35;
+}
+
+.notch-hud-value {
+	font-size: 12px;
+	font-weight: 600;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}

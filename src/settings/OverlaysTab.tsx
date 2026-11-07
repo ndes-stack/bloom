@@ -1,5 +1,7 @@
-import { Volume2, Sun, ArrowLeftToLine, ArrowRightToLine } from "lucide-react";
+import { Volume2, Sun, ArrowLeftToLine, ArrowRightToLine, PanelTop } from "lucide-react";
 import { SettingRow } from "./SettingRow";
+import { useStored } from "./useStored";
+import { HUD_POSITION_KEY, parseHudPosition } from "../hudPosition";
 
 interface OverlaysTabProps {
 	volumeOverlayEnabled: boolean;
@@ -22,10 +24,22 @@ export function OverlaysTab({
 	brightnessEdgeEnabled,
 	toggleBrightnessEdge
 }: OverlaysTabProps) {
+	const [hudPosition, setHudPosition] = useStored(HUD_POSITION_KEY, parseHudPosition);
 	return (
 		<>
 			<div className="setting-group-label">Overlays</div>
 			<div className="setting-group">
+				<SettingRow icon={PanelTop} label="Show In" desc="Where volume and brightness appear">
+					<select
+						className="settings-select"
+						value={hudPosition}
+						onChange={(e) => setHudPosition(parseHudPosition(e.target.value))}
+					>
+						<option value="notch">Notch</option>
+						<option value="side">Side</option>
+					</select>
+				</SettingRow>
+
 				<SettingRow icon={Volume2} label="Volume HUD" desc="Qapsule volume overlay">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={volumeOverlayEnabled} onChange={toggleVolumeOverlay} />

@@ -1,4 +1,5 @@
 import { StrictMode, useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
+import { HUD_POSITION_KEY, parseHudPosition } from "./hudPosition";
 import { createRoot } from "react-dom/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -643,6 +644,10 @@ function OverlayApp() {
 		}, 2000);
 	}, []);
 
+	// The HUD shows in the notch unless set to the side (hudPosition.ts); a ref, read
+	// when a change arrives, so the listeners below needn't be re-made.
+	const hudInNotchRef = useRef(parseHudPosition(localStorage.getItem(HUD_POSITION_KEY)) === "notch");
+
 	// Load scale from settings
 	useEffect(() => {
 		invoke("load_settings")
@@ -656,6 +661,9 @@ function OverlayApp() {
 				}
 				if (settings && settings["bloom-volume-overlay-enabled"] !== undefined) {
 					setVolumeOverlayEnabled(settings["bloom-volume-overlay-enabled"] === "true");
+				}
+				if (settings && settings[HUD_POSITION_KEY] !== undefined) {
+					hudInNotchRef.current = parseHudPosition(settings[HUD_POSITION_KEY]) === "notch";
 				}
 			})
 			.catch(console.error);
@@ -725,7 +733,7 @@ function OverlayApp() {
 		document.addEventListener("contextmenu", preventContext);
 
 		const volPromise = listen("volume-change", (event: any) => {
-			if (splashActiveRef.current || !volumeOverlayEnabled) return;
+			if (splashActiveRef.current || !volumeOverlayEnabled || hudInNotchRef.current) return;
 			invoke("hide_native_osd");
 			const { volume: newVolume, is_muted } = event.payload;
 			setVolume(newVolume);
@@ -749,7 +757,7 @@ function OverlayApp() {
 		});
 
 		const brightPromise = listen("brightness-change", (event: any) => {
-			if (splashActiveRef.current || !brightnessOverlayEnabled) return;
+			if (splashActiveRef.current || !brightnessOverlayEnabled || hudInNotchRef.current) return;
 			invoke("hide_native_osd");
 			const { brightness: newBrightness } = event.payload;
 			setBrightness(newBrightness);
@@ -808,7 +816,10 @@ function OverlayApp() {
 		"bloom-volume-edge-enabled": setVolumeEdgeEnabled,
 		"bloom-brightness-overlay-enabled": setBrightnessOverlayEnabled,
 		"bloom-brightness-edge-enabled": setBrightnessEdgeEnabled,
-		"bloom-scale": setScale
+		"bloom-scale": setScale,
+		[HUD_POSITION_KEY]: (v: unknown) => {
+			hudInNotchRef.current = parseHudPosition(v) === "notch";
+		}
 	});
 
 	// Side effects: reset overlay mode to idle when overlay is disabled

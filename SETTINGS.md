@@ -126,6 +126,7 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 
 | Key                                | Type                 | Default  | Description                                                              |
 | ---------------------------------- | -------------------- | -------- | ------------------------------------------------------------------------ |
+| `bloom-hud-position`               | `"notch"` / `"side"`  | `"notch"` | Where the volume and brightness HUD shows: in the notch, or as the side overlays. |
 | `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
 | `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |
 | `bloom-brightness-overlay-enabled` | `"true"` / `"false"` | `"true"` | Show Bloom brightness HUD when brightness changes.                       |

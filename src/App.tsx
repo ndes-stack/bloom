@@ -168,8 +168,12 @@ import {
 	Inbox,
 	Music,
 	Timer as TimerIcon,
-	Zap
+	Zap,
+	Sun as SunGlyph,
+	Volume2,
+	VolumeX
 } from "lucide-react";
+import { HUD_POSITION_KEY, parseHudPosition, parseOverlayOn } from "./hudPosition";
 
 /**
  * The notch has two kinds of content:
@@ -547,7 +551,8 @@ type BloomMode =
 	| "wifi"
 	| "bluetooth"
 	| "devices"
-	| "device";
+	| "device"
+	| "hud";
 
 // A device that just connected or disconnected, shown briefly in the pill.
 interface DeviceAlert {
@@ -1918,6 +1923,8 @@ function App() {
 			prev === "command-center" ||
 			prev === "calendar" ||
 			prev === "timer" ||
+			prev === "home" ||
+			prev === "stats" ||
 			prev === "launcher" ||
 			prev === "status" ||
 			prev === "shelf" ||
@@ -2951,6 +2958,36 @@ function App() {
 		return () => clearTimeout(timer);
 	}, [deviceAlert]);
 
+	// Volume and brightness in the notch (Settings > Overlays > Show In: Notch):
+	// the pill widens for a moment to icon, bar and value, then settles back.
+	// Never over an open notch, an announcement, the shelf or a device alert.
+	const [hud, setHud] = useState<{ kind: "volume" | "brightness"; value: number; muted: boolean } | null>(null);
+	const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [hudPosition] = useStored(HUD_POSITION_KEY, parseHudPosition);
+	const [volumeHudOn] = useStored("bloom-volume-overlay-enabled", parseOverlayOn);
+	const [brightnessHudOn] = useStored("bloom-brightness-overlay-enabled", parseOverlayOn);
+	const showHudRef = useRef<(h: { kind: "volume" | "brightness"; value: number; muted: boolean }) => void>(() => {});
+	showHudRef.current = (h) => {
+		if (hudPosition !== "notch") return;
+		if (h.kind === "volume" ? !volumeHudOn : !brightnessHudOn) return;
+		if (isOpenRef.current || ["announcement", "shelf", "device"].includes(bloomMode)) return;
+		invoke("hide_native_osd").catch(() => {});
+		setHud(h);
+		setBloomMode("hud");
+		if (notchMode === "peek") triggerEventPeek(1800);
+		if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+		hudTimerRef.current = setTimeout(() => setHud(null), 1500);
+	};
+
+	// Back to the resting view once the HUD is over.
+	useEffect(() => {
+		if (bloomMode === "hud" && !hud) {
+			setBloomMode(isOpenRef.current ? openingPanel() : collapsedMode);
+		}
+		// openingPanel only reads settings state already in this render.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [bloomMode, hud, collapsedMode]);
+
 	// Back to the resting view once the alert is over.
 	useEffect(() => {
 		if (bloomMode === "device" && !deviceAlert) {
@@ -3026,6 +3063,11 @@ function App() {
 		const unlisten = listen<{ volume: number; is_muted: boolean }>("volume-change", (event) => {
 			setVolume(event.payload.volume);
 			setIsMuted(event.payload.is_muted);
+			showHudRef.current({
+				kind: "volume",
+				value: Math.round(event.payload.volume * 100),
+				muted: event.payload.is_muted
+			});
 		});
 		return () => {
 			unlisten.then((fn) => fn());
@@ -3166,6 +3208,7 @@ function App() {
 	useEffect(() => {
 		const unlisten = listen<{ brightness: number }>("brightness-change", (event) => {
 			setCurrentBrightness(event.payload.brightness);
+			showHudRef.current({ kind: "brightness", value: Math.round(event.payload.brightness), muted: false });
 		});
 		return () => {
 			unlisten.then((fn) => fn());
@@ -3913,6 +3956,7 @@ function App() {
 		if (bloomMode === "announcement" && announcement && !announcementDismissed) return 380;
 		if (showReminderBar) return REMINDER_BAR_WIDTHS[reminderWidth];
 		if (bloomMode === "device" && deviceAlert) return 330;
+		if (bloomMode === "hud" && hud) return 300;
 		if (glowPrimary) return 230;
 		if (islandPill) return islandPillWidth(islandPill);
 		if (isCalendarMode) return 640;
@@ -4570,7 +4614,11 @@ function App() {
 											<div
 												className="main-row"
 												// A device alert covers the whole pill.
-												style={bloomMode === "device" || deviceAlertOnScreen ? { visibility: "hidden" } : undefined}
+												style={
+													bloomMode === "device" || bloomMode === "hud" || deviceAlertOnScreen
+														? { visibility: "hidden" }
+														: undefined
+												}
 											>
 												<AnimatePresence mode="wait">
 													{showReminderBar && reminder ? (
@@ -5186,6 +5234,40 @@ function App() {
 									)}
 								</AnimatePresence>
 
+								{/* Volume / brightness HUD: icon, bar and value across the pill. */}
+								<AnimatePresence>
+									{bloomMode === "hud" && hud && (
+										<motion.div
+											className="notch-hud"
+											role="status"
+											aria-label={`${hud.kind === "volume" ? "Volume" : "Brightness"} ${hud.muted ? "muted" : hud.value}`}
+											initial={{ opacity: 0, filter: "blur(4px)" }}
+											animate={{ opacity: 1, filter: "blur(0px)" }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.1 } }}
+											transition={{ duration: 0.18 }}
+										>
+											<span className={`notch-hud-icon ${hud.kind}`}>
+												{hud.kind === "brightness" ? (
+													<SunGlyph size={15} />
+												) : hud.muted ? (
+													<VolumeX size={15} />
+												) : (
+													<Volume2 size={15} />
+												)}
+											</span>
+											<span className={`notch-hud-track ${hud.muted ? "muted" : ""}`}>
+												<motion.span
+													className={`notch-hud-fill ${hud.kind}`}
+													initial={false}
+													animate={{ width: `${hud.value}%` }}
+													transition={{ type: "spring", stiffness: 500, damping: 35 }}
+												/>
+											</span>
+											<span className="notch-hud-value">{hud.muted ? "Off" : hud.value}</span>
+										</motion.div>
+									)}
+								</AnimatePresence>
+
 								{/* Device alert: a device connected or disconnected. A
 								    click opens the Bluetooth view. */}
 								<AnimatePresence
@@ -5515,7 +5597,7 @@ function App() {
 
 								{/* Home page */}
 								<AnimatePresence>
-									{settingsHomePageEnabled && bloomMode === "home" && (
+									{settingsHomePageEnabled && bloomMode === "home" && isExpanded && !isHidden && (
 										<motion.div
 											className="calendar-timer-content home-page"
 											onClick={(e) => e.stopPropagation()}
