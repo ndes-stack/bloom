@@ -1,5 +1,5 @@
 // The tray end of the dock and the three panels it opens: tray apps, quick
-// settings, and notifications with the calendar. Bloom draws its own panels
+// settings, and notifications with the calendar. Qapsule draws its own panels
 // in place of the Windows flyouts; the Windows ones can't be restyled.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -1502,7 +1502,7 @@ export function CalendarPanel({
 								<div className="ta-empty">
 									<span>Link your calendar to see classes here.</span>
 									<button type="button" className="tp-chip" onClick={onOpenBloomSettings}>
-										Bloom settings
+										Qapsule settings
 									</button>
 								</div>
 							) : agenda.length === 0 ? (

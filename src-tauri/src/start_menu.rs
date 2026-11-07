@@ -1,4 +1,4 @@
-//! Backend for Bloom's own Start menu in the dock: recent files, the
+//! Backend for Qapsule's own Start menu in the dock: recent files, the
 //! signed-in user's name, power actions, known folders, Settings pages, and
 //! giving the dock keyboard focus while Start's search is open.
 

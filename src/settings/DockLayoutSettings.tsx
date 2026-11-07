@@ -31,7 +31,7 @@ export function DockLayoutSettings() {
 				label="Start Menu"
 				desc={
 					start === "bloom"
-						? "The Start button opens Bloom's Start"
+						? "The Start button opens Qapsule's Start"
 						: "The Start button opens the Windows Start menu"
 				}
 			>
@@ -40,7 +40,7 @@ export function DockLayoutSettings() {
 					value={start}
 					onChange={(e) => setStart(e.target.value as StartMenuKind)}
 				>
-					<option value="bloom">Bloom</option>
+					<option value="bloom">Qapsule</option>
 					<option value="windows">Windows</option>
 				</select>
 			</SettingRow>
@@ -49,7 +49,7 @@ export function DockLayoutSettings() {
 				<SettingRow
 					icon={Command}
 					label="Windows Key Opens Start"
-					desc="Tapping the Windows key opens Bloom's Start. Shortcuts like Win+E keep working"
+					desc="Tapping the Windows key opens Qapsule's Start. Shortcuts like Win+E keep working"
 				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={winKey} onChange={() => setWinKey(!winKey)} />

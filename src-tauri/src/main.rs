@@ -257,7 +257,7 @@ fn main() {
             // "Start at login" saves the path of whichever bloom.exe turned it
             // on. Opened once from a zip (which Windows runs from a temporary
             // folder) or replaced by a reinstall, that path stops existing and
-            // Bloom silently stops starting. Re-saving it on every launch keeps
+            // Qapsule silently stops starting. Re-saving it on every launch keeps
             // it pointing at the copy that's actually running, but only while
             // it's on, so turning it off in Settings or Task Manager sticks, and
             // never from a temporary folder.
@@ -475,16 +475,16 @@ fn main() {
             {
                 use tauri::menu::{Menu, MenuItem};
                 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-                let quit_item = MenuItem::with_id(app, "quit", "Quit Bloom", true, None::<&str>)?;
+                let quit_item = MenuItem::with_id(app, "quit", "Quit Qapsule", true, None::<&str>)?;
                 let restart_item =
-                    MenuItem::with_id(app, "restart", "Restart Bloom", true, None::<&str>)?;
+                    MenuItem::with_id(app, "restart", "Restart Qapsule", true, None::<&str>)?;
                 let settings_item =
                     MenuItem::with_id(app, "settings", "Open Settings", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&settings_item, &restart_item, &quit_item])?;
                 let ah = app.handle().clone();
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Bloom")
+                    .tooltip("Qapsule")
                     .menu(&menu)
                     .on_menu_event(move |_, event| match event.id().as_ref() {
                         "quit" => {

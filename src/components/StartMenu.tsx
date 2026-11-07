@@ -1,4 +1,4 @@
-// Bloom's own Start menu, opened from the dock's Start button: search
+// Qapsule's own Start menu, opened from the dock's Start button: search
 // (apps, Settings pages, recent files and your classes), pinned apps, what's
 // on now from your calendar, recent files, All apps, folders and power.
 

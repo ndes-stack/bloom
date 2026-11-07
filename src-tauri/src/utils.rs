@@ -71,7 +71,7 @@ pub fn init_taskbar_marker(app: &tauri::AppHandle) {
     }
 }
 
-/// A separate Bloom process restores Explorer's taskbar when this process is
+/// A separate Qapsule process restores Explorer's taskbar when this process is
 /// terminated without running Tauri's exit handlers.
 pub fn start_taskbar_watchdog() -> std::io::Result<()> {
     let mut started = TASKBAR_WATCHDOG_STARTED
@@ -106,7 +106,7 @@ pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
         OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE,
     };
     // Only treat a missing PID as an already-exited parent. Access denied or
-    // another wait failure must not restore the taskbar over a live Bloom.
+    // another wait failure must not restore the taskbar over a live Qapsule.
     unsafe {
         match OpenProcess(PROCESS_SYNCHRONIZE, false, parent_pid) {
             Ok(parent) => {
@@ -124,7 +124,7 @@ pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
     }
     let _ = TASKBAR_MARKER.set(marker.clone());
     // Explorer can be restarting at the same time. Retry briefly, but never
-    // act on a marker owned by a replacement Bloom process.
+    // act on a marker owned by a replacement Qapsule process.
     for _ in 0..120 {
         if std::fs::read_to_string(&marker)
             .ok()
@@ -141,13 +141,13 @@ pub fn run_taskbar_watchdog(parent_pid: u32, marker: PathBuf) {
     }
 }
 
-/// True if a previous Bloom session died without restoring the native taskbar.
+/// True if a previous Qapsule session died without restoring the native taskbar.
 pub fn taskbar_marker_exists() -> bool {
     TASKBAR_MARKER.get().is_some_and(|p| p.exists())
 }
 
 /// The marker records the user's own taskbar state (`ABM_GETSTATE`) from
-/// before Bloom forced auto-hide, so a crash can't lose it. Markers written by
+/// before Qapsule forced auto-hide, so a crash can't lose it. Markers written by
 /// older versions only contain "1" and carry no state.
 fn marker_contents(
     original_state: i32,
@@ -226,7 +226,7 @@ fn parse_marker_secondaries(
 
 /// Restores the native taskbar after a previous session died with it hidden.
 /// The state saved in the marker becomes the original to restore; without it,
-/// the current state would be captured instead, and that is Bloom's own
+/// the current state would be captured instead, and that is Qapsule's own
 /// auto-hide.
 pub fn restore_taskbar_after_crash() {
     let saved = TASKBAR_MARKER
@@ -281,7 +281,7 @@ pub fn secondary_taskbar_windows() -> Vec<windows::Win32::Foundation::HWND> {
 }
 
 /// Makes a taskbar window invisible and click-through while it is meant to be
-/// hidden, or undoes that. Bloom parks Windows' taskbar in auto-hide mode, and
+/// hidden, or undoes that. Qapsule parks Windows' taskbar in auto-hide mode, and
 /// Explorer slides an auto-hide taskbar back up whenever the pointer reaches
 /// the bottom edge, which is exactly how the dock is peeked. Cloaked, a
 /// taskbar Explorer brings back shows nothing and takes no clicks.
@@ -364,7 +364,7 @@ fn reset_taskbar_rects_after_shell_restart() {
     }
 }
 
-/// Explorer can recreate the tray windows while Bloom remains active. A new
+/// Explorer can recreate the tray windows while Qapsule remains active. A new
 /// owner or primary HWND invalidates the saved tray rectangles; a DPI broadcast
 /// with the same HWND must not discard them while the taskbar is parked offscreen.
 pub fn refresh_taskbar_owner() -> bool {
@@ -440,7 +440,7 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
         let secondary_trays = secondary_taskbar_windows();
 
         // Legacy crash markers did not save the original window rectangle.
-        // Explorer's AppBar position can still recover it after Bloom moved the
+        // Explorer's AppBar position can still recover it after Qapsule moved the
         // taskbar window off-screen.
         if visible {
             if let Ok(mut guard) = ORIGINAL_TRAY_RECT.lock() {
@@ -506,7 +506,7 @@ pub fn set_taskbar_visibility(visible: bool, always_on_top: bool) -> bool {
                 .unwrap_or_default();
             let contents = marker_contents(original, std::process::id(), primary, &secondaries);
             let existing = std::fs::read_to_string(p).ok();
-            // Never take over a marker that another Bloom process owns.
+            // Never take over a marker that another Qapsule process owns.
             if (existing.is_some() || p.exists())
                 && existing.as_deref().and_then(parse_marker_pid) != Some(std::process::id())
             {
@@ -1845,7 +1845,7 @@ mod tests {
         };
         assert!(is_placed_rect(&rect(0, 1020, 1920, 1080)));
         assert!(is_placed_rect(&rect(-1920, 1032, 0, 1080)));
-        // A taskbar Explorer hasn't placed yet, and one Bloom parked off-screen.
+        // A taskbar Explorer hasn't placed yet, and one Qapsule parked off-screen.
         assert!(!is_placed_rect(&rect(0, 0, 0, 0)));
         assert!(!is_placed_rect(&rect(-10000, -10000, -8080, -9952)));
     }

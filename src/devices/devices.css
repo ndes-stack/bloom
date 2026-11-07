@@ -1,4 +1,4 @@
-/* Bloom's device art: motion and tokens for the drawings in art.ts.
+/* Qapsule's device art: motion and tokens for the drawings in art.ts.
  * Converted from the device art prototype. Every rule is scoped to
  * .device-art; .play runs the connect animation, .leave the disconnect. */
 .device-art {

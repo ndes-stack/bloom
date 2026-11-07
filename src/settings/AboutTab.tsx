@@ -37,7 +37,7 @@ export function AboutTab({
 			case "available":
 				return `Update Available (v${updateVersion})`;
 			case "uptodate":
-				return "Bloom is up to date";
+				return "Qapsule is up to date";
 			case "downloading":
 				return "Downloading Update...";
 			case "installing":
@@ -71,11 +71,11 @@ export function AboutTab({
 	return (
 		<div className="about-tab-container">
 			<div className="about-header">
-				<img src="/bloom.png" className="about-logo" alt="Bloom Logo" draggable={false} />
-				<h1 className="about-title">Bloom</h1>
+				<img src="/qapsule.png" className="about-logo" alt="Qapsule Logo" draggable={false} />
+				<h1 className="about-title">Qapsule</h1>
 				<p className="about-version">Version {appVersion}</p>
 				<p className="about-credit">
-					Made with <span className="about-heart">❤️</span> by{" "}
+					Open source under GPL-3.0, built on work by{" "}
 					<button
 						className="about-author"
 						onClick={() => openUrl("https://github.com/SehajveerSingh2005")}

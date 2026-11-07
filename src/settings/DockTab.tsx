@@ -83,10 +83,7 @@ function DrivePicker({
 }
 
 const START_ICON_PRESETS = [
-	{ key: "default", src: "/bloom.png", label: "Bloom" },
-	{ key: "bloom-colorful", src: "/bloom-colorful.png", label: "Colorful" },
-	{ key: "bloom-golden", src: "/bloom-golden.png", label: "Golden" },
-	{ key: "bloom-biscuit", src: "/bloom-biscuit.png", label: "Orange" },
+	{ key: "default", src: "/qapsule.png", label: "Qapsule" },
 	{ key: "windows", src: "/windows-11.png", label: "Windows" }
 ];
 
@@ -191,7 +188,7 @@ export function DockTab({
 		<>
 			<div className="setting-group-label">Dock</div>
 			<div className="setting-group">
-				<SettingRow icon={Monitor} label="Bloom Dock" desc="Replace Windows taskbar">
+				<SettingRow icon={Monitor} label="Qapsule Dock" desc="Replace Windows taskbar">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={dockEnabled} onChange={toggleDock} />
 						<span className="slider"></span>

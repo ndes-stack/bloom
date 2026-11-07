@@ -292,7 +292,7 @@ fn disable_dock(app: &AppHandle) {
     // Clear this before showing the native taskbar: the WinEvent hook can run
     // during ShowWindow and would otherwise immediately hide it again.
     NATIVE_TASKBAR_HIDDEN.store(false, Ordering::Relaxed);
-    // Keep Bloom's dock available if Explorer has not made its taskbar visible.
+    // Keep Qapsule's dock available if Explorer has not made its taskbar visible.
     if !set_taskbar_visibility(true, true) {
         return;
     }
@@ -1036,7 +1036,7 @@ fn restore_rect_on_monitor(
     shift_rect(on_screen_restore_rect(on_screen, target.rcWork), (-dx, -dy))
 }
 
-/// The window outside Bloom that most recently became the foreground window.
+/// The window outside Qapsule that most recently became the foreground window.
 fn last_focused_window() -> Option<HWND> {
     let map = crate::state::FOCUS_TIMESTAMPS.get()?.lock().ok()?;
     let (&last, _) = map.iter().max_by_key(|(_, &at)| at)?;
@@ -3118,7 +3118,7 @@ pub fn release_appbars(handle: &AppHandle) {
     DOCK_APPBAR_REGISTERED.store(false, Ordering::Relaxed);
 }
 
-/// Restore the native taskbar, unregister Bloom's appbars, and exit gracefully.
+/// Restore the native taskbar, unregister Qapsule's appbars, and exit gracefully.
 /// Shared by the tray menu, the in-app Quit button, and the window CloseRequested
 /// handlers so that any shutdown path (including Task Manager's WM_CLOSE) behaves
 /// identically.
@@ -3794,7 +3794,7 @@ pub fn get_windows_apps_use_light_theme() -> Option<bool> {
 }
 
 /// Returns `"light"` or `"dark"` to match the current Windows app mode.
-/// Used by the `system` theme mode so Bloom switches automatically.
+/// Used by the `system` theme mode so Qapsule switches automatically.
 #[tauri::command]
 pub fn get_system_theme() -> String {
     match get_windows_apps_use_light_theme() {
@@ -3805,7 +3805,7 @@ pub fn get_system_theme() -> String {
 
 /// Export and import both pick their file in a native dialog opened from
 /// Rust, so the path a webview can influence never reaches the filesystem
-/// commands. A script injection in any Bloom window would otherwise turn
+/// commands. A script injection in any Qapsule window would otherwise turn
 /// these into arbitrary file read/write as the user.
 #[tauri::command]
 pub async fn export_settings_to_file(
@@ -3832,7 +3832,7 @@ pub async fn export_settings_to_file(
         app.dialog()
             .file()
             .set_parent(&window)
-            .set_title("Export Bloom Settings")
+            .set_title("Export Qapsule Settings")
             .set_file_name("bloom-settings.json")
             .add_filter("JSON", &["json"])
             .blocking_save_file()
@@ -3863,7 +3863,7 @@ pub async fn import_settings_from_file(
             app.dialog()
                 .file()
                 .set_parent(&window)
-                .set_title("Import Bloom Settings")
+                .set_title("Import Qapsule Settings")
                 .add_filter("JSON", &["json"])
                 .blocking_pick_file()
         }
@@ -3963,7 +3963,7 @@ pub fn reset_settings(app: AppHandle) -> Result<(), String> {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
 
-    // Keep non-Bloom keys (the file is user-editable) and the first-run/version
+    // Keep non-Qapsule keys (the file is user-editable) and the first-run/version
     // sentinels (lifecycle markers, not preferences — keeping them avoids
     // replaying the splash after a reset). Everything else falls back to
     // defaults in both the backend and the frontends.
@@ -3984,7 +3984,7 @@ pub fn reset_settings(app: AppHandle) -> Result<(), String> {
     drop(_guard);
 
     // Mirror the external-edit watcher so every open window drops the removed
-    // keys from localStorage. The caller restarts Bloom right after, but this
+    // keys from localStorage. The caller restarts Qapsule right after, but this
     // keeps the reset correct even if a window lingers.
     for key in removed {
         let _ = app.emit(

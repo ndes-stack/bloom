@@ -11,13 +11,13 @@ type Settings = ReturnType<typeof useSettings>;
 
 function startIconSource(icon: string) {
 	const icons: Record<string, string> = {
-		default: "/bloom.png",
+		default: "/qapsule.png",
 		windows: "/windows-11.png",
-		"bloom-colorful": "/bloom-colorful.png",
-		"bloom-golden": "/bloom-golden.png",
-		"bloom-biscuit": "/bloom-biscuit.png"
+		"bloom-colorful": "/qapsule.png",
+		"bloom-golden": "/qapsule.png",
+		"bloom-biscuit": "/qapsule.png"
 	};
-	return icon.startsWith("custom:") ? icon.slice(7) : (icons[icon] ?? "/bloom.png");
+	return icon.startsWith("custom:") ? icon.slice(7) : (icons[icon] ?? "/qapsule.png");
 }
 
 function TaskViewIcon() {

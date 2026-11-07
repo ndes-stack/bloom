@@ -1,6 +1,6 @@
-//! Clips a Bloom window to the parts of the screen its UI actually draws on.
+//! Clips a Qapsule window to the parts of the screen its UI actually draws on.
 //!
-//! Bloom's windows are large transparent rectangles (the notch window spans
+//! Qapsule's windows are large transparent rectangles (the notch window spans
 //! the whole top band of the screen). Wherever such a window catches input,
 //! it swallows clicks meant for the apps underneath, even where it draws
 //! nothing. A window region (`SetWindowRgn`) limits both drawing and hit

@@ -170,7 +170,7 @@ export function ConnectedDevicesPanel({ data, height, buds, lowThreshold, onCont
 		return "Connected";
 	};
 
-	// The drawing an audio device's popup uses. Picking what Bloom would
+	// The drawing an audio device's popup uses. Picking what Qapsule would
 	// guess anyway clears the pick, so a later, better guess still applies.
 	const renderLooks = (entry: DeviceEntry) => {
 		const looks = entry.wired ? WIRED_DEVICE_LOOKS : DEVICE_LOOKS;

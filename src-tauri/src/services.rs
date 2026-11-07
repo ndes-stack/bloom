@@ -122,7 +122,7 @@ fn hotkey_vk(name: &str) -> Option<u32> {
 /// GetTickCount() of the last key event the hook saw.
 static KB_LAST_EVENT_TICK: AtomicU32 = AtomicU32::new(0);
 
-/// Whether Windows has registered input that neither of Bloom's hooks saw,
+/// Whether Windows has registered input that neither of Qapsule's hooks saw,
 /// a moment ago: the sign that Windows dropped the keyboard hook (it does so
 /// silently after a few slow answers). `last_input` is GetLastInputInfo's
 /// tick; ticks are GetTickCount values and may wrap.
@@ -135,18 +135,18 @@ pub fn keyboard_hook_missed_input(last_input: u32, last_key: u32, last_mouse: u3
 
 /// Win+1-9 is the only feature that needs a global keyboard hook: Explorer
 /// already registers those hotkeys, so `RegisterHotKey` can't claim them.
-/// Volume and brightness keys are left to Windows, and Bloom's overlays follow
+/// Volume and brightness keys are left to Windows, and Qapsule's overlays follow
 /// the resulting changes instead. The hook only exists while Win+1-9 is in use
 /// (the dock replaces the taskbar and the setting is on); the rest of the time
-/// Bloom doesn't see the keyboard at all.
+/// Qapsule doesn't see the keyboard at all.
 pub fn setup_keyboard_hook(app_handle: AppHandle) {
     let _ = KEYBOARD_HOOK_APP_HANDLE.set(app_handle);
     std::thread::spawn(move || {
         // Exiting removes the hook with the process; never touch it mid-shutdown.
         while !SHUTTING_DOWN.load(Ordering::Relaxed) {
             KB_WIN_NUMBER_ON.store(dock_win_number_enabled(), Ordering::Relaxed);
-            // Opening Bloom's Start from the Windows key only needs the dock on.
-            // It used to also wait for Bloom to have hidden Windows' taskbar,
+            // Opening Qapsule's Start from the Windows key only needs the dock on.
+            // It used to also wait for Qapsule to have hidden Windows' taskbar,
             // and Explorer's auto-hide kept that from sticking, so the key went
             // to Windows' Start most of the time.
             KB_START_ON_WIN.store(
@@ -189,7 +189,7 @@ pub fn setup_keyboard_hook(app_handle: AppHandle) {
 /// It used to live on the main thread, where a busy moment (a window event, a
 /// slow command) could keep it from answering in time; Windows then drops the
 /// hook without notice, and the Windows key and Win+1-9 stopped working until
-/// Bloom restarted.
+/// Qapsule restarted.
 fn start_keyboard_hook_thread() {
     if KEYBOARD_HOOK_RUNNING.swap(true, Ordering::Relaxed) {
         return;
@@ -214,7 +214,7 @@ fn start_keyboard_hook_thread() {
         // Once a second, check Windows hasn't dropped the hook (see
         // keyboard_hook_missed_input) and put it back if it has, as the mouse
         // hook already does. Without this the Windows key stayed with
-        // Windows' Start until Bloom restarted.
+        // Windows' Start until Qapsule restarted.
         let timer = SetTimer(None, 1, 1000, None);
         let mut hook = hook;
         let mut last_reinstall = 0u32;
@@ -302,7 +302,7 @@ fn dock_win_number_enabled() -> bool {
         .unwrap_or(true)
 }
 
-/// A lone Windows key tap opens Bloom's Start instead of Windows' when the
+/// A lone Windows key tap opens Qapsule's Start instead of Windows' when the
 /// dock's Start button does (`bloom-start-menu`) and `bloom-start-win-key` is on.
 fn bloom_start_on_win_key() -> bool {
     let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get() else {
@@ -341,18 +341,18 @@ fn emit_notch_open_launcher() {
 }
 
 
-/// Asks the dock to open Bloom's Start, off the hook thread.
+/// Asks the dock to open Qapsule's Start, off the hook thread.
 fn emit_dock_open_start() {
     let Some(app) = KEYBOARD_HOOK_APP_HANDLE.get().cloned() else {
         return;
     };
     tauri::async_runtime::spawn(async move {
-        crate::diagnostics::record("start_key", "Windows key tap: opening Bloom's Start");
+        crate::diagnostics::record("start_key", "Windows key tap: opening Qapsule's Start");
         let _ = app.emit_to("dock", "dock-open-start", ());
     });
 }
 
-/// Whether one of Bloom's HUD overlays is enabled (`bloom-volume-overlay-enabled`,
+/// Whether one of Qapsule's HUD overlays is enabled (`bloom-volume-overlay-enabled`,
 /// `bloom-brightness-overlay-enabled`). With an overlay off, the matching keys
 /// and the native flyout are left to Windows instead of being taken over.
 fn overlay_enabled(app: &AppHandle, key: &str) -> bool {
@@ -1000,7 +1000,7 @@ unsafe extern "system" fn taskbar_event_proc(
     _dwms_event_time: u32,
 ) {
     // Location changes fire for every caret and cursor move too; only whole
-    // windows matter, and nothing while Bloom itself shows the tray.
+    // windows matter, and nothing while Qapsule itself shows the tray.
     if _id_object != 0
         || !NATIVE_TASKBAR_HIDDEN.load(Ordering::Relaxed)
         || SYSTEM_TRAY_OPEN.load(Ordering::Relaxed)
@@ -1395,7 +1395,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
             let mut last_volume: f32 = -1.0;
             let mut last_muted: bool = false;
 
-            // Only hide the native flyout when Bloom's matching overlay replaces it.
+            // Only hide the native flyout when Qapsule's matching overlay replaces it.
             let hide_osd = |overlay_key: &str| {
                 if !overlay_enabled(&handle_system, overlay_key) {
                     return;
@@ -1721,7 +1721,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
         CURRENT_BRIGHTNESS.store(last_brightness, Ordering::Relaxed);
         // Brightness keys are handled by Windows or the firmware, so follow the
         // resulting changes as they happen; the overlay then appears at once.
-        // Changes Bloom made itself (its slider) are skipped like the poll did.
+        // Changes Qapsule made itself (its slider) are skipped like the poll did.
         if let Ok(events) = wmi_con.raw_notification::<WmiMonitorBrightnessEvent>(
             "SELECT * FROM WmiMonitorBrightnessEvent",
         ) {
@@ -1802,7 +1802,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 };
                 let mut hwnd = GetForegroundWindow();
 
-                // Bloom's HUD and menus can briefly become the foreground
+                // Qapsule's HUD and menus can briefly become the foreground
                 // window while the user drags a control or right-clicks the
                 // dock. Walking the Z-order from that window may select a
                 // different app on every tick, making the smart dock flash.
@@ -1833,7 +1833,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 }
 
                 // Find the first meaningful window for overlap detection.
-                // We skip Bloom windows, invisible windows, minimized windows, and 'cloaked' system ghosts.
+                // We skip Qapsule windows, invisible windows, minimized windows, and 'cloaked' system ghosts.
                 // On systems with many top-level shell/helper windows, the app can be
                 // far down the Z-order. Keep a generous bound, but never treat the
                 // unchecked window at the bound as a valid foreground window.
@@ -1850,7 +1850,7 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                     );
                     let class_str = std::str::from_utf8(&class_name[..len as usize]).unwrap_or("");
 
-                    let is_bloom = process_id == my_process_id || class_str.contains("Bloom");
+                    let is_bloom = process_id == my_process_id || class_str.contains("Qapsule");
                     let is_popup_menu = class_str == "#32768";
                     let is_visible = IsWindowVisible(hwnd).as_bool();
                     let is_iconic = IsIconic(hwnd).as_bool();
@@ -2135,10 +2135,10 @@ pub fn setup_system_worker(app_handle: AppHandle) -> Sender<SystemCommand> {
                 // Self-heal: Windows' taskbar is showing behind a visible dock
                 // although nothing meant to show it. A hide that failed once
                 // (at startup, or while a tray menu was open) used to leave the
-                // flag off until Bloom restarted, so the taskbar stayed up and
+                // flag off until Qapsule restarted, so the taskbar stayed up and
                 // the Windows key opened Windows' Start. Wait a few checks so
                 // deliberate, short-lived showings finish first.
-                // The flag is the intent ("Bloom keeps Windows' taskbar
+                // The flag is the intent ("Qapsule keeps Windows' taskbar
                 // hidden"), so it is restored even when a check right after
                 // hiding disagrees: Explorer's auto-hide can slide the taskbar
                 // back at that moment. The 150 ms enforcement above then keeps
@@ -2305,7 +2305,7 @@ fn native_osd_windows() -> Vec<HWND> {
 /// Laptop brightness keys bypass input hooks (the firmware changes brightness
 /// and notifies the display driver directly), so unlike the volume keys they
 /// cannot be swallowed to keep Windows from drawing its own flyout. While
-/// Bloom's overlay replaces it, the flyout host is kept fully transparent and
+/// Qapsule's overlay replaces it, the flyout host is kept fully transparent and
 /// click-through instead; Explorer may still show it, but nothing is visible.
 pub fn set_native_osd_suppressed(suppress: bool) {
     use windows::Win32::Foundation::COLORREF;
@@ -2318,7 +2318,7 @@ pub fn set_native_osd_suppressed(suppress: bool) {
             let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
             let mut alpha = 255u8;
             // Explorer never makes this window layered itself, so a layered
-            // window at alpha 0 is Bloom's doing, including from a crashed run.
+            // window at alpha 0 is Qapsule's doing, including from a crashed run.
             let suppressed = (ex_style & WS_EX_LAYERED.0) != 0
                 && GetLayeredWindowAttributes(hwnd, None, Some(&mut alpha), None).is_ok()
                 && alpha == 0;
@@ -2342,7 +2342,7 @@ pub fn set_native_osd_suppressed(suppress: bool) {
 }
 
 /// The volume and brightness flyouts share one host window, so it is only
-/// suppressed while Bloom replaces both. With either overlay turned off, the
+/// suppressed while Qapsule replaces both. With either overlay turned off, the
 /// user asked for the native flyout and it must stay visible.
 fn sync_native_osd(app_handle: &AppHandle) {
     let enabled = |key: &str| {
@@ -2675,7 +2675,7 @@ pub fn refresh_main_interaction(app_handle: &AppHandle) {
 }
 
 /// True while a screen-capture UI (Windows Snipping Tool) has a visible window.
-/// Bloom's notch sits exactly where that toolbar lives, so it must get out of
+/// Qapsule's notch sits exactly where that toolbar lives, so it must get out of
 /// the way even if the capture window isn't recognised as fullscreen.
 unsafe extern "system" fn capture_ui_enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     use windows::Win32::UI::WindowsAndMessaging::IsIconic;
@@ -2771,7 +2771,7 @@ fn apply_capture_ui_state(app: &AppHandle, active: bool) {
     MH_LAST_MAIN_IGNORE.store(-1, Ordering::Relaxed);
     MH_LAST_DOCK_IGNORE.store(-1, Ordering::Relaxed);
     MH_LAST_OV_IGNORE.store(-1, Ordering::Relaxed);
-    // Cancel any pending top/bottom-edge dwell so they cannot arm while Bloom
+    // Cancel any pending top/bottom-edge dwell so they cannot arm while Qapsule
     // is click-through for the capture tool.
     MH_TOP_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
     MH_TOP_EDGE_ARMED.store(false, Ordering::Relaxed);
@@ -2840,7 +2840,7 @@ fn queue_cursor(point: windows::Win32::Foundation::POINT) {
 }
 
 /// "app.exe" or "app.exe (admin)" for the foreground window, for the log.
-/// Windows hides input from Bloom's hooks while an app running as
+/// Windows hides input from Qapsule's hooks while an app running as
 /// administrator is in front, which looks exactly like a dropped hook.
 fn foreground_summary() -> String {
     use windows::Win32::Foundation::HANDLE;
@@ -2911,7 +2911,7 @@ fn run_mouse_hook_thread() {
         // can shut down and detect a hook Windows silently removed on timeout.
         let timer = SetTimer(None, 1, 500, None);
         if timer == 0 {
-            eprintln!("Bloom mouse hook: timer creation failed; retrying");
+            eprintln!("Qapsule mouse hook: timer creation failed; retrying");
             return;
         }
         let mut hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0).ok();
@@ -3050,7 +3050,7 @@ fn update_main_interaction(
     fg_fs: bool,
 ) {
     if fg_fs {
-        // Fullscreen foreground app or capture overlay: Bloom steps aside and
+        // Fullscreen foreground app or capture overlay: Qapsule steps aside and
         // any pending top-edge dwell is dropped.
         MH_TOP_EDGE_ENTER_MS.store(0, Ordering::Relaxed);
         MH_TOP_EDGE_ARMED.store(false, Ordering::Relaxed);
@@ -3066,7 +3066,7 @@ fn update_main_interaction(
         if MH_LAST_TOP_EDGE_HOVER.swap(0, Ordering::Relaxed) != 0 {
             let _ = app_handle.emit("notch-edge-hover", false);
         }
-        // Bloom is fully click-through here, so the webview cannot clear its
+        // Qapsule is fully click-through here, so the webview cannot clear its
         // own hover state; do it for it.
         if NOTCH_IS_HOVERED.swap(false, Ordering::Relaxed) {
             let _ = app_handle.emit("notch-pointer-left", ());
@@ -3486,7 +3486,7 @@ unsafe extern "system" fn mouse_hook_proc(
         MOUSE_HOOK_LAST_EVENT_MS.store(hook_tick_ms(), Ordering::Relaxed);
     }
     // Start closes itself on the press of a click outside it, the dock's
-    // Start button included, before that click reaches Bloom. The hook sees
+    // Start button included, before that click reaches Qapsule. The hook sees
     // the press first, so it records whether Start was open for the click to
     // use. A cheap foreground check, and only on presses.
     if code >= 0 && wparam.0 == WM_LBUTTONDOWN as usize {
@@ -3550,7 +3550,7 @@ fn process_mouse_position(app_handle: &AppHandle, cursor: windows::Win32::Founda
     }
     let now = now_ms();
     {
-        // While a capture UI (Snipping Tool) is up, Bloom is fully
+        // While a capture UI (Snipping Tool) is up, Qapsule is fully
         // click-through and skipped entirely so the tool owns the screen.
         if CAPTURE_UI_ACTIVE.load(Ordering::Relaxed) {
             if let Some(hwnd) = app_handle
@@ -4111,7 +4111,7 @@ pub fn register_appbar(window: tauri::WebviewWindow) {
                     &format!("registration_result={registered}"),
                 );
                 if registered == 0 {
-                    eprintln!("Bloom: notch AppBar registration failed");
+                    eprintln!("Qapsule: notch AppBar registration failed");
                     return;
                 }
                 MAIN_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
@@ -4340,7 +4340,7 @@ fn register_dock_appbar_inner(window: tauri::WebviewWindow, attempt: i32) {
                     &format!("registration_result={registered}"),
                 );
                 if registered == 0 {
-                    eprintln!("Bloom: dock AppBar registration failed");
+                    eprintln!("Qapsule: dock AppBar registration failed");
                     return;
                 }
                 DOCK_APPBAR_REGISTERED.store(true, Ordering::Relaxed);
@@ -4506,7 +4506,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
             }
 
             // Filter out system containers and background stuff
-            if title == "Program Manager" || title == "Bloom" || title == "Bloom Dock" {
+            if title == "Program Manager" || title == "Qapsule" || title == "Qapsule Dock" {
                 return true.into();
             }
 
@@ -4545,7 +4545,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                         || window_class == "ExploreWClass"
                         || (window_class == "#32770" && dialog_has_tab_control(hwnd));
 
-                    // Filter out Bloom itself (except the Settings window) and some common background processes
+                    // Filter out Qapsule itself (except the Settings window) and some common background processes
                     if (lowercase_path.contains("bloom.exe") && title != "Settings")
                         || lowercase_path.contains("conhost.exe")
                         || (lowercase_path.contains("explorer.exe") && !is_explorer_window)
@@ -4695,7 +4695,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
                 // for elevation wasn't in the foreground. The taskbar shows it
                 // as a flashing button; with the taskbar hidden, the dock is
                 // the only place to reach it besides Alt+Tab. consent.exe runs
-                // as SYSTEM, so Bloom can't open it to read its path.
+                // as SYSTEM, so Qapsule can't open it to read its path.
                 if !apps.iter().any(|a| a.hwnd == Some(hwnd.0 as isize)) {
                     let system_root =
                         std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
@@ -4715,7 +4715,7 @@ pub unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> B
     true.into()
 }
 
-/// The executable name of a process Bloom can't open, such as one running as
+/// The executable name of a process Qapsule can't open, such as one running as
 /// SYSTEM, from the system's process list, which needs no access to it.
 unsafe fn process_exe_name(process_id: u32) -> Option<String> {
     use windows::Win32::System::Diagnostics::ToolHelp::{
@@ -5020,7 +5020,7 @@ static RECOVERING_FROM_WEBVIEW_FAILURE: AtomicBool = AtomicBool::new(false);
 /// If a webview's browser or renderer process exits (crash, or killed), the
 /// notch and dock windows stay on screen with dead content. They also stop
 /// switching click-through, so they keep swallowing clicks meant for the
-/// windows under them. Bloom restarts itself when that happens.
+/// windows under them. Qapsule restarts itself when that happens.
 pub fn watch_webview_processes(app: &AppHandle) {
     let _ = WEBVIEWS_WATCHED_AT.set(Instant::now());
     for (_, window) in app.webview_windows() {
@@ -5079,7 +5079,7 @@ fn recover_from_webview_failure(handle: &AppHandle) {
             crate::diagnostics::record("webview_recovery", "startup failure; exiting safely");
             crate::commands::restore_taskbar_and_exit(&handle);
         } else {
-            crate::diagnostics::record("webview_recovery", "restarting Bloom");
+            crate::diagnostics::record("webview_recovery", "restarting Qapsule");
             crate::commands::restart_bloom(handle).await;
         }
     });

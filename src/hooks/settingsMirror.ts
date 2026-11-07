@@ -20,7 +20,7 @@ const mirroredAtStartup = Object.keys(localStorage).filter((key) => key.startsWi
 
 /**
  * localStorage mirrors settings.json so windows can paint before settings
- * load. A key that settings.json no longer has (edited while Bloom was closed,
+ * load. A key that settings.json no longer has (edited while Qapsule was closed,
  * or dropped by an import) would otherwise keep coming back from the mirror.
  * If this window started from such a stale value, the stale keys are removed
  * and the window reloads once, so it starts from the defaults. Resolves to

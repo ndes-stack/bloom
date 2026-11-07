@@ -1,4 +1,4 @@
-//! Edge triggers on other displays. Bloom lives on the main display, but
+//! Edge triggers on other displays. Qapsule lives on the main display, but
 //! resting the mouse against the top edge of another display opens the notch,
 //! and against its bottom edge shows the dock, so neither needs a trip across
 //! the desk first (`bloom-notch-remote-edge`, `bloom-dock-remote-edge`).

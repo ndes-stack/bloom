@@ -1,4 +1,4 @@
-// Bloom's device art: one SVG drawing per device, in the shared 2D design
+// Qapsule's device art: one SVG drawing per device, in the shared 2D design
 // system (see devices.css). Converted from the device art prototype; each
 // drawing is the inner markup of a 100 x 100 viewBox. Shared gradients and
 // clip paths are in DEVICE_ART_DEFS, rendered once per window.

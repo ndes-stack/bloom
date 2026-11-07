@@ -1,6 +1,6 @@
 name: Build Windows exe
 
-# Builds an unsigned Bloom .exe (plus an NSIS installer) and uploads them as a
+# Builds an unsigned Qapsule .exe (plus an NSIS installer) and uploads them as a
 # downloadable artifact. Run it by hand from the Actions tab on any branch.
 on:
   workflow_dispatch:
@@ -39,8 +39,8 @@ jobs:
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
-          name: bloom-windows
-          # Only the installer: the bare bloom.exe, opened from the zip, ran
+          name: qapsule-windows
+          # Only the installer: the bare exe, opened from the zip, ran
           # from a temporary folder and stopped starting at login.
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error

@@ -1,7 +1,7 @@
 //! Bluetooth device management for the notch's Bluetooth view: paired devices
 //! with their type, connection and battery; connecting and disconnecting
 //! headphones and speakers; pairing new devices, with PIN prompts answered in
-//! Bloom's own UI; and removing devices.
+//! Qapsule's own UI; and removing devices.
 //!
 //! Windows has no public "connect this device" call. Audio devices are the
 //! exception: their Bluetooth audio driver accepts a one-shot reconnect or
@@ -58,7 +58,7 @@ pub struct BtDevice {
     pub connected: bool,
     /// Percent, when the device reports it.
     pub battery: Option<u8>,
-    /// Bloom can connect and disconnect it (headphones and speakers).
+    /// Qapsule can connect and disconnect it (headphones and speakers).
     pub can_connect: bool,
 }
 

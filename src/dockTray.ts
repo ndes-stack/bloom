@@ -6,7 +6,7 @@ export const DOCK_TRAY_KEY = "bloom-dock-tray";
 
 export type TrayPanelKind = "apps" | "quick" | "lang" | "calendar" | "start";
 
-/** Notifications Windows has shared with Bloom. */
+/** Notifications Windows has shared with Qapsule. */
 export interface TrayNotification {
 	id: number;
 	app_id: string;

@@ -673,7 +673,7 @@ body {
 	font-weight: 500;
 }
 
-/* Invert Bloom logo / Settings icon in light mode */
+/* Invert Qapsule logo / Settings icon in light mode */
 .light-mode .bloom-icon-img {
 	filter: invert(1) brightness(0.15) contrast(1.2);
 }

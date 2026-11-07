@@ -55,7 +55,7 @@ pub async fn fetch_ics(url: &str) -> Result<String, String> {
 
     let client = reqwest::Client::builder()
         .timeout(FETCH_TIMEOUT)
-        .user_agent(concat!("Bloom/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("Qapsule/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("Couldn't start the calendar download: {}", e.without_url()))?;
 

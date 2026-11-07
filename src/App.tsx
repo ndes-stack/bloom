@@ -1606,7 +1606,7 @@ function App() {
 		};
 	}, [windowLabel, systemSettingsReady, waitForStartupSplash, dockEnabled, dockMode, notchMode]);
 
-	// Bloom mode state: 'music', 'calendar', 'command-center', 'announcement', 'shelf', or 'status'
+	// Qapsule mode state: 'music', 'calendar', 'command-center', 'announcement', 'shelf', or 'status'
 	const [bloomMode, setBloomMode] = useState<BloomMode>("status");
 
 	// Shelf: files and selected text stashed in the notch via drag-and-drop.
@@ -2700,7 +2700,7 @@ function App() {
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && launcherHeldRef.current) closeHeldLauncherRef.current(true);
 		};
-		// A click anywhere outside Bloom takes the focus away. Right after the
+		// A click anywhere outside Qapsule takes the focus away. Right after the
 		// shortcut, though, the app it was pressed in can grab focus back as the
 		// keys are let go (browsers do, on Alt's release); take it back once
 		// rather than closing.
@@ -3119,7 +3119,7 @@ function App() {
 	}, []);
 
 	// Refresh Wi-Fi status while the command center is open so changes made
-	// outside Bloom (keyboard toggle, Windows quick settings) show up.
+	// outside Qapsule (keyboard toggle, Windows quick settings) show up.
 	useEffect(() => {
 		if (bloomMode !== "command-center") return;
 		void refreshWifiStatus();
@@ -3820,7 +3820,7 @@ function App() {
 	}
 	const activities = sortActivities(liveActivities);
 	// Stretch style: the notch grows into a pill for the top activity while it
-	// rests (music keeps Bloom's own compact view; reminders use the bar).
+	// rests (music keeps Qapsule's own compact view; reminders use the bar).
 	const islandTop = islandStyle && !isOpen && !isHovered ? activities[0] : undefined;
 	const islandPill =
 		islandTop && ["timer", "timer-done", "power", "low-battery", "update"].includes(islandTop.kind)
@@ -5124,8 +5124,8 @@ function App() {
 																e.stopPropagation();
 																openSettingsWindow();
 															}}
-															aria-label="Bloom Settings"
-															title="Bloom Settings (Restart Bloom is under General)"
+															aria-label="Qapsule Settings"
+															title="Qapsule Settings (Restart Qapsule is under General)"
 														>
 															<SettingsIcon />
 														</button>

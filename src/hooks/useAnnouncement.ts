@@ -64,7 +64,7 @@ function fetchAnnouncement(): Promise<Announcement | null> {
 }
 
 /**
- * Fetches the announcement published at `announcements.json` on the Bloom
+ * Fetches the announcement published at `announcements.json` on the Qapsule
  * website. Fails silently (offline / not deployed), retries on a later launch,
  * and keeps the last payload cached so the card survives restarts until
  * dismissed. Dismissal is stored as the `bloom-announcement-dismissed` setting

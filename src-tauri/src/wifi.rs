@@ -73,7 +73,7 @@ impl Client {
         Ok(Client(handle))
     }
 
-    /// The first wireless interface. Like the Windows quick settings, Bloom
+    /// The first wireless interface. Like the Windows quick settings, Qapsule
     /// manages one adapter.
     fn interface(&self) -> Result<GUID, String> {
         let mut list: *mut WLAN_INTERFACE_INFO_LIST = std::ptr::null_mut();

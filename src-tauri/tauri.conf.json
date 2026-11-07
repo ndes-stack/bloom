@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "bloom",
+  "productName": "Qapsule",
   "version": "3.10.1",
   "identifier": "com.sehaz.bloom",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "bloom",
+        "title": "Qapsule",
         "width": 1920,
         "height": 420,
         "x": 0,
@@ -76,7 +76,7 @@
       },
       {
         "label": "dock",
-        "title": "Bloom Dock",
+        "title": "Qapsule Dock",
         "url": "dock.html",
         "width": 1920,
         "height": 600,
@@ -108,7 +108,7 @@
     "copyright": "Copyright © 2026 Sehajveer Singh",
     "category": "Utility",
     "shortDescription": "A notch and dock for Windows",
-    "longDescription": "Bloom replaces the Windows taskbar with a dock and adds a notch for media, quick controls and status.",
+    "longDescription": "Qapsule replaces the Windows taskbar with a dock and adds a notch for media, quick controls and status.",
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"

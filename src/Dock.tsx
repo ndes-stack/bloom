@@ -173,7 +173,7 @@ function resolveStartIcon(startIcon: string): string {
 	if (startIcon === "bloom-biscuit") return "/bloom-biscuit.png";
 	if (startIcon === "windows") return "/windows-11.png";
 	if (startIcon.startsWith("custom:")) return startIcon.slice("custom:".length);
-	return "/bloom.png";
+	return "/qapsule.png";
 }
 
 // Stable module-level constants so object references never change between renders,
@@ -332,7 +332,7 @@ const Dock = memo(function Dock() {
 	const pillCollapsed = tabletActive && !pillOpen;
 	const floating = dockStyle === "floating";
 	const showGlance = pillGlance && dockTrayEnabled;
-	// The dock's own size on top of Bloom's scale; the tablet dock comes back
+	// The dock's own size on top of Qapsule's scale; the tablet dock comes back
 	// bigger for fingers.
 	const scale =
 		uiScale * dockSizeFactor(dockSize) * (tabletActive && pillOpen ? TOUCH_FACTOR : 1);
@@ -1378,7 +1378,7 @@ const Dock = memo(function Dock() {
 
 	const closeTrayPanel = useMemo(() => () => setTrayPanel(null), []);
 
-	// The Windows key: a tap toggles Bloom's Start (the backend's keyboard hook
+	// The Windows key: a tap toggles Qapsule's Start (the backend's keyboard hook
 	// stops Windows' own from opening). A hidden dock or tablet pill comes up
 	// first so Start can line up with it.
 	const trayPanelRef = useRef(trayPanel);
@@ -2096,7 +2096,9 @@ const Dock = memo(function Dock() {
 														const isBloomOrSettings =
 															app.name.toLowerCase() === "settings" ||
 															app.name.toLowerCase() === "bloom" ||
-															app.path.toLowerCase().includes("bloom.exe");
+															app.name.toLowerCase() === "qapsule" ||
+															app.path.toLowerCase().includes("bloom.exe") ||
+															app.path.toLowerCase().includes("qapsule.exe");
 
 														return icon ? (
 															<img
@@ -2255,7 +2257,9 @@ const Dock = memo(function Dock() {
 												const isBloomOrSettings =
 													app.name.toLowerCase() === "settings" ||
 													app.name.toLowerCase() === "bloom" ||
-													app.path.toLowerCase().includes("bloom.exe");
+													app.name.toLowerCase() === "qapsule" ||
+													app.path.toLowerCase().includes("bloom.exe") ||
+													app.path.toLowerCase().includes("qapsule.exe");
 												return icon ? (
 													<img
 														src={icon}
@@ -2470,7 +2474,7 @@ const Dock = memo(function Dock() {
 								onMouseEnter={() => setActiveSubmenu("bloom")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Bloom Options
+								Qapsule Options
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -2483,7 +2487,7 @@ const Dock = memo(function Dock() {
 										Open Settings
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_bloom")}>
-										Restart Bloom
+										Restart Qapsule
 									</div>
 									<div
 										className="menu-item"
@@ -2496,7 +2500,7 @@ const Dock = memo(function Dock() {
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_bloom")}>
-										Quit Bloom
+										Quit Qapsule
 									</div>
 								</div>
 							</div>
@@ -2569,7 +2573,7 @@ const Dock = memo(function Dock() {
 								onMouseEnter={() => setActiveSubmenu("bloom")}
 								onMouseLeave={() => setActiveSubmenu(null)}
 							>
-								Bloom Options
+								Qapsule Options
 								<span className="submenu-arrow">▶</span>
 								<div className="submenu">
 									<div
@@ -2582,7 +2586,7 @@ const Dock = memo(function Dock() {
 										Open Settings
 									</div>
 									<div className="menu-item" onClick={() => invoke("restart_bloom")}>
-										Restart Bloom
+										Restart Qapsule
 									</div>
 									<div
 										className="menu-item"
@@ -2595,7 +2599,7 @@ const Dock = memo(function Dock() {
 									</div>
 									<div className="menu-divider" />
 									<div className="menu-item quit" onClick={() => invoke("quit_bloom")}>
-										Quit Bloom
+										Quit Qapsule
 									</div>
 								</div>
 							</div>

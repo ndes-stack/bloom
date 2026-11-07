@@ -1,4 +1,4 @@
-/* Inter ships with Bloom: a web font fetched at startup held up the first
+/* Inter ships with Qapsule: a web font fetched at startup held up the first
    paint, and failed outright when the network wasn't up yet. */
 @import "@fontsource/inter/latin-400.css";
 @import "@fontsource/inter/latin-500.css";

@@ -30,7 +30,7 @@ let feed: FeedState = { status: "off", calendar: null, error: null, fetchedAt: 0
 let inflight: Promise<void> | null = null;
 let generation = 0;
 // A failed download is retried soon, sooner than the 10-minute refresh:
-// at login Bloom often starts before Wi-Fi is up, and the calendar used to
+// at login Qapsule often starts before Wi-Fi is up, and the calendar used to
 // stay empty (as if the link were gone) until the next refresh.
 let retryTimer: number | null = null;
 let retryDelay = 0;

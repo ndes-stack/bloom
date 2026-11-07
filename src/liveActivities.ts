@@ -3,7 +3,7 @@
 // Things happening right now (a class coming up, something due, a timer,
 // music, plugging in) are gathered into one list, most urgent first, and
 // shown in the style picked in Settings:
-//   island – the notch itself stretches to show it (Bloom's original look)
+//   island – the notch itself stretches to show it (Qapsule's original look)
 //   glow   – the notch stays small, swaps its text, and a coloured line glows
 //            along its bottom edge
 //   tags   – little labels hang under the notch on thin strings

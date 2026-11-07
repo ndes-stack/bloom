@@ -7,7 +7,7 @@
 //! notch is kept out of the shot by briefly excluding its window from screen
 //! capture (Windows 10 2004 and later); it stays visible on the monitor the
 //! whole time and is restored to normal straight after, so screenshots and
-//! screen sharing still include Bloom.
+//! screen sharing still include Qapsule.
 
 use tauri::WebviewWindow;
 

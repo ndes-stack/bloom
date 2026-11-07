@@ -1,4 +1,4 @@
-// Bloom's Start menu: settings keys, Settings pages for search, and small
+// Qapsule's Start menu: settings keys, Settings pages for search, and small
 // helpers. No Tauri imports.
 
 export const START_MENU_KEY = "bloom-start-menu";

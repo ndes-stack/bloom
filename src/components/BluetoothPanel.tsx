@@ -42,7 +42,7 @@ interface BtPairingRequest {
 
 const ERROR_TEXT: Record<string, string> = {
 	"not-found": "Refresh and try again",
-	unsupported: "Bloom can connect headphones and speakers only",
+	unsupported: "Qapsule can connect headphones and speakers only",
 	timeout: "The device didn't answer in time",
 	cancelled: "Pairing was cancelled",
 	failed: "Couldn't pair with this device",
@@ -313,7 +313,7 @@ export function BluetoothPanel({ enabled, onToggle, onBack, onPinChange }: Bluet
 						role="radio"
 						aria-checked={shown === look.art}
 						onClick={() => {
-							// Picking what Bloom would guess anyway clears the pick,
+							// Picking what Qapsule would guess anyway clears the pick,
 							// so a later, better guess still applies.
 							setDeviceLook(d.name, look.art === deviceArtFor(d) ? null : look.art);
 							setLooksVersion((v) => v + 1);

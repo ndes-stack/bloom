@@ -1,5 +1,5 @@
 //! Backend for the dock's tray end: the notifications Windows shares with
-//! Bloom, the keyboard language indicator, and a few small helpers for the
+//! Qapsule, the keyboard language indicator, and a few small helpers for the
 //! quick settings and calendar panels.
 //!
 //! Notifications come from `UserNotificationListener`. Windows only hands
@@ -226,12 +226,12 @@ pub struct InputLanguage {
     pub layouts: u32,
 }
 
-/// The last app window that was in front, for when Bloom itself is (a click
+/// The last app window that was in front, for when Qapsule itself is (a click
 /// on the dock can bring it forward).
 static LAST_APP_WINDOW: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
 /// The window the keyboard language belongs to: the foreground window, or
-/// the app that was in front before Bloom.
+/// the app that was in front before Qapsule.
 unsafe fn app_window() -> windows::Win32::Foundation::HWND {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};

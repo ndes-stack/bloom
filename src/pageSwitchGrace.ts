@@ -1,7 +1,7 @@
 // Grace period after switching notch pages.
 //
 // Pages have different widths, so switching can shrink the notch out from
-// under the mouse, which Bloom would otherwise read as "the pointer left"
+// under the mouse, which Qapsule would otherwise read as "the pointer left"
 // and close the notch. For this long after a switch, leaving is ignored
 // unless the pointer stays away (Settings > Notch > Page Switch Grace).
 
