@@ -37,7 +37,8 @@ import {
 } from "./components/NotchCalendar";
 import { QuickLauncher, LAUNCHER_WIDTH, LAUNCHER_DEFAULT_HEIGHT } from "./components/QuickLauncher";
 import { StudyStats, STUDY_PAGE_HEIGHT, STUDY_PAGE_WIDTH } from "./components/StudyStats";
-import { HomePage, HOME_PAGE_HEIGHT, HOME_PAGE_WIDTH } from "./components/HomePage";
+import { HomePage } from "./components/HomePage";
+import { HOME_MUSIC_SIDE_KEY, HOME_SIZE_KEY, homeDimensions, parseHomeSize, parseMusicSide } from "./homeLayout";
 import { useStored } from "./settings/useStored";
 import { parseGoal, STUDY_GOAL_KEY } from "./study";
 import {
@@ -1233,6 +1234,8 @@ function App() {
 	);
 	// Today's focus goal in minutes, for the ring on Home and Focus stats.
 	const [studyGoal] = useStored(STUDY_GOAL_KEY, parseGoal);
+	const [homeSize] = useStored(HOME_SIZE_KEY, parseHomeSize);
+	const [homeMusicSide] = useStored(HOME_MUSIC_SIDE_KEY, parseMusicSide);
 	const [settingsLauncherPageEnabled, setSettingsLauncherPageEnabled] = useState(() =>
 		panelEnabledValue("launcher", localStorage.getItem(PANEL_ENABLED_KEYS.launcher))
 	);
@@ -3962,7 +3965,7 @@ function App() {
 		if (isCalendarMode) return 640;
 		if (bloomMode === "timer") return TIMER_PAGE_WIDTH;
 		if (bloomMode === "stats") return STUDY_PAGE_WIDTH;
-		if (bloomMode === "home") return HOME_PAGE_WIDTH;
+		if (bloomMode === "home") return homeDimensions(homeSize, mediaInfo.has_media).width;
 		if (bloomMode === "launcher") return LAUNCHER_WIDTH;
 		if (bloomMode === "shelf") return 380;
 		if (bloomMode === "command-center" && isOpen) return COMMAND_CENTER_WIDTH;
@@ -4004,7 +4007,7 @@ function App() {
 		}
 		if (bloomMode === "timer") return TIMER_PAGE_HEIGHT;
 		if (bloomMode === "stats") return STUDY_PAGE_HEIGHT;
-		if (bloomMode === "home") return HOME_PAGE_HEIGHT;
+		if (bloomMode === "home") return homeDimensions(homeSize, mediaInfo.has_media).height;
 		if (bloomMode === "launcher") return launcherHeight;
 		// Shelf expands on mode alone (no hover needed: there is no cursor
 		// hover during an OS drag) and is sized to exactly one row of tiles,
@@ -5607,6 +5610,8 @@ function App() {
 											transition={{ type: "spring", stiffness: 400, damping: 30 }}
 										>
 											<HomePage
+												size={homeSize}
+												musicSide={homeMusicSide}
 												media={mediaInfo}
 												art={albumArtUrl}
 												onPlayPause={togglePlayPause}

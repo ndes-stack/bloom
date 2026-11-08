@@ -24,7 +24,7 @@ import { PagesList } from "./PagesList";
 import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
-import { GoalSetting, KeepTimerSetting } from "./GoalSetting";
+import { GoalSetting, HomeLayoutSetting, KeepTimerSetting } from "./GoalSetting";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -260,6 +260,7 @@ export function NotchTab({
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+				<HomeLayoutSetting />
 				<LauncherShortcutSetting />
 			</div>
 

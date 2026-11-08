@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { CalendarDays } from "lucide-react";
 import { useCalendarDays } from "../hooks/useCalendarEvents";
 import type { CalendarEvent } from "../calendarIcs";
 
@@ -30,6 +31,59 @@ export function TodayCard({
 	onOpenCalendar?: () => void;
 }) {
 	const now = new Date();
+	const { detail, title } = useTodayDetail(now, use24h, fallback);
+	const weekday = now.toLocaleDateString([], { weekday: "short" }).toUpperCase();
+	const fullDate = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+	return (
+		<>
+			<button
+				className="cc-mini-date"
+				onClick={(e) => {
+					e.stopPropagation();
+					onOpenCalendar?.();
+				}}
+				disabled={!onOpenCalendar}
+				title={onOpenCalendar ? "Open calendar" : undefined}
+			>
+				<span className="cc-mini-date-day">{weekday}</span>
+				<span className="cc-mini-date-num">{now.getDate()}</span>
+			</button>
+			<span className="cc-mini-today" title={title}>
+				<span className="cc-mini-today-date">{fullDate}</span>
+				<span className="cc-mini-today-detail">{detail}</span>
+			</span>
+		</>
+	);
+}
+
+/** One line for the smaller Home sizes: a calendar icon and what's next today. */
+export function NextUp({
+	use24h,
+	fallback,
+	onOpenCalendar
+}: {
+	use24h: boolean;
+	fallback: string;
+	onOpenCalendar?: () => void;
+}) {
+	const { detail, title } = useTodayDetail(new Date(), use24h, fallback);
+	return (
+		<button
+			className="next-up"
+			title={title ?? (onOpenCalendar ? "Open calendar" : undefined)}
+			disabled={!onOpenCalendar}
+			onClick={(e) => {
+				e.stopPropagation();
+				onOpenCalendar?.();
+			}}
+		>
+			<CalendarDays size={13} aria-hidden="true" />
+			<span>{detail}</span>
+		</button>
+	);
+}
+
+function useTodayDetail(now: Date, use24h: boolean, fallback: string): { detail: string; title?: string } {
 	const { days, status } = useCalendarDays(now, 1);
 	const today = days[0] ?? [];
 
@@ -39,9 +93,6 @@ export function TodayCard({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[today, Math.floor(now.getTime() / 60000)]
 	);
-
-	const weekday = now.toLocaleDateString([], { weekday: "short" }).toUpperCase();
-	const fullDate = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 
 	let detail: string;
 	let title: string | undefined;
@@ -67,24 +118,5 @@ export function TodayCard({
 			.join("\n");
 	}
 
-	return (
-		<>
-			<button
-				className="cc-mini-date"
-				onClick={(e) => {
-					e.stopPropagation();
-					onOpenCalendar?.();
-				}}
-				disabled={!onOpenCalendar}
-				title={onOpenCalendar ? "Open calendar" : undefined}
-			>
-				<span className="cc-mini-date-day">{weekday}</span>
-				<span className="cc-mini-date-num">{now.getDate()}</span>
-			</button>
-			<span className="cc-mini-today" title={title}>
-				<span className="cc-mini-today-date">{fullDate}</span>
-				<span className="cc-mini-today-detail">{detail}</span>
-			</span>
-		</>
-	);
+	return { detail, title };
 }

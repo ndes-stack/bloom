@@ -118,12 +118,18 @@
 	background: color-mix(in srgb, var(--bloom-text, #fff) 10%, transparent);
 }
 
+.home-play,
 .home-controls .home-play {
-	width: 38px;
-	height: 38px;
-	border-radius: 19px;
+	flex: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	cursor: pointer;
 	background: var(--bloom-text, #fff);
 	color: var(--bloom-bg, #000);
+	transition: transform 0.12s ease;
 }
 
 .home-controls .home-play:hover {
@@ -131,6 +137,7 @@
 }
 
 .home-controls button:active,
+.home-play:active,
 .home-focus:active {
 	transform: scale(0.92);
 }
@@ -184,4 +191,154 @@
 	color: var(--bloom-on-accent, #fff);
 	font-size: 12px;
 	font-weight: 600;
+}
+
+/* Smaller sizes (Settings > Notch > Pages > Home Size). */
+.home-divider {
+	width: 1px;
+	align-self: stretch;
+	margin: 8px 0;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.home-rule {
+	flex: none;
+	height: 1px;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.next-up {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--bloom-text, #fff);
+	font: inherit;
+	font-size: 12px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.next-up:disabled {
+	cursor: default;
+}
+
+.next-up svg {
+	flex: none;
+	opacity: 0.6;
+}
+
+.next-up span {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.85;
+}
+
+.home.home-compact {
+	align-items: center;
+	gap: 16px;
+	padding: 2px 6px 14px;
+}
+
+.home-compact .home-divider {
+	height: 64px;
+	align-self: center;
+	margin: 0;
+}
+
+.home-music-compact {
+	flex-direction: row !important;
+	align-items: center;
+	gap: 12px;
+}
+
+.home-music-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.home-music-stack .home-controls {
+	justify-content: flex-start;
+	gap: 8px;
+	margin-left: -6px;
+}
+
+.home-music-stack .home-controls button {
+	width: 28px;
+	height: 28px;
+}
+
+.home-side {
+	gap: 10px;
+	justify-content: center;
+}
+
+.home.home-strip {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 0 4px 10px;
+}
+
+.home-music-strip {
+	flex: 1 1 auto;
+	flex-direction: row !important;
+	align-items: center;
+	gap: 10px;
+}
+
+.home-music-strip .home-title {
+	flex: 1;
+	min-width: 0;
+	font-size: 12.5px;
+}
+
+.home-strip-goal {
+	flex: none;
+}
+
+.home-strip-next {
+	flex: 0 1 auto;
+	min-width: 0;
+	display: flex;
+}
+
+.home-strip:not(:has(.home-music-strip)) .home-strip-next {
+	flex: 1 1 auto;
+}
+
+.home.home-glance {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 2px 6px 14px;
+}
+
+.home-music-glance {
+	flex-direction: row !important;
+	align-items: center;
+	gap: 11px;
+}
+
+.home-music-glance .home-track-text {
+	flex: 1;
+}
+
+.home-glance-focus {
+	display: grid !important;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	row-gap: 6px;
+}
+
+.home-glance-next {
+	grid-column: 1 / -1;
+	display: flex;
+	min-width: 0;
 }

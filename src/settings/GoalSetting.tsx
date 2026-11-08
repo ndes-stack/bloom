@@ -1,4 +1,5 @@
-import { Target, Timer } from "lucide-react";
+import { House, Music, Target, Timer } from "lucide-react";
+import { HOME_MUSIC_SIDE_KEY, HOME_SIZE_KEY, HOME_SIZES, parseHomeSize, parseMusicSide } from "../homeLayout";
 import { KEEP_TIMER_VISIBLE_KEY } from "../liveActivities";
 import { parseBool } from "../reminders";
 import { GOAL_CHOICES, parseGoal, STUDY_GOAL_KEY } from "../study";
@@ -42,5 +43,34 @@ export function KeepTimerSetting() {
 				<span className="slider"></span>
 			</label>
 		</SettingRow>
+	);
+}
+
+/** Settings > Notch > Pages: how big Home is, and which side its music sits on. */
+export function HomeLayoutSetting() {
+	const [size, setSize] = useStored(HOME_SIZE_KEY, parseHomeSize);
+	const [side, setSide] = useStored(HOME_MUSIC_SIDE_KEY, parseMusicSide);
+	return (
+		<>
+			<SettingRow icon={House} label="Home Size" desc="Full, or smaller pages that cover less of the screen">
+				<select className="settings-select" value={size} onChange={(e) => setSize(parseHomeSize(e.target.value))}>
+					{HOME_SIZES.map((s) => (
+						<option key={s.value} value={s.value}>
+							{s.label}
+						</option>
+					))}
+				</select>
+			</SettingRow>
+			<SettingRow
+				icon={Music}
+				label="Home Music Side"
+				desc={size === "glance" ? "Glance stacks it: right puts music at the bottom" : "Which end of Home the music sits at"}
+			>
+				<select className="settings-select" value={side} onChange={(e) => setSide(parseMusicSide(e.target.value))}>
+					<option value="right">Right</option>
+					<option value="left">Left</option>
+				</select>
+			</SettingRow>
+		</>
 	);
 }
