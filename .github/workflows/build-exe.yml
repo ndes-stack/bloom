@@ -30,6 +30,37 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Tauri downloads its NSIS toolset from GitHub releases when packaging, and
+      # that download has been failing with 504s. Put the toolset where Tauri
+      # looks first (%LOCALAPPDATA%\tauri\NSIS), so packaging needs no download:
+      # Tauri's own zip if it comes through, otherwise a normal NSIS install.
+      - name: Prepare NSIS
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:LOCALAPPDATA "tauri"
+          $nsis = Join-Path $tools "NSIS"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP "nsis.zip"
+          curl.exe -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o $zip "https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip"
+          if ($LASTEXITCODE -eq 0) {
+            Expand-Archive $zip -DestinationPath $tools -Force
+            Move-Item (Join-Path $tools "nsis-3.11") $nsis
+          } else {
+            Write-Host "Tauri's NSIS zip is unavailable; using a regular NSIS install"
+            $installed = "${env:ProgramFiles(x86)}\NSIS"
+            if (-not (Test-Path "$installed\makensis.exe")) { choco install nsis -y --no-progress }
+            Copy-Item $installed $nsis -Recurse
+          }
+          $plugin = Join-Path $nsis "Plugins\x86-unicode\additional"
+          New-Item -ItemType Directory -Force $plugin | Out-Null
+          curl.exe -fsSL --retry 8 --retry-all-errors --retry-delay 10 -o (Join-Path $plugin "nsis_tauri_utils.dll") "https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll"
+          if ($LASTEXITCODE -ne 0) { throw "Could not download nsis_tauri_utils.dll" }
+          $hash = (Get-FileHash (Join-Path $plugin "nsis_tauri_utils.dll") -Algorithm SHA1).Hash
+          if ($hash -ne "75197FEE3C6A814FE035788D1C34EAD39349B860") { throw "nsis_tauri_utils.dll hash mismatch: $hash" }
+          foreach ($f in "makensis.exe","Bin\makensis.exe","Stubs\lzma-x86-unicode","Include\MUI2.nsh","Include\Win\RestartManager.nsh") {
+            if (-not (Test-Path (Join-Path $nsis $f))) { throw "NSIS is missing $f" }
+          }
+
       # Updater artifacts need the project's private signing key, which forks
       # don't have, so they are switched off for this personal build.
       - name: Build app and installer
