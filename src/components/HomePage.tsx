@@ -6,7 +6,7 @@ import { TodayCard } from "./TodayCard";
 import "./HomePage.css";
 
 export const HOME_PAGE_WIDTH = 640;
-export const HOME_PAGE_HEIGHT = 168;
+export const HOME_PAGE_HEIGHT = 186;
 
 interface HomePageProps {
 	media: { title: string; artist: string; is_playing: boolean; has_media: boolean };

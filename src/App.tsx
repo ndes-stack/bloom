@@ -211,8 +211,8 @@ function canScrollWithin(target: HTMLElement, root: HTMLElement, dx: number, dy:
 const REMOTE_EDGE_HOLD_MS = 2500;
 
 // The Command Center dashboard (controls | live stats).
-const COMMAND_CENTER_WIDTH = 600;
-const COMMAND_CENTER_HEIGHT = 156;
+const COMMAND_CENTER_WIDTH = 640;
+const COMMAND_CENTER_HEIGHT = 180;
 
 // Sizes of the timer and launcher pages.
 const TIMER_PAGE_WIDTH = 440;

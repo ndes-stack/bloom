@@ -4825,9 +4825,10 @@ img {
 /* Control (the Qapsule redesign): tiles, sliders, then battery and the system. */
 .cc-grid {
 	display: grid;
-	grid-template-columns: 210px minmax(0, 1fr) 150px;
+	grid-template-columns: 244px minmax(0, 1fr) 150px;
 	gap: 18px;
 	width: 100%;
+	padding-bottom: 4px;
 	color: var(--bloom-text, #fff);
 }
 
