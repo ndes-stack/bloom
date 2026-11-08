@@ -2820,6 +2820,10 @@ img {
 	overflow-x: auto;
 	overflow-y: hidden;
 	min-height: 0;
+	/* A slightly sunken shelf, so the cards on it stand out. */
+	padding: 8px;
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--bloom-text, white) 5%, transparent);
 }
 
 /* A thin themed scrollbar once the row overflows, so items past the first
@@ -2853,34 +2857,79 @@ img {
 	display: none;
 }
 
+/* Each file is a raised card: a preview (thumbnail, opening text, or a tint in
+   its type's colour) with a type badge, then its name and a detail line. */
 .shelf-tile {
+	--kind: #6b7280;
 	position: relative;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	padding: 6px;
 	border-radius: 12px;
-	background: rgba(255, 255, 255, 0.06);
+	background: color-mix(in srgb, var(--bloom-text, white) 9%, var(--bloom-bg, black));
+	border: 1px solid color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+	box-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.35),
+		0 4px 12px rgba(0, 0, 0, 0.3);
 	cursor: pointer;
 	min-width: 0;
 	flex: 0 0 auto;
 	width: 104px;
+	overflow: hidden;
+	transition:
+		box-shadow 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.light-mode .shelf-tile {
+	background: #fff;
+	border-color: rgba(0, 0, 0, 0.07);
+	box-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.06),
+		0 4px 12px rgba(0, 0, 0, 0.07);
 }
 
 .shelf-tile:hover {
-	background: rgba(255, 255, 255, 0.12);
+	border-color: color-mix(in srgb, var(--kind) 55%, transparent);
+	box-shadow:
+		0 2px 4px rgba(0, 0, 0, 0.3),
+		0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.light-mode .shelf-tile:hover {
+	box-shadow:
+		0 2px 4px rgba(0, 0, 0, 0.08),
+		0 8px 20px rgba(0, 0, 0, 0.14);
 }
 
 .shelf-tile-preview {
 	position: relative;
-	height: 84px;
-	border-radius: 8px;
-	background: rgba(255, 255, 255, 0.05);
+	flex: none;
+	height: 76px;
+	background: color-mix(in srgb, var(--kind) 16%, transparent);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	overflow: hidden;
-	opacity: 0.85;
+}
+
+.shelf-badge {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	z-index: 2;
+	max-width: calc(100% - 34px);
+	padding: 1px 5px;
+	border-radius: 5px;
+	background: var(--kind);
+	color: #fff;
+	font-size: 8.5px;
+	font-weight: 700;
+	letter-spacing: 0.4px;
+	line-height: 14px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .shelf-tile-placeholder {
@@ -2890,6 +2939,7 @@ img {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	color: var(--kind);
 }
 
 .shelf-tile-preview img {
@@ -2911,15 +2961,15 @@ img {
 }
 
 .shelf-tile.is-text .shelf-tile-preview {
-	background: rgba(255, 255, 255, 0.075);
-	box-shadow: inset 2px 0 0 rgba(255, 255, 255, 0.16);
+	background: color-mix(in srgb, var(--kind) 8%, transparent);
+	box-shadow: inset 2px 0 0 var(--kind);
 }
 
 .shelf-tile-text {
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
-	padding: 7px 8px 6px;
+	padding: 24px 8px 6px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -2928,43 +2978,54 @@ img {
 }
 
 .shelf-tile-text-icon {
-	flex-shrink: 0;
-	opacity: 0.4;
+	display: none;
 }
 
 .shelf-tile-text-body {
 	flex: 1;
 	min-height: 0;
-	font-size: 10px;
+	font-size: 9.5px;
 	line-height: 1.45;
 	word-break: break-word;
 	overflow: hidden;
-	opacity: 0.9;
+	opacity: 0.85;
 	-webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
 	mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
 }
 
 .shelf-tile-name {
+	padding: 6px 8px 0;
 	font-size: 11px;
+	font-weight: 600;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	opacity: 0.85;
+}
+
+.shelf-tile-meta {
+	padding: 1px 8px 7px;
+	font-size: 9.5px;
+	opacity: 0.55;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .shelf-tile-remove {
 	position: absolute;
-	top: 4px;
-	right: 4px;
-	width: 18px;
-	height: 18px;
+	top: 5px;
+	right: 5px;
+	z-index: 3;
+	width: 20px;
+	height: 20px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	border: none;
-	border-radius: 50%;
-	background: rgba(0, 0, 0, 0.55);
-	color: #fff;
+	border-radius: 7px;
+	background: rgba(255, 255, 255, 0.92);
+	color: #1c1c1e;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 	opacity: 0;
 	cursor: pointer;
 	padding: 0;

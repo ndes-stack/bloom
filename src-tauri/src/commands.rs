@@ -65,6 +65,8 @@ pub async fn shelf_thumbnail(path: String) -> crate::shelf_preview::ShelfPreview
             thumb: None,
             text: None,
             folder: false,
+            bytes: None,
+            items: None,
         })
 }
 

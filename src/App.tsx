@@ -139,7 +139,7 @@ import {
 	parseNotchMaterial,
 	type MaterialLook
 } from "./notchMaterial";
-import { ShelfTypeIcon } from "./components/ShelfTypeIcon";
+import { formatFileSize, shelfKind, ShelfTypeIcon } from "./components/ShelfTypeIcon";
 import { WifiPanel } from "./components/WifiPanel";
 import { BluetoothPanel } from "./components/BluetoothPanel";
 import { DeviceArt, DeviceArtDefs } from "./devices/DeviceArt";
@@ -527,6 +527,8 @@ interface ShelfPreview {
 	thumb: string | null;
 	text: string | null;
 	folder: boolean;
+	bytes?: number | null;
+	items?: number | null;
 }
 
 interface ShelfItem {
@@ -4014,7 +4016,7 @@ function App() {
 		// plus room for the scrollbar once the tiles overflow it.
 		if (bloomMode === "shelf") {
 			if (shelfItems.length === 0) return 130;
-			return shelfOverflowing ? 190 : 176;
+			return shelfOverflowing ? 208 : 198;
 		}
 		if (bloomMode === "command-center") return isOpen ? COMMAND_CENTER_HEIGHT : 36;
 		if (bloomMode === "devices") {
@@ -5703,6 +5705,20 @@ function App() {
 														{shelfItems.map((item) => {
 															const preview = item.path ? shelfThumbs[item.path] : undefined;
 															const thumb = preview?.thumb;
+															const kind =
+																item.type === "text"
+																	? { badge: "TEXT", label: "Text", color: "#5b6b84" }
+																	: shelfKind(item.name, preview?.folder ?? false);
+															const meta =
+																item.type === "text"
+																	? `Text · ${item.text?.length ?? 0} chars`
+																	: preview?.folder
+																		? preview.items != null
+																			? `Folder · ${preview.items} item${preview.items === 1 ? "" : "s"}`
+																			: "Folder"
+																		: preview?.bytes != null
+																			? `${kind.label} · ${formatFileSize(preview.bytes)}`
+																			: kind.label;
 															return (
 																<motion.div
 																	key={item.id}
@@ -5725,6 +5741,7 @@ function App() {
 																		mass: 0.7
 																	}}
 																	className={`shelf-tile ${item.type === "text" || (!thumb && preview?.text) ? "is-text" : ""}`}
+																	style={{ "--kind": kind.color } as React.CSSProperties}
 																	title={
 																		item.type === "text" ? item.text?.slice(0, 1000) : item.path
 																	}
@@ -5733,6 +5750,7 @@ function App() {
 																	onClick={(e) => handleShelfTileClick(e, item)}
 																>
 																	<div className="shelf-tile-preview">
+																		<span className="shelf-badge">{kind.badge}</span>
 																		{item.type === "text" ? (
 																			<div className="shelf-tile-text">
 																				<Type
@@ -5771,10 +5789,9 @@ function App() {
 																		)}
 																	</div>
 																	<span className="shelf-tile-name">
-																		{item.type === "text"
-																			? `Text · ${item.text?.length ?? 0} chars`
-																			: item.name}
+																		{item.type === "text" ? "Clipped text" : item.name}
 																	</span>
+																	<span className="shelf-tile-meta">{meta}</span>
 																	<button
 																		className="shelf-tile-remove"
 																		title="Remove from shelf"

@@ -17,6 +17,10 @@ pub struct ShelfPreview {
     pub text: Option<String>,
     /// The item is a folder (for its placeholder icon).
     pub folder: bool,
+    /// A file's size in bytes, for the detail line under its name.
+    pub bytes: Option<u64>,
+    /// How many entries a folder holds (counting stops at 10 000).
+    pub items: Option<u32>,
 }
 
 /// How much opening text a tile shows; it has room for about eight lines.
@@ -45,12 +49,18 @@ pub fn preview(path: &str) -> ShelfPreview {
     let p = Path::new(path);
     let folder = p.is_dir();
     if folder {
+        let items = std::fs::read_dir(p)
+            .ok()
+            .map(|entries| entries.take(10_000).count() as u32);
         return ShelfPreview {
             thumb: shell_thumbnail(path),
             text: None,
             folder,
+            bytes: None,
+            items,
         };
     }
+    let bytes = std::fs::metadata(p).ok().map(|m| m.len());
     let ext = p
         .extension()
         .and_then(|e| e.to_str())
@@ -88,6 +98,8 @@ pub fn preview(path: &str) -> ShelfPreview {
         thumb,
         text,
         folder,
+        bytes,
+        items: None,
     }
 }
 
