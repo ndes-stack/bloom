@@ -474,11 +474,14 @@
 .bh-meters {
 	flex: none;
 	display: flex;
-	gap: 8px;
+	gap: 10px;
 }
 
+/* At least 40px, wider when the label needs it ("Case 100%"), so values
+   never spill over the meter beside them. */
 .bh-meter {
-	width: 40px;
+	min-width: 40px;
+	width: max-content;
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
@@ -487,6 +490,7 @@
 
 .bh-meter-value {
 	display: inline-flex;
+	white-space: nowrap;
 	align-items: center;
 	gap: 2px;
 	font-size: 10.5px;
