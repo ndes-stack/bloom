@@ -464,6 +464,61 @@ pub async fn open_dock_extra(kind: String, path: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize)]
+pub struct RecentEntry {
+    name: String,
+    path: String,
+}
+
+/// The files in a dock folder changed most recently, newest first, for the
+/// folder's right-click menu. Hidden and system-looking names are left out,
+/// and only the folder's own level is read.
+#[tauri::command]
+pub async fn dock_folder_recent(path: String, limit: usize) -> Vec<RecentEntry> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok(entries) = std::fs::read_dir(&path) else {
+            return Vec::new();
+        };
+        let mut files: Vec<(std::time::SystemTime, RecentEntry)> = entries
+            .flatten()
+            .take(5000)
+            .filter_map(|entry| {
+                let meta = entry.metadata().ok()?;
+                if !meta.is_file() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let lower = name.to_lowercase();
+                if name.starts_with('.')
+                    || name.starts_with('~')
+                    || lower == "desktop.ini"
+                    || lower == "thumbs.db"
+                    || lower.ends_with(".tmp")
+                    || lower.ends_with(".crdownload")
+                {
+                    return None;
+                }
+                let modified = meta.modified().ok()?;
+                Some((
+                    modified,
+                    RecentEntry {
+                        name,
+                        path: entry.path().to_string_lossy().into_owned(),
+                    },
+                ))
+            })
+            .collect();
+        files.sort_by(|a, b| b.0.cmp(&a.0));
+        files
+            .into_iter()
+            .take(limit.clamp(1, 12))
+            .map(|(_, entry)| entry)
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Ejects a drive the same way Explorer's context menu does: the "Eject" verb
 /// on the drive's `FolderItem` (CSIDL 17 = This PC). `ShellExecuteW` has no
 /// usable "eject" verb for drives, and Shell.Application is an in-proc

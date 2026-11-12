@@ -237,6 +237,7 @@ fn main() {
             updater::get_update_state,
             dock_extras::get_dock_extras,
             dock_extras::open_dock_extra,
+            dock_extras::dock_folder_recent,
             dock_extras::eject_dock_extra,
             dock_extras::get_dock_drives,
             wifi::wifi_list_networks,

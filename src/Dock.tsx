@@ -282,6 +282,8 @@ const Dock = memo(function Dock() {
 		y: number;
 		app: AppInfo | null;
 		extra?: DockExtra | null;
+		/** A folder's newest files, listed in its menu. */
+		recent?: { name: string; path: string }[];
 		taskView?: boolean;
 	} | null>(null);
 	const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -982,10 +984,19 @@ const Dock = memo(function Dock() {
 		invoke("open_dock_extra", { kind: extra.kind, path: extra.path }).catch(showActionError);
 	};
 
+	// A folder's menu lists its newest files. They are read before the menu
+	// opens, so it is measured and placed at its full height.
 	const handleExtraContextMenu = (e: React.MouseEvent, extra: DockExtra) => {
 		e.stopPropagation();
 		e.preventDefault();
-		setContextMenu({ x: e.clientX, y: e.clientY, app: null, extra });
+		const at = { x: e.clientX, y: e.clientY };
+		if (extra.kind !== "folder" && extra.kind !== "custom") {
+			setContextMenu({ ...at, app: null, extra });
+			return;
+		}
+		invoke<{ name: string; path: string }[]>("dock_folder_recent", { path: extra.path, limit: 6 })
+			.catch(() => [])
+			.then((recent) => setContextMenu({ ...at, app: null, extra, recent }));
 	};
 
 	const ejectExtra = (extra: DockExtra) => {
@@ -2383,6 +2394,25 @@ const Dock = memo(function Dock() {
 							>
 								Open
 							</div>
+							{contextMenu.recent && contextMenu.recent.length > 0 && (
+								<>
+									<div className="menu-divider" />
+									<div className="menu-label">Recent</div>
+									{contextMenu.recent.map((file) => (
+										<div
+											key={file.path}
+											className="menu-item menu-item-file"
+											title={file.name}
+											onClick={() => {
+												closeMenu();
+												invoke("open_dock_extra", { kind: "file", path: file.path }).catch(showActionError);
+											}}
+										>
+											{file.name}
+										</div>
+									))}
+								</>
+							)}
 							{contextMenu.extra.kind === "drive" && contextMenu.extra.removable && (
 								<div className="menu-item" onClick={() => ejectExtra(contextMenu.extra!)}>
 									Eject

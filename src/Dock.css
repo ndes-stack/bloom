@@ -848,3 +848,20 @@ body {
 	border-radius: 3px;
 	background: var(--bloom-accent, #0a84ff);
 }
+
+/* A folder's newest files in its right-click menu. */
+.context-menu .menu-label {
+	padding: 4px 12px 2px;
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	opacity: 0.5;
+}
+
+.context-menu .menu-item-file {
+	max-width: 240px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
