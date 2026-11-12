@@ -7,6 +7,8 @@ export const GOAL_NOTICE_KEY = "bloom-notice-goal";
 export const NUDGE_KEY = "bloom-focus-nudge";
 export const NUDGE_APPS_KEY = "bloom-focus-nudge-apps";
 export const LYRICS_KEY = "bloom-lyrics-enabled";
+/** The music page shows its lyrics view instead of the player. */
+export const MUSIC_LYRICS_VIEW_KEY = "bloom-music-lyrics-view";
 
 export const DEFAULT_NUDGE_APPS = "youtube, netflix, tiktok, instagram, twitch, reddit";
 

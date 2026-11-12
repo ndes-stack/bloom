@@ -175,7 +175,8 @@ import {
 	BatteryLow,
 	CloudRain as RainGlyph,
 	Flame,
-	Focus as FocusGlyph
+	Focus as FocusGlyph,
+	MicVocal
 } from "lucide-react";
 import {
 	DEVICE_BATTERY_NOTICE_KEY,
@@ -187,8 +188,10 @@ import {
 	RAIN_NOTICE_KEY,
 	nudgeMatch,
 	parseNudgeApps,
+	parseOff,
 	parseOn,
 	rainIn,
+	MUSIC_LYRICS_VIEW_KEY,
 	type Notice
 } from "./notices";
 import { useLyrics } from "./hooks/useLyrics";
@@ -3043,7 +3046,16 @@ function App() {
 	const [nudgeOn] = useStored(NUDGE_KEY, parseOn);
 	const [nudgeApps] = useStored(NUDGE_APPS_KEY, parseNudgeApps);
 	const [lyricsOn] = useStored(LYRICS_KEY, parseOn);
-	const homeLyric = useLyrics(mediaInfo, lyricsOn, isOpen && bloomMode === "home");
+	// The music page's lyrics view (the button beside the song) and Home's
+	// lyric line share one lookup and one clock.
+	const [musicLyricsView, setMusicLyricsView] = useStored(MUSIC_LYRICS_VIEW_KEY, parseOff);
+	const lyrics = useLyrics(
+		mediaInfo,
+		lyricsOn,
+		isOpen && (bloomMode === "home" || (bloomMode === "music" && musicLyricsView))
+	);
+	const homeLyric = lyrics.current;
+	const lyricsViewShown = lyricsOn && musicLyricsView && mediaLayout !== "compact";
 
 	// Devices already connected when Qapsule started have sent no connection
 	// event; their names and levels come from the Connected devices snapshot.
@@ -4191,7 +4203,7 @@ function App() {
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
-			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : 120;
+			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : lyricsViewShown ? 140 : 120;
 			if (mediaLayout === "compact") {
 				if (compactVolumeExpanded) h += 36;
 			}
@@ -4603,12 +4615,90 @@ function App() {
 														</motion.div>
 													</div>
 
+													{lyricsViewShown ? (
+														<div className="music-lyrics-view">
+															<div className="music-lyrics-head">
+																<span className="music-lyrics-song">
+																	{mediaInfo.title}
+																	{mediaInfo.artist && ` · ${mediaInfo.artist}`}
+																</span>
+																<button
+																	className="music-lyrics-toggle on"
+																	title="Back to the player"
+																	aria-label="Hide lyrics"
+																	aria-pressed="true"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		setMusicLyricsView(false);
+																	}}
+																>
+																	<MicVocal size={15} />
+																</button>
+															</div>
+															<div className="music-lyrics-lines" aria-live="off">
+																{lyrics.available ? (
+																	<>
+																		<span className="music-lyrics-side">{lyrics.previous ?? "\u00a0"}</span>
+																		<span key={lyrics.current ?? "wait"} className="music-lyrics-now">
+																			{lyrics.current ?? "♪"}
+																		</span>
+																		<span className="music-lyrics-side">{lyrics.next ?? "\u00a0"}</span>
+																	</>
+																) : (
+																	<span className="music-lyrics-none">No synced lyrics for this song</span>
+																)}
+															</div>
+															<div className="music-lyrics-foot">
+																<button
+																	aria-label="Previous"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		animatePrev();
+																	}}
+																>
+																	<SkipBackIcon size={20} />
+																</button>
+																<button
+																	aria-label={isPlaying ? "Pause" : "Play"}
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		togglePlayPause();
+																	}}
+																>
+																	{isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
+																</button>
+																<button
+																	aria-label="Next"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		animateNext();
+																	}}
+																>
+																	<SkipForwardIcon size={20} />
+																</button>
+															</div>
+														</div>
+													) : (
 													<div className="metadata-controls-section-middle">
 														<div className="track-header-row">
 															<div className="track-info-middle">
 																<TitleMarquee title={mediaInfo.title} />
 																<span className="premium-artist">{mediaInfo.artist}</span>
 															</div>
+															{lyricsOn && (
+																<button
+																	className="music-lyrics-toggle"
+																	title="Lyrics"
+																	aria-label="Show lyrics"
+																	aria-pressed="false"
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		setMusicLyricsView(true);
+																	}}
+																>
+																	<MicVocal size={15} />
+																</button>
+															)}
 															<div className="header-visualizer-wrap">
 																<div className="header-visualizer">
 																	<Visualizer isPlaying={isPlaying} bars={5} height={18} />
@@ -4769,6 +4859,7 @@ function App() {
 															<VolumeHighIcon size={14} style={{ opacity: 0.5 }} />
 														</div>
 													</div>
+													)}
 												</div>
 											)}
 										</motion.div>

@@ -5189,3 +5189,146 @@ img {
 	font-variant-numeric: tabular-nums;
 	color: var(--notice);
 }
+
+/* Music page: the lyrics button beside the song, and the lyrics view it
+   switches to (the line before, the line being sung, the line after). */
+.music-lyrics-toggle {
+	flex: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin-top: 1px;
+	padding: 0;
+	border: none;
+	border-radius: 7px;
+	background: none;
+	color: var(--bloom-text, #fff);
+	opacity: 0.55;
+	cursor: pointer;
+	transition:
+		opacity 0.15s ease,
+		background 0.15s ease;
+}
+
+.music-lyrics-toggle:hover {
+	opacity: 1;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 12%, transparent);
+}
+
+.music-lyrics-toggle.on {
+	opacity: 1;
+	background: color-mix(in srgb, var(--bloom-text, #fff) 18%, transparent);
+}
+
+.track-header-row .track-info-middle {
+	flex: 1;
+}
+
+.music-lyrics-view {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: 4px;
+	text-align: left;
+}
+
+.music-lyrics-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.music-lyrics-song {
+	flex: 1;
+	min-width: 0;
+	font-size: 11.5px;
+	opacity: 0.6;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.music-lyrics-lines {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.music-lyrics-side,
+.music-lyrics-now,
+.music-lyrics-none {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.music-lyrics-side {
+	font-size: 11.5px;
+	font-style: italic;
+	opacity: 0.4;
+}
+
+.music-lyrics-now {
+	font-size: 15.5px;
+	font-weight: 700;
+	font-style: italic;
+	animation: music-lyric-in 0.3s ease both;
+}
+
+.music-lyrics-none {
+	font-size: 12.5px;
+	opacity: 0.6;
+	padding: 12px 0;
+}
+
+@keyframes music-lyric-in {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.music-lyrics-foot {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.music-lyrics-foot button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border: none;
+	background: none;
+	color: var(--bloom-text, #fff);
+	opacity: 0.85;
+	cursor: pointer;
+	transition:
+		opacity 0.12s ease,
+		transform 0.12s ease;
+}
+
+.music-lyrics-foot button:hover {
+	opacity: 1;
+}
+
+.music-lyrics-foot button:active {
+	transform: scale(0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.music-lyrics-now {
+		animation: none;
+	}
+}

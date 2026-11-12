@@ -134,7 +134,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-notice-goal`                | `"true"` / `"false"` | `"true"` | A notice when the daily focus goal is met, with how many days in a row. |
 | `bloom-focus-nudge`                | `"true"` / `"false"` | `"true"` | While a focus timer runs, a "Still focusing?" notice when the app in front matches `bloom-focus-nudge-apps`. At most once per word every five minutes. Read locally; nothing is stored. |
 | `bloom-focus-nudge-apps`           | comma-separated words | `"youtube, netflix, tiktok, instagram, twitch, reddit"` | Words looked for in the front app's exe name and window title. |
-| `bloom-lyrics-enabled`             | `"true"` / `"false"` | `"true"` | The lyric line under the song on Home (Full and Compact). Sends the track's title and artist to lrclib.net. |
+| `bloom-lyrics-enabled`             | `"true"` / `"false"` | `"true"` | Lyrics: the line under the song on Home (Full and Compact), and the lyrics button on the music page. Sends the track's title and artist to lrclib.net. |
+| `bloom-music-lyrics-view`          | `"true"` / `"false"` | `"false"` | The music page (classic layout) shows its lyrics view: the line before, the line being sung and the line after. Switched by the button beside the song. |
 | `bloom-themes`                     | JSON array            | `[]`     | Themes saved in Settings > Appearance > Themes: `{"name","values"}` where values are appearance settings. |
 | `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
 | `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |

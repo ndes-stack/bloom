@@ -30,15 +30,26 @@ export function parseLrc(lrc: string): Line[] {
 	return lines.sort((a, b) => a.at - b.at);
 }
 
-/** The line being sung at `position`, or null before the first one. */
-export function lineAt(lines: Line[], position: number): string | null {
-	let current: string | null = null;
-	for (const line of lines) {
-		if (line.at > position) break;
-		current = line.text;
+/** The index of the line being sung at `position`, or -1 before the first one. */
+export function lineIndexAt(lines: Line[], position: number): number {
+	let index = -1;
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].at > position) break;
+		index = i;
 	}
-	return current;
+	return index;
 }
+
+export interface LyricWindow {
+	/** Whether this song has synced lyrics at all (false while looking them up). */
+	available: boolean;
+	/** The line being sung, with the one before and after; null where there is none. */
+	previous: string | null;
+	current: string | null;
+	next: string | null;
+}
+
+const NO_LYRICS: LyricWindow = { available: false, previous: null, current: null, next: null };
 
 const cache = new Map<string, Line[] | null>();
 
@@ -53,13 +64,14 @@ async function fetchLyrics(title: string, artist: string, durationMs: number): P
 }
 
 /**
- * The lyric line for the current moment of the playing song, or null when
- * off, paused long enough to be unsure, or the song has no synced lyrics.
- * `active` keeps the clock (twice a second) running only while it is shown.
+ * The lyric lines around the current moment of the playing song. Nothing
+ * when off, or when the song has no synced lyrics or its player doesn't
+ * report a position. `active` keeps the clock (twice a second) running
+ * only while lyrics are on screen.
  */
-export function useLyrics(media: Media, enabled: boolean, active: boolean): string | null {
+export function useLyrics(media: Media, enabled: boolean, active: boolean): LyricWindow {
 	const [lines, setLines] = useState<Line[] | null>(null);
-	const [line, setLine] = useState<string | null>(null);
+	const [index, setIndex] = useState<number | null>(null);
 	const mediaRef = useRef(media);
 	mediaRef.current = media;
 	const wanted = enabled && media.has_media && !!media.title && !!media.artist;
@@ -92,7 +104,7 @@ export function useLyrics(media: Media, enabled: boolean, active: boolean): stri
 
 	useEffect(() => {
 		if (!lines || !active) {
-			setLine(null);
+			setIndex(null);
 			return;
 		}
 		const tick = () => {
@@ -100,13 +112,20 @@ export function useLyrics(media: Media, enabled: boolean, active: boolean): stri
 			const base = m.position_ms ?? 0;
 			const since = m.is_playing && m.position_updated_at ? Date.now() - m.position_updated_at : 0;
 			// A player that never reports its position can't be followed.
-			if (!m.position_updated_at) return setLine(null);
-			setLine(lineAt(lines, base + Math.max(0, since)));
+			if (!m.position_updated_at) return setIndex(null);
+			setIndex(lineIndexAt(lines, base + Math.max(0, since)));
 		};
 		tick();
 		const interval = setInterval(tick, 500);
 		return () => clearInterval(interval);
 	}, [lines, active]);
 
-	return line;
+	if (!lines) return NO_LYRICS;
+	if (index === null) return { ...NO_LYRICS, available: true };
+	return {
+		available: true,
+		previous: lines[index - 1]?.text ?? null,
+		current: lines[index]?.text ?? null,
+		next: lines[index + 1]?.text ?? null
+	};
 }
