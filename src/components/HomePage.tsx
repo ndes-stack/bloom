@@ -9,6 +9,8 @@ import "./HomePage.css";
 interface HomePageProps {
 	size: HomeSize;
 	musicSide: MusicSide;
+	/** The lyric line for this moment of the song, when there is one. */
+	lyric?: string | null;
 	media: { title: string; artist: string; is_playing: boolean; has_media: boolean };
 	art: string | null;
 	onPlayPause: () => void;
@@ -48,6 +50,11 @@ export function HomePage(props: HomePageProps) {
 		<span className="home-track-text">
 			<span className="home-title">{media.title || "Unknown title"}</span>
 			<span className="home-artist">{media.artist}</span>
+			{props.lyric && (size === "full" || size === "compact") && (
+				<span key={props.lyric} className="home-lyric">
+					{props.lyric}
+				</span>
+			)}
 		</span>
 	);
 	const playButton = (px: number) => (

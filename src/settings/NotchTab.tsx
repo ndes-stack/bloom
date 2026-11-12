@@ -25,6 +25,7 @@ import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
 import { GoalSetting, HomeLayoutSetting, KeepTimerSetting } from "./GoalSetting";
+import { LyricsSetting, NoticeSettings } from "./NoticeSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -328,6 +329,7 @@ export function NotchTab({
 
 			<div className="setting-group-label">Music</div>
 			<div className="setting-group">
+				<LyricsSetting />
 				<SettingRow icon={Music} label="Music Mode" desc="Interactive live music widget">
 					<label className="toggle-switch">
 						<input type="checkbox" checked={musicModeEnabled} onChange={toggleMusicMode} />
@@ -400,7 +402,12 @@ export function NotchTab({
 				)}
 			</div>
 
-			<div className="setting-group-label">Class Reminders</div>
+			<div className="setting-group-label">Notices</div>
+			<div className="setting-group">
+				<NoticeSettings />
+			</div>
+
+			<div className="setting-group-label">Reminders</div>
 			<div className="setting-group">
 				<ReminderSettings hasCalendar={!!calendarIcsUrl.trim()} />
 			</div>

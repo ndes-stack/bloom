@@ -40,7 +40,7 @@ export function ReminderSettings({ hasCalendar }: { hasCalendar: boolean }) {
 		<>
 			<SettingRow
 				icon={BellRing}
-				label="Class Reminders"
+				label="Event Reminders"
 				desc={
 					hasCalendar
 						? "A bar at the top of the screen before events start"

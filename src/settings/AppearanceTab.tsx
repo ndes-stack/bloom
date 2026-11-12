@@ -14,6 +14,7 @@ import type { NotchMaterial } from "../notchMaterial";
 import { MaterialPicker } from "./MaterialPicker";
 import { SettingRow } from "./SettingRow";
 import { useStored } from "./useStored";
+import { ThemeGallery } from "./ThemeGallery";
 import { ActivityStyleSettings } from "./ActivityStyleSettings";
 
 interface AppearanceTabProps {
@@ -85,6 +86,11 @@ export function AppearanceTab({
 
 	return (
 		<>
+			<div className="setting-group-label">Themes</div>
+			<div className="setting-group">
+				<ThemeGallery />
+			</div>
+
 			<div className="setting-group-label">Theme</div>
 			<div className="setting-group">
 				<SettingRow icon={Palette} label="Theme Mode" desc="Configure visual styling">

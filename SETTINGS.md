@@ -129,6 +129,13 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-hud-position`               | `"notch"` / `"side"`  | `"notch"` | Where the volume and brightness HUD shows: in the notch, or as the side overlays. |
 | `bloom-home-size`                  | `"full"` / `"compact"` / `"strip"` / `"glance"` | `"full"` | Size of the Home page. The smaller sizes leave music out while nothing is playing. |
 | `bloom-home-music-side`            | `"right"` / `"left"` | `"right"` | Which end of Home the music sits at (Glance: right puts it at the bottom). |
+| `bloom-notice-device-battery`      | `"true"` / `"false"` | `"true"` | A one-line notice in the pill when a connected device (or one earbud, or the case) drops to the low-battery level. Once per device until it has been charged. |
+| `bloom-notice-rain`                | `"true"` / `"false"` | `"true"` | A notice when rain is forecast to start within about 90 minutes and it is dry now. Needs weather on. |
+| `bloom-notice-goal`                | `"true"` / `"false"` | `"true"` | A notice when the daily focus goal is met, with how many days in a row. |
+| `bloom-focus-nudge`                | `"true"` / `"false"` | `"true"` | While a focus timer runs, a "Still focusing?" notice when the app in front matches `bloom-focus-nudge-apps`. At most once per word every five minutes. Read locally; nothing is stored. |
+| `bloom-focus-nudge-apps`           | comma-separated words | `"youtube, netflix, tiktok, instagram, twitch, reddit"` | Words looked for in the front app's exe name and window title. |
+| `bloom-lyrics-enabled`             | `"true"` / `"false"` | `"true"` | The lyric line under the song on Home (Full and Compact). Sends the track's title and artist to lrclib.net. |
+| `bloom-themes`                     | JSON array            | `[]`     | Themes saved in Settings > Appearance > Themes: `{"name","values"}` where values are appearance settings. |
 | `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
 | `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |
 | `bloom-brightness-overlay-enabled` | `"true"` / `"false"` | `"true"` | Show Bloom brightness HUD when brightness changes.                       |

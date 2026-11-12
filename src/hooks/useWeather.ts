@@ -55,6 +55,8 @@ interface WeatherState {
 	temperature: number | null;
 	weatherCondition: string;
 	weatherIcon: ComponentType<LucideProps>;
+	/** When rain is due to start, if it is dry now and rain is forecast within two hours. */
+	rainAt: number | null;
 }
 
 interface ResolvedLocation {
@@ -118,8 +120,43 @@ async function fetchWeatherForCoords(
 	return {
 		temperature: temp,
 		weatherCondition: condition,
-		weatherIcon: getWeatherIcon(condition, isDay)
+		weatherIcon: getWeatherIcon(condition, isDay),
+		rainAt: await fetchRainStart(latitude, longitude)
 	};
+}
+
+/** A quarter-hour counts as rain from this much (mm), about a steady drizzle. */
+const RAIN_MM = 0.2;
+
+/**
+ * Asked for on its own, so the forecast failing (or the service not offering
+ * it somewhere) never costs the temperature.
+ */
+async function fetchRainStart(latitude: number, longitude: number): Promise<number | null> {
+	try {
+		const response = await fetch(
+			`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation&minutely_15=precipitation&forecast_minutely_15=8&timeformat=unixtime`
+		);
+		if (!response.ok) return null;
+		return rainStart(await response.json());
+	} catch {
+		return null;
+	}
+}
+
+/** The start (ms) of the first rainy quarter-hour ahead, unless it is raining already. */
+function rainStart(data: any): number | null {
+	const times: unknown = data?.minutely_15?.time;
+	const amounts: unknown = data?.minutely_15?.precipitation;
+	if (!Array.isArray(times) || !Array.isArray(amounts)) return null;
+	if ((data?.current?.precipitation ?? 0) >= RAIN_MM) return null;
+	const now = Date.now();
+	for (let i = 0; i < times.length; i++) {
+		const at = Number(times[i]) * 1000;
+		if (at + 15 * 60_000 <= now) continue;
+		if (Number(amounts[i]) >= RAIN_MM) return at <= now ? null : at;
+	}
+	return null;
 }
 
 async function resolveLocation(): Promise<ResolvedLocation> {
@@ -201,6 +238,7 @@ export function useWeather(enabled: boolean) {
 	const [cityName, setCityName] = useState<string>(
 		() => localStorage.getItem("bloom-weather-city") || ""
 	);
+	const [rainAt, setRainAt] = useState<number | null>(null);
 	const [tempUnit, setTempUnit] = useState<string>(
 		() => localStorage.getItem("bloom-temp-unit") || "celsius"
 	);
@@ -223,6 +261,7 @@ export function useWeather(enabled: boolean) {
 				setTemperature(result.temperature);
 				setWeatherCondition(result.weatherCondition);
 				setWeatherIcon(() => result.weatherIcon);
+				setRainAt(result.rainAt);
 				persistWeather(result.temperature, result.weatherCondition);
 
 				// Update city name if resolved from IP geolocation
@@ -350,6 +389,7 @@ export function useWeather(enabled: boolean) {
 		weatherCondition,
 		weatherIcon,
 		cityName,
-		tempUnit
+		tempUnit,
+		rainAt
 	};
 }

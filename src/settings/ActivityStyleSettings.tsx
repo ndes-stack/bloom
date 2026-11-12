@@ -29,7 +29,7 @@ export function ActivityStyleSettings() {
 			<SettingRow
 				icon={Sparkles}
 				label="Style"
-				desc="How the notch shows class reminders, timers, music and charging"
+				desc="How the notch shows reminders, timers, music and charging"
 				divider={false}
 			/>
 			<div className="activity-styles" role="radiogroup" aria-label="Live activity style">
@@ -76,7 +76,7 @@ export function ActivityStyleSettings() {
 					<span className="slider"></span>
 				</label>
 			</SettingRow>
-			<SettingRow icon={Eye} label="Preview" desc="Shows a made-up class reminder in this style" divider={false}>
+			<SettingRow icon={Eye} label="Preview" desc="Shows a made-up reminder in this style" divider={false}>
 				<button className="reminder-preview-btn" onClick={() => emit(REMINDER_PREVIEW_EVENT).catch(() => {})}>
 					Show preview
 				</button>

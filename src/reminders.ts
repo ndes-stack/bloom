@@ -133,7 +133,7 @@ export function previewReminder(leadMin: number): Reminder {
 	return {
 		key: `preview-${Date.now()}`,
 		kind: "class",
-		title: "Example Lecture",
+		title: "Example Meeting",
 		location: "Room 2-27",
 		start,
 		end: new Date(start.getTime() + 50 * 60_000),

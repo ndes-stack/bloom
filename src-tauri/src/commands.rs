@@ -625,6 +625,61 @@ pub fn is_start_menu_open() -> bool {
     }
 }
 
+/// The app in front right now: its exe name (lower case) and window title.
+/// The notch asks while a focus timer runs, for the distraction nudge
+/// (Settings > Notch > Calendar & Timer); nothing is stored or sent anywhere.
+#[derive(serde::Serialize, Default)]
+pub struct ForegroundApp {
+    exe: String,
+    title: String,
+}
+
+#[tauri::command]
+pub fn get_foreground_app() -> ForegroundApp {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+    };
+
+    let mut app = ForegroundApp::default();
+    unsafe {
+        let fg = GetForegroundWindow();
+        if fg.0.is_null() {
+            return app;
+        }
+        let mut title = [0u16; 512];
+        let len = GetWindowTextW(fg, &mut title);
+        if len > 0 {
+            app.title = String::from_utf16_lossy(&title[..len as usize]);
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(fg, Some(&mut pid));
+        if pid == 0 {
+            return app;
+        }
+        if let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            let mut buf = [0u16; 260];
+            let mut len = buf.len() as u32;
+            let ok = QueryFullProcessImageNameW(
+                process,
+                PROCESS_NAME_WIN32,
+                windows::core::PWSTR(buf.as_mut_ptr()),
+                &mut len,
+            );
+            let _ = CloseHandle(process);
+            if ok.is_ok() {
+                let path = String::from_utf16_lossy(&buf[..len as usize]);
+                app.exe = path.rsplit('\\').next().unwrap_or("").to_lowercase();
+            }
+        }
+    }
+    app
+}
+
 /// Open Start through Explorer, independently of the foreground app's integrity
 /// level. An open menu is dismissed with Escape rather than another open request.
 ///

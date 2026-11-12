@@ -40,7 +40,6 @@ import { StudyStats, STUDY_PAGE_HEIGHT, STUDY_PAGE_WIDTH } from "./components/St
 import { HomePage } from "./components/HomePage";
 import { HOME_MUSIC_SIDE_KEY, HOME_SIZE_KEY, homeDimensions, parseHomeSize, parseMusicSide } from "./homeLayout";
 import { useStored } from "./settings/useStored";
-import { parseGoal, STUDY_GOAL_KEY } from "./study";
 import {
 	STUDY_LOG_KEY,
 	STUDY_MODULE_KEY,
@@ -172,8 +171,28 @@ import {
 	Zap,
 	Sun as SunGlyph,
 	Volume2,
-	VolumeX
+	VolumeX,
+	BatteryLow,
+	CloudRain as RainGlyph,
+	Flame,
+	Focus as FocusGlyph
 } from "lucide-react";
+import {
+	DEVICE_BATTERY_NOTICE_KEY,
+	GOAL_NOTICE_KEY,
+	LYRICS_KEY,
+	NOTICE_COLORS,
+	NUDGE_APPS_KEY,
+	NUDGE_KEY,
+	RAIN_NOTICE_KEY,
+	nudgeMatch,
+	parseNudgeApps,
+	parseOn,
+	rainIn,
+	type Notice
+} from "./notices";
+import { useLyrics } from "./hooks/useLyrics";
+import { goalProgress, goalStreak, parseGoal, STUDY_GOAL_KEY } from "./study";
 import { HUD_POSITION_KEY, parseHudPosition, parseOverlayOn } from "./hudPosition";
 
 /**
@@ -555,7 +574,8 @@ type BloomMode =
 	| "bluetooth"
 	| "devices"
 	| "device"
-	| "hud";
+	| "hud"
+	| "notice";
 
 // A device that just connected or disconnected, shown briefly in the pill.
 interface DeviceAlert {
@@ -1322,7 +1342,8 @@ function App() {
 		weatherCondition,
 		weatherIcon: WeatherIcon,
 		cityName,
-		tempUnit
+		tempUnit,
+		rainAt
 	} = useWeather(settingsWeatherEnabled);
 
 	useEffect(() => {
@@ -2863,6 +2884,7 @@ function App() {
 	useEffect(() => {
 		if (windowLabel !== "main") return;
 		const unlistenConnection = listen<BluetoothConnection>("bluetooth-connection", ({ payload }) => {
+			deviceNamesRef.current[payload.id] = payload.name;
 			showDeviceAlert({
 				id: payload.id,
 				art: deviceLookFor(payload.name) ?? deviceArtFor(payload),
@@ -2882,6 +2904,7 @@ function App() {
 		// Windows often reports a battery level a moment after the device
 		// connects; fill it into the alert if that device is still showing.
 		const unlistenBattery = listen<{ id: string; battery: number }>("bluetooth-battery", ({ payload }) => {
+			deviceLowRef.current(payload.id, "", payload.battery, false);
 			setDeviceAlert((alert) =>
 				alert && alert.id === payload.id && alert.connected ? { ...alert, battery: payload.battery } : alert
 			);
@@ -2890,6 +2913,14 @@ function App() {
 		// moment after connecting.
 		const unlistenBuds = listen<BudsBattery & { id: string }>("bluetooth-buds", ({ payload }) => {
 			const { id, ...buds } = payload;
+			for (const [part, label] of [
+				["left", "Left bud"],
+				["right", "Right bud"],
+				["case", "Case"]
+			] as const) {
+				const level = buds[part];
+				if (level) deviceLowRef.current(id, label, level.level, level.charging);
+			}
 			setDeviceAlert((alert) => (alert && alert.id === id && alert.connected ? { ...alert, buds } : alert));
 			setBudsById((all) => ({ ...all, [id]: buds }));
 		});
@@ -2983,6 +3014,139 @@ function App() {
 		if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
 		hudTimerRef.current = setTimeout(() => setHud(null), 1500);
 	};
+
+	// Notices (notices.ts): one line in the pill for a few seconds. They wait
+	// their turn behind anything else holding the pill, and never open over
+	// an open notch. A click dismisses.
+	const [notice, setNotice] = useState<Notice | null>(null);
+	const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const showNoticeRef = useRef<(n: Notice, ms?: number) => boolean>(() => false);
+	showNoticeRef.current = (n, ms = 4500) => {
+		if (isOpenRef.current || ["announcement", "shelf", "device", "hud"].includes(bloomMode)) return false;
+		setNotice(n);
+		setBloomMode("notice");
+		if (notchMode === "peek") triggerEventPeek(ms + 300);
+		if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+		noticeTimerRef.current = setTimeout(() => setNotice(null), ms);
+		return true;
+	};
+	useEffect(() => {
+		if (bloomMode === "notice" && !notice) {
+			setBloomMode(isOpenRef.current ? openingPanel() : collapsedMode);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [bloomMode, notice, collapsedMode]);
+
+	const [deviceBatteryNoticeOn] = useStored(DEVICE_BATTERY_NOTICE_KEY, parseOn);
+	const [rainNoticeOn] = useStored(RAIN_NOTICE_KEY, parseOn);
+	const [goalNoticeOn] = useStored(GOAL_NOTICE_KEY, parseOn);
+	const [nudgeOn] = useStored(NUDGE_KEY, parseOn);
+	const [nudgeApps] = useStored(NUDGE_APPS_KEY, parseNudgeApps);
+	const [lyricsOn] = useStored(LYRICS_KEY, parseOn);
+	const homeLyric = useLyrics(mediaInfo, lyricsOn, isOpen && bloomMode === "home");
+
+	// Devices already connected when Qapsule started have sent no connection
+	// event; their names and levels come from the Connected devices snapshot.
+	useEffect(() => {
+		for (const d of connectedDevices.devices ?? []) {
+			if (!d.connected) continue;
+			deviceNamesRef.current[d.id] = d.name;
+			if (d.battery !== null && !(d.id in budsById)) deviceLowRef.current(d.id, "", d.battery, false);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [connectedDevices.devices]);
+
+	// A device running low: once per device each time it drops to the low
+	// level (Settings > General), and again only after it has been charged.
+	const deviceNamesRef = useRef<Record<string, string>>({});
+	const lowNotifiedRef = useRef<Set<string>>(new Set());
+	const deviceLowRef = useRef<(id: string, part: string, level: number, charging: boolean) => void>(() => {});
+	deviceLowRef.current = (id, part, level, charging) => {
+		const key = `${id}:${part}`;
+		if (charging || level > lowBatteryThreshold) {
+			lowNotifiedRef.current.delete(key);
+			return;
+		}
+		if (!deviceBatteryNoticeOn || lowNotifiedRef.current.has(key)) return;
+		const name = deviceNamesRef.current[id] ?? "Device";
+		const shown = showNoticeRef.current({
+			id: `low:${key}`,
+			icon: "battery",
+			title: part ? `${name} · ${part}` : name,
+			detail: `${level}% left`,
+			tone: "red"
+		});
+		if (shown) lowNotifiedRef.current.add(key);
+	};
+
+	// Rain on the way: once for each forecast start time.
+	const rainNotifiedRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (windowLabel !== "main" || !rainNoticeOn || rainAt === null) return;
+		const now = Date.now();
+		if (rainAt <= now || rainAt - now > 90 * 60_000) return;
+		// The forecast shifts by a quarter-hour now and then; that is the same rain.
+		if (rainNotifiedRef.current !== null && Math.abs(rainNotifiedRef.current - rainAt) <= 45 * 60_000) return;
+		const shown = showNoticeRef.current({
+			id: "rain",
+			icon: "rain",
+			title: "Rain on the way",
+			detail: rainIn(rainAt, now),
+			tone: "blue"
+		});
+		if (shown) rainNotifiedRef.current = rainAt;
+	}, [rainAt, rainNoticeOn, windowLabel]);
+
+	// The daily goal met: once a day, with the streak it extends.
+	const goalMet = goalProgress(studyLog, new Date(), studyGoal).met;
+	const goalMetRef = useRef(goalMet);
+	useEffect(() => {
+		const was = goalMetRef.current;
+		goalMetRef.current = goalMet;
+		if (windowLabel !== "main" || !goalNoticeOn || was || !goalMet) return;
+		const streak = goalStreak(studyLogRef.current, new Date(), studyGoal);
+		showNoticeRef.current(
+			{
+				id: "goal",
+				icon: "flame",
+				title: "Daily goal reached",
+				detail: streak > 1 ? `${streak} days in a row` : undefined,
+				tone: "orange"
+			},
+			6000
+		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [goalMet]);
+
+	// The nudge: while a focus timer runs, look at the app in front every few
+	// seconds. A listed word in its name or window title gets one notice, and
+	// no more for that word until five minutes later.
+	const nudgedRef = useRef<Record<string, number>>({});
+	useEffect(() => {
+		if (windowLabel !== "main" || !nudgeOn || !isTimerRunning || nudgeApps.length === 0) return;
+		const interval = setInterval(() => {
+			invoke<{ exe: string; title: string }>("get_foreground_app")
+				.then((app) => {
+					const word = nudgeMatch(nudgeApps, app);
+					if (!word) return;
+					const now = Date.now();
+					if (now - (nudgedRef.current[word] ?? 0) < 5 * 60_000) return;
+					const shown = showNoticeRef.current(
+						{
+							id: "nudge",
+							icon: "focus",
+							title: "Still focusing?",
+							detail: `${word.charAt(0).toUpperCase()}${word.slice(1)} is open`,
+							tone: "accent"
+						},
+						6000
+					);
+					if (shown) nudgedRef.current[word] = now;
+				})
+				.catch(() => {});
+		}, 6000);
+		return () => clearInterval(interval);
+	}, [windowLabel, nudgeOn, isTimerRunning, nudgeApps.join(",")]);
 
 	// Back to the resting view once the HUD is over.
 	useEffect(() => {
@@ -3787,7 +3951,7 @@ function App() {
 			liveActivities.push({
 				id: reminder.key,
 				kind: deadline ? "deadline" : "class",
-				label: deadline ? "Due" : "Class",
+				label: deadline ? "Due" : "Event",
 				title: reminder.title,
 				detail: reminder.location,
 				value: deadline ? `due ${reminderClock(reminder.start, timeFormat24h)}` : startsIn(reminder.start, now),
@@ -3962,6 +4126,7 @@ function App() {
 		if (showReminderBar) return REMINDER_BAR_WIDTHS[reminderWidth];
 		if (bloomMode === "device" && deviceAlert) return 330;
 		if (bloomMode === "hud" && hud) return 300;
+		if (bloomMode === "notice" && notice) return 340;
 		if (glowPrimary) return 230;
 		if (islandPill) return islandPillWidth(islandPill);
 		if (isCalendarMode) return 640;
@@ -4620,7 +4785,10 @@ function App() {
 												className="main-row"
 												// A device alert covers the whole pill.
 												style={
-													bloomMode === "device" || bloomMode === "hud" || deviceAlertOnScreen
+													bloomMode === "device" ||
+													bloomMode === "hud" ||
+													bloomMode === "notice" ||
+													deviceAlertOnScreen
 														? { visibility: "hidden" }
 														: undefined
 												}
@@ -5273,6 +5441,40 @@ function App() {
 									)}
 								</AnimatePresence>
 
+								{/* Notice: one line that comes and goes (notices.ts). */}
+								<AnimatePresence>
+									{bloomMode === "notice" && notice && (
+										<motion.div
+											key={notice.id}
+											className="notch-notice"
+											role="status"
+											style={{ "--notice": NOTICE_COLORS[notice.tone] } as React.CSSProperties}
+											onClick={(e) => {
+												e.stopPropagation();
+												setNotice(null);
+											}}
+											initial={{ opacity: 0, filter: "blur(4px)" }}
+											animate={{ opacity: 1, filter: "blur(0px)" }}
+											exit={{ opacity: 0, filter: "blur(4px)", transition: { duration: 0.12 } }}
+											transition={{ duration: 0.2 }}
+										>
+											<span className="notch-notice-icon">
+												{notice.icon === "battery" ? (
+													<BatteryLow size={15} />
+												) : notice.icon === "rain" ? (
+													<RainGlyph size={15} />
+												) : notice.icon === "flame" ? (
+													<Flame size={15} />
+												) : (
+													<FocusGlyph size={15} />
+												)}
+											</span>
+											<span className="notch-notice-title">{notice.title}</span>
+											{notice.detail && <span className="notch-notice-detail">{notice.detail}</span>}
+										</motion.div>
+									)}
+								</AnimatePresence>
+
 								{/* Device alert: a device connected or disconnected. A
 								    click opens the Bluetooth view. */}
 								<AnimatePresence
@@ -5614,6 +5816,7 @@ function App() {
 											<HomePage
 												size={homeSize}
 												musicSide={homeMusicSide}
+												lyric={homeLyric}
 												media={mediaInfo}
 												art={albumArtUrl}
 												onPlayPause={togglePlayPause}

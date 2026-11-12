@@ -345,7 +345,7 @@ export function StartMenu({
 													? "Settings"
 													: r.kind === "file"
 														? `File · ${r.file.folder}`
-														: `Class · ${r.event.start.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, ${clock(r.event.start, use24h)}`}
+														: `Event · ${r.event.start.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, ${clock(r.event.start, use24h)}`}
 										</span>
 									</span>
 									{i === selected && <span className="sm-enter">Enter</span>}

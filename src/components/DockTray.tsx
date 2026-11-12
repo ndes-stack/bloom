@@ -1500,7 +1500,7 @@ export function CalendarPanel({
 						>
 							{feedStatus === "off" ? (
 								<div className="ta-empty">
-									<span>Link your calendar to see classes here.</span>
+									<span>Link your calendar to see your events here.</span>
 									<button type="button" className="tp-chip" onClick={onOpenBloomSettings}>
 										Qapsule settings
 									</button>

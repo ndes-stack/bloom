@@ -240,3 +240,19 @@ export function goalProgress(log: StudyLog, now: Date, goalMinutes: number) {
 	const target = Math.max(1, goalMinutes) * 60;
 	return { done, target, progress: Math.min(1, done / target), met: done >= target };
 }
+
+/**
+ * Days in a row the daily goal was met, up to today. Today only counts once
+ * its goal is met; until then the streak stands on yesterday's.
+ */
+export function goalStreak(log: StudyLog, now: Date, goalMinutes: number): number {
+	const target = Math.max(1, goalMinutes) * 60;
+	const met = (d: Date) => dayTotal(log, dayKey(d)) >= target;
+	let streak = 0;
+	let cursor = met(now) ? now : addDays(now, -1);
+	while (met(cursor)) {
+		streak++;
+		cursor = addDays(cursor, -1);
+	}
+	return streak;
+}
