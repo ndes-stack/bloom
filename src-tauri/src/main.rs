@@ -158,6 +158,7 @@ fn main() {
             start_menu::open_known_folder,
             start_menu::open_settings_page,
             start_menu::focus_dock_window,
+            start_menu::guard_windows_start,
             start_menu::restore_foreground,
             dock_layout::set_dock_tablet,
             tray_panels::notifications_list,

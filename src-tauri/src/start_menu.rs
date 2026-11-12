@@ -111,8 +111,11 @@ pub fn get_user_display_name() -> String {
     unsafe {
         let mut buf = [0u16; 256];
         let mut len = buf.len() as u32;
-        if GetUserNameExW(NameDisplay, Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut len)
-            && len > 0
+        if GetUserNameExW(
+            NameDisplay,
+            Some(windows::core::PWSTR(buf.as_mut_ptr())),
+            &mut len,
+        ) && len > 0
         {
             let name = String::from_utf16_lossy(&buf[..len as usize]);
             if !name.trim().is_empty() {
@@ -218,7 +221,9 @@ pub fn focus_dock_window(window: tauri::WebviewWindow) -> isize {
 #[tauri::command]
 pub fn restore_foreground(window: tauri::WebviewWindow, previous: isize) {
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsWindow, SetForegroundWindow};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, IsWindow, SetForegroundWindow,
+    };
     if previous == 0 {
         return;
     }
@@ -236,6 +241,97 @@ pub fn restore_foreground(window: tauri::WebviewWindow, previous: isize) {
     }
 }
 
+/// One watcher at a time.
+static START_GUARD_RUNNING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Whether Windows' own Start menu is on screen, as the shell reports it.
+fn windows_start_visible(visibility: &windows::Win32::UI::Shell::IAppVisibility) -> bool {
+    unsafe { visibility.IsLauncherVisible() }
+        .map(|visible| visible.as_bool())
+        .unwrap_or(false)
+}
+
+/// A Windows key tap of our own. Injected, so the keyboard hook leaves it to
+/// the shell, which closes its Start menu when it is open.
+fn tap_windows_key() {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        VK_LWIN,
+    };
+    let key = |flags: KEYBD_EVENT_FLAGS| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_LWIN,
+                wScan: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let inputs = [key(KEYBD_EVENT_FLAGS(0)), key(KEYEVENTF_KEYUP)];
+    unsafe {
+        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
+/// Keeps Windows' Start from sitting on top of Qapsule's. The keyboard hook
+/// already stops a Windows key tap from opening it, but that depends on
+/// timing the shell doesn't promise, and now and then both menus opened.
+/// Called as Qapsule's Start opens: for the next second, if Windows' Start
+/// shows up it is closed again, and the dock is asked to put Qapsule's back
+/// (it closes itself when Windows' Start takes the keyboard).
+#[tauri::command]
+pub fn guard_windows_start(app: tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+    use tauri::Emitter;
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+    };
+    use windows::Win32::UI::Shell::{AppVisibility, IAppVisibility};
+
+    if START_GUARD_RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
+        let mut closed = 0;
+        {
+            let visibility: Option<IAppVisibility> =
+                unsafe { CoCreateInstance(&AppVisibility, None, CLSCTX_ALL) }.ok();
+            if let Some(visibility) = visibility {
+                let mut deadline = Instant::now() + Duration::from_millis(1000);
+                while Instant::now() < deadline {
+                    if windows_start_visible(&visibility) && closed < 3 {
+                        tap_windows_key();
+                        closed += 1;
+                        // Give the shell time to close it, then keep watching
+                        // in case the tap landed after it had already closed.
+                        std::thread::sleep(Duration::from_millis(220));
+                        deadline = Instant::now() + Duration::from_millis(400);
+                        continue;
+                    }
+                    std::thread::sleep(Duration::from_millis(40));
+                }
+            }
+        }
+        if initialized {
+            unsafe { CoUninitialize() };
+        }
+        START_GUARD_RUNNING.store(false, Ordering::SeqCst);
+        if closed > 0 {
+            crate::diagnostics::record(
+                "start_key",
+                "Windows' Start opened as well: closed it and kept Qapsule's",
+            );
+            let _ = app.emit_to("dock", "dock-ensure-start", ());
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,7 +339,10 @@ mod tests {
     #[test]
     fn recent_names_keep_files_and_skip_folders() {
         assert_eq!(recent_name("report.pdf.lnk").as_deref(), Some("report.pdf"));
-        assert_eq!(recent_name("COS226 v2.final.docx.lnk").as_deref(), Some("COS226 v2.final.docx"));
+        assert_eq!(
+            recent_name("COS226 v2.final.docx.lnk").as_deref(),
+            Some("COS226 v2.final.docx")
+        );
         assert_eq!(recent_name("Downloads.lnk"), None);
         assert_eq!(recent_name("report.pdf"), None);
         assert_eq!(recent_name("My Folder.some thing.lnk"), None);

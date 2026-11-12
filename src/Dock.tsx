@@ -1392,8 +1392,19 @@ const Dock = memo(function Dock() {
 			setPillOpen(true);
 			setStartRequested(true);
 		});
+		// Windows' Start opened too and was closed again (guard_windows_start):
+		// put Qapsule's back if losing the keyboard closed it.
+		const unlistenEnsure = listen("dock-ensure-start", () => {
+			if (trayPanelRef.current === "start") {
+				invoke("focus_dock_window").catch(() => {});
+				return;
+			}
+			setPillOpen(true);
+			setStartRequested(true);
+		});
 		return () => {
 			unlisten.then((f) => f());
+			unlistenEnsure.then((f) => f());
 		};
 	}, []);
 	useEffect(() => {

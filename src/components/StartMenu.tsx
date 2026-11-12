@@ -133,6 +133,8 @@ export function StartMenu({
 	// the app you were in when it closes without opening anything.
 	useEffect(() => {
 		let previous = 0;
+		// If Windows' own Start opens as well, the backend closes it again.
+		invoke("guard_windows_start").catch(() => {});
 		invoke<number>("focus_dock_window")
 			.then((p) => {
 				previous = p ?? 0;
