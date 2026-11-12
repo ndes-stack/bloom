@@ -348,11 +348,23 @@
 	margin-top: 3px;
 	font-size: 11.5px;
 	font-style: italic;
+	line-height: 1.25;
 	opacity: 0.8;
-	white-space: nowrap;
+	/* Up to two lines; a longer line ends in an ellipsis. */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
 	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
 	animation: home-lyric-in 0.28s ease both;
+}
+
+/* Compact has room for one line only. */
+.home-compact .home-lyric {
+	display: block;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 @keyframes home-lyric-in {
