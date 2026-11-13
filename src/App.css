@@ -5325,16 +5325,31 @@ img {
 	display: none;
 }
 
+/* Kept inside the page: clipped to its box and faded out towards the
+   edges, so the glow never shows past the notch. */
 .music-lyrics-backdrop {
 	position: absolute;
-	inset: -28px;
-	width: calc(100% + 56px);
-	height: calc(100% + 56px);
-	object-fit: cover;
-	filter: blur(30px) saturate(1.2);
-	opacity: 0.35;
+	inset: 0;
+	overflow: hidden;
+	border-radius: 18px;
 	pointer-events: none;
 	z-index: 0;
+	-webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 72%);
+	mask-image: radial-gradient(ellipse at center, #000 30%, transparent 72%);
+}
+
+.music-lyrics-backdrop img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transform: scale(1.3);
+	filter: blur(22px) saturate(1.2);
+	opacity: 0.4;
+}
+
+/* On a light notch the text is dark, so the glow stays faint. */
+.light-mode .music-lyrics-backdrop img {
+	opacity: 0.22;
 }
 
 .compact-premium-layout.lyrics-on .music-lyrics-view {

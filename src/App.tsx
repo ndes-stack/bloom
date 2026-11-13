@@ -4567,7 +4567,9 @@ function App() {
 											) : (
 												<div className={`compact-premium-layout${lyricsViewShown ? " lyrics-on" : ""}`}>
 													{lyricsViewShown && albumArtUrl && (
-														<img className="music-lyrics-backdrop" src={albumArtUrl} alt="" aria-hidden="true" draggable={false} />
+														<span className="music-lyrics-backdrop" aria-hidden="true">
+															<img src={albumArtUrl} alt="" draggable={false} />
+														</span>
 													)}
 													<div className="album-art-section">
 														<motion.div
