@@ -4203,7 +4203,7 @@ function App() {
 		if (bloomMode === "status") return 36;
 		if (isMusicMode && isOpen) {
 			const hasProgressBar = (mediaInfo.duration_ms ?? 0) > 0;
-			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : lyricsViewShown ? 140 : 120;
+			let h = mediaLayout === "compact" ? (hasProgressBar ? 132 : 116) : lyricsViewShown ? 168 : 120;
 			if (mediaLayout === "compact") {
 				if (compactVolumeExpanded) h += 36;
 			}
@@ -4565,7 +4565,10 @@ function App() {
 													}}
 												/>
 											) : (
-												<div className="compact-premium-layout">
+												<div className={`compact-premium-layout${lyricsViewShown ? " lyrics-on" : ""}`}>
+													{lyricsViewShown && albumArtUrl && (
+														<img className="music-lyrics-backdrop" src={albumArtUrl} alt="" aria-hidden="true" draggable={false} />
+													)}
 													<div className="album-art-section">
 														<motion.div
 															className="premium-album-art"
@@ -4618,6 +4621,9 @@ function App() {
 													{lyricsViewShown ? (
 														<div className="music-lyrics-view">
 															<div className="music-lyrics-head">
+																{albumArtUrl && (
+																	<img className="music-lyrics-thumb" src={albumArtUrl} alt="" draggable={false} />
+																)}
 																<span className="music-lyrics-song">
 																	{mediaInfo.title}
 																	{mediaInfo.artist && ` · ${mediaInfo.artist}`}

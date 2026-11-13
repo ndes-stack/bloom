@@ -5256,13 +5256,15 @@ img {
 .music-lyrics-lines {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	align-items: center;
+	gap: 4px;
 	min-width: 0;
+	text-align: center;
 }
 
 .music-lyrics-side,
-.music-lyrics-now,
 .music-lyrics-none {
+	max-width: 100%;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -5274,10 +5276,18 @@ img {
 	opacity: 0.4;
 }
 
+/* The line being sung: up to two lines, centred. */
 .music-lyrics-now {
-	font-size: 15.5px;
+	font-size: 17px;
 	font-weight: 700;
 	font-style: italic;
+	line-height: 1.22;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	overflow-wrap: anywhere;
 	animation: music-lyric-in 0.3s ease both;
 }
 
@@ -5301,7 +5311,43 @@ img {
 .music-lyrics-foot {
 	display: flex;
 	align-items: center;
-	gap: 14px;
+	justify-content: center;
+	gap: 26px;
+}
+
+/* Lyrics view: the big album art steps aside for a thumbnail in the top row
+   and a soft blurred copy behind the words. */
+.compact-premium-layout.lyrics-on {
+	position: relative;
+}
+
+.compact-premium-layout.lyrics-on .album-art-section {
+	display: none;
+}
+
+.music-lyrics-backdrop {
+	position: absolute;
+	inset: -28px;
+	width: calc(100% + 56px);
+	height: calc(100% + 56px);
+	object-fit: cover;
+	filter: blur(30px) saturate(1.2);
+	opacity: 0.35;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.compact-premium-layout.lyrics-on .music-lyrics-view {
+	position: relative;
+	z-index: 1;
+}
+
+.music-lyrics-thumb {
+	flex: none;
+	width: 24px;
+	height: 24px;
+	border-radius: 6px;
+	object-fit: cover;
 }
 
 .music-lyrics-foot button {
