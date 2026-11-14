@@ -5229,6 +5229,8 @@ img {
 .music-lyrics-view {
 	flex: 1;
 	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -5253,13 +5255,22 @@ img {
 	text-overflow: ellipsis;
 }
 
+/* Each line is as wide as the page (not as wide as its text), so a long
+   line wraps or ends in an ellipsis instead of running off the sides. */
 .music-lyrics-lines {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	align-items: stretch;
 	gap: 4px;
 	min-width: 0;
+	padding: 0 8px;
 	text-align: center;
+}
+
+.music-lyrics-lines > * {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 }
 
 .music-lyrics-side,
@@ -5349,7 +5360,7 @@ img {
 
 /* On a light notch the text is dark, so the glow stays faint. */
 .light-mode .music-lyrics-backdrop img {
-	opacity: 0.22;
+	opacity: 0.16;
 }
 
 .compact-premium-layout.lyrics-on .music-lyrics-view {
