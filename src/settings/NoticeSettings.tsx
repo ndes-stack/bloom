@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BatteryLow, CloudRain, Flame, Focus, MicVocal } from "lucide-react";
+import { BatteryLow, CloudRain, Flame, Focus, MicVocal, MousePointerClick, Timer } from "lucide-react";
 import {
 	DEFAULT_NUDGE_APPS,
 	DEVICE_BATTERY_NOTICE_KEY,
@@ -8,6 +8,9 @@ import {
 	NUDGE_APPS_KEY,
 	NUDGE_KEY,
 	RAIN_NOTICE_KEY,
+	SHELF_EXPIRY_CHOICES,
+	SHELF_EXPIRY_KEY,
+	SHELF_REMOVE_ON_DROP_KEY,
 	parseOn
 } from "../notices";
 import { SettingRow } from "./SettingRow";
@@ -75,5 +78,29 @@ export function LyricsSetting() {
 		<SettingRow icon={MicVocal} label="Lyrics On Home" desc="Shows the line being sung. Looks the song up on lrclib.net">
 			<Toggle on={lyrics} set={setLyrics} />
 		</SettingRow>
+	);
+}
+
+/** Settings > Notch > Shelf: how items leave the shelf on their own. */
+export function ShelfTidySettings() {
+	const [removeOnDrop, setRemoveOnDrop] = useStored(SHELF_REMOVE_ON_DROP_KEY, parseOn);
+	const [expiry, setExpiry] = useStored(SHELF_EXPIRY_KEY, (v) =>
+		SHELF_EXPIRY_CHOICES.some((c) => c.value === v) ? (v as string) : "never"
+	);
+	return (
+		<>
+			<SettingRow icon={MousePointerClick} label="Remove After Dragging Out" desc="Items leave the shelf once you drop them somewhere">
+				<Toggle on={removeOnDrop} set={setRemoveOnDrop} />
+			</SettingRow>
+			<SettingRow icon={Timer} label="Clear Old Items" desc="Take items off the shelf after a while">
+				<select className="settings-select" value={expiry} onChange={(e) => setExpiry(e.target.value)}>
+					{SHELF_EXPIRY_CHOICES.map((c) => (
+						<option key={c.value} value={c.value}>
+							{c.label}
+						</option>
+					))}
+				</select>
+			</SettingRow>
+		</>
 	);
 }

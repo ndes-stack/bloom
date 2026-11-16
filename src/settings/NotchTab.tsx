@@ -25,7 +25,7 @@ import { LauncherShortcutSetting } from "./LauncherShortcutSetting";
 import { OtherDisplaySetting } from "./OtherDisplaySetting";
 import { ReminderSettings } from "./ReminderSettings";
 import { GoalSetting, HomeLayoutSetting, KeepTimerSetting } from "./GoalSetting";
-import { LyricsSetting, NoticeSettings } from "./NoticeSettings";
+import { LyricsSetting, NoticeSettings, ShelfTidySettings } from "./NoticeSettings";
 
 // Shown next to the Scroll speed slider (1 … 5).
 const SCROLL_SPEED_LABELS = ["Slow", "Relaxed", "Normal", "Quick", "Fast"];
@@ -418,13 +418,13 @@ export function NotchTab({
 					icon={Archive}
 					label="Keep Items"
 					desc="Keep shelf items after Qapsule closes"
-					divider={false}
 				>
 					<label className="toggle-switch">
 						<input type="checkbox" checked={shelfPersist} onChange={toggleShelfPersist} />
 						<span className="slider"></span>
 					</label>
 				</SettingRow>
+				<ShelfTidySettings />
 			</div>
 
 			<div className="setting-group-label">Weather</div>

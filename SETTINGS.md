@@ -137,6 +137,8 @@ Edit `settings.json` with any text editor while Bloom is running. Changes are ap
 | `bloom-lyrics-enabled`             | `"true"` / `"false"` | `"true"` | Lyrics: the line under the song on Home (Full and Compact), and the lyrics button on the music page. Sends the track's title and artist to lrclib.net. |
 | `bloom-music-lyrics-view`          | `"true"` / `"false"` | `"false"` | The music page (classic layout) shows its lyrics view: the line before, the line being sung and the line after. Switched by the button beside the song. |
 | `bloom-themes`                     | JSON array            | `[]`     | Themes saved in Settings > Appearance > Themes: `{"name","values"}` where values are appearance settings. |
+| `bloom-shelf-remove-on-drop`       | `"true"` / `"false"` | `"true"` | Shelf items leave the shelf once dragged out and dropped somewhere else (not back on the notch). When off, only files the drop moved away are removed. |
+| `bloom-shelf-expiry`               | `"never"` / `"15m"` / `"1h"` / `"1d"` | `"never"` | Take shelf items off the shelf once they have been there this long. |
 | `bloom-volume-overlay-enabled`     | `"true"` / `"false"` | `"true"` | Show Bloom volume HUD when volume changes (replaces native Windows OSD). |
 | `bloom-volume-edge-enabled`        | `"true"` / `"false"` | `"true"` | Trigger volume HUD by hovering the left screen edge.                     |
 | `bloom-brightness-overlay-enabled` | `"true"` / `"false"` | `"true"` | Show Bloom brightness HUD when brightness changes.                       |

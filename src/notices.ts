@@ -56,3 +56,19 @@ export function rainIn(at: number, now: number): string {
 	const minutes = Math.round((at - now) / 60_000 / 5) * 5;
 	return minutes < 5 ? "soon" : `in ${minutes} min`;
 }
+
+// Shelf tidying (Settings > Notch > Shelf).
+export const SHELF_REMOVE_ON_DROP_KEY = "bloom-shelf-remove-on-drop";
+export const SHELF_EXPIRY_KEY = "bloom-shelf-expiry";
+
+export const SHELF_EXPIRY_CHOICES: { value: string; label: string; ms: number }[] = [
+	{ value: "never", label: "Never", ms: 0 },
+	{ value: "15m", label: "After 15 minutes", ms: 15 * 60_000 },
+	{ value: "1h", label: "After 1 hour", ms: 60 * 60_000 },
+	{ value: "1d", label: "After 1 day", ms: 24 * 60 * 60_000 }
+];
+
+/** How long an item may stay on the shelf, in ms; 0 for no limit. */
+export function parseShelfExpiry(v: unknown): number {
+	return SHELF_EXPIRY_CHOICES.find((c) => c.value === v)?.ms ?? 0;
+}

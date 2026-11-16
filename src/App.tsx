@@ -176,7 +176,8 @@ import {
 	CloudRain as RainGlyph,
 	Flame,
 	Focus as FocusGlyph,
-	MicVocal
+	MicVocal,
+	Layers
 } from "lucide-react";
 import {
 	DEVICE_BATTERY_NOTICE_KEY,
@@ -190,7 +191,10 @@ import {
 	parseNudgeApps,
 	parseOff,
 	parseOn,
+	parseShelfExpiry,
 	rainIn,
+	SHELF_EXPIRY_KEY,
+	SHELF_REMOVE_ON_DROP_KEY,
 	MUSIC_LYRICS_VIEW_KEY,
 	type Notice
 } from "./notices";
@@ -994,6 +998,18 @@ function App() {
 		() => localStorage.getItem("bloom-dock-enabled") !== "false"
 	);
 	const [isNotchHovered, setIsNotchHovered] = useState(false);
+	// The pointer is on the shelf or music bubble beside the pill. While it
+	// is, the pill doesn't widen on hover and the bubble stays where it was,
+	// so it can't slide out from under the pointer before the click.
+	const [bubbleHeld, setBubbleHeldState] = useState<"shelf" | "music" | null>(null);
+	const bubbleHeldAtRef = useRef(0);
+	const setBubbleHeld = (which: "shelf" | "music" | null) => {
+		if (which) bubbleHeldAtRef.current = getDynamicWidthRef.current() / 2 + 8;
+		setBubbleHeldState(which);
+	};
+	const getDynamicWidthRef = useRef<() => number>(() => 0);
+	const bubbleOffset = (which: "shelf" | "music") =>
+		bubbleHeld === which ? bubbleHeldAtRef.current : getDynamicWidthRef.current() / 2 + 8;
 
 	const [isEdgeHovered, setIsEdgeHovered] = useState(false);
 	const [isOverlapped, setIsOverlapped] = useState(false);
@@ -1319,6 +1335,10 @@ function App() {
 	const [shelfPersist, setShelfPersist] = useState(
 		() => localStorage.getItem("bloom-shelf-persist") === "true"
 	);
+	const [shelfRemoveOnDrop] = useStored(SHELF_REMOVE_ON_DROP_KEY, parseOn);
+	const shelfRemoveOnDropRef = useRef(shelfRemoveOnDrop);
+	shelfRemoveOnDropRef.current = shelfRemoveOnDrop;
+	const [shelfExpiry] = useStored(SHELF_EXPIRY_KEY, parseShelfExpiry);
 	const [settingsVisualizerEnabled, setSettingsVisualizerEnabled] = useState(
 		() => localStorage.getItem("bloom-visualizer-enabled") !== "false"
 	);
@@ -1785,27 +1805,58 @@ function App() {
 		e.currentTarget.setPointerCapture(e.pointerId);
 		shelfPointerRef.current = { id: item.id, x: e.clientX, y: e.clientY, dragging: false };
 	};
-	const handleShelfPointerMove = (e: React.PointerEvent<HTMLDivElement>, item: ShelfItem) => {
-		const st = shelfPointerRef.current;
-		if (!st || st.id !== item.id || st.dragging) return;
-		if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 6) return;
-		if (!item.path) return;
-		const path = item.path;
-		const icon = shelfThumbs[path]?.thumb ?? shelfDragIcon;
-		if (!icon) return;
-		st.dragging = true;
-		// Picking an item up is a deliberate act; don't let the post-drop
+	// Several items can be picked with Ctrl or Shift-click; dragging any of
+	// them takes them all. Dropped somewhere else (not back on the notch), the
+	// items leave the shelf when Settings > Notch > Shelf says so, and any
+	// file the drop moved away goes too.
+	const [shelfSelected, setShelfSelected] = useState<Set<string>>(() => new Set());
+	useEffect(() => {
+		setShelfSelected((prev) => {
+			if (prev.size === 0) return prev;
+			const ids = new Set(shelfItems.map((i) => i.id));
+			const next = new Set([...prev].filter((id) => ids.has(id)));
+			return next.size === prev.size ? prev : next;
+		});
+	}, [shelfItems]);
+	useEffect(() => {
+		if (bloomMode !== "shelf") setShelfSelected((prev) => (prev.size === 0 ? prev : new Set()));
+	}, [bloomMode]);
+
+	const removeShelfItems = (ids: string[]) => {
+		if (ids.length === 0) return;
+		const gone = new Set(ids);
+		const next = shelfItemsRef.current.filter((i) => !gone.has(i.id));
+		setShelfItems(next);
+		if (next.length === 0 && bloomModeRef.current === "shelf") {
+			clearShelfCollapse();
+			setBloomMode(isOpenRef.current ? openingPanel() : restingModeRef.current);
+		}
+	};
+
+	const removeShelfItemsRef = useRef(removeShelfItems);
+	removeShelfItemsRef.current = removeShelfItems;
+
+	const dragShelfOut = (items: ShelfItem[]) => {
+		const files = items.filter((i) => i.type === "file" && i.path);
+		if (files.length === 0) return false;
+		const paths = files.map((i) => i.path as string);
+		const icon = shelfThumbs[paths[0]]?.thumb ?? shelfDragIcon;
+		if (!icon) return false;
+		// Picking items up is a deliberate act; don't let the post-drop
 		// auto-close fire mid-drag.
 		clearShelfCollapse();
 		shelfSelfDragRef.current = true;
 		const dragStartedAt = Date.now();
-		startDrag({ item: [path], icon })
-			.catch((err) => console.error("[shelf] drag out failed:", path, err))
+		let result: string | null = null;
+		startDrag({ item: paths, icon }, (payload) => {
+			result = payload.result;
+		})
+			.catch((err) => console.error("[shelf] drag out failed:", paths, err))
 			.finally(() => {
 				shelfSelfDragRef.current = false;
 				// A drop recorded during this drag means it landed back on the
 				// notch, so the pointer is still over it. Otherwise the native
-				// drag owned the pointer and the webview never saw it leave —
+				// drag owned the pointer and the webview never saw it leave:
 				// release the hover state (flags AND the resting mode) or the
 				// shelf panel stays expanded. The command also makes the
 				// backend re-evaluate its edge-hover state immediately.
@@ -1814,8 +1865,37 @@ function App() {
 					releaseNotchHover();
 					invoke("set_notch_hovered", { hovered: false }).catch(() => {});
 				}
+				if (droppedOnSelf || result !== "Dropped") return;
+				setShelfSelected(new Set());
+				if (shelfRemoveOnDropRef.current) {
+					removeShelfItems(files.map((i) => i.id));
+					return;
+				}
+				// Kept on the shelf, but a drop that moved a file leaves
+				// nothing behind to keep.
+				invoke<string[]>("shelf_prune", { paths })
+					.then((existing) => {
+						const alive = new Set(existing);
+						removeShelfItems(files.filter((i) => !alive.has(i.path as string)).map((i) => i.id));
+					})
+					.catch(() => {});
 			});
+		return true;
 	};
+
+	const handleShelfPointerMove = (e: React.PointerEvent<HTMLDivElement>, item: ShelfItem) => {
+		const st = shelfPointerRef.current;
+		if (!st || st.id !== item.id || st.dragging) return;
+		if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 6) return;
+		if (!item.path) return;
+		const group = shelfSelected.has(item.id)
+			? shelfItems.filter((i) => shelfSelected.has(i.id))
+			: [item];
+		if (dragShelfOut(group)) st.dragging = true;
+	};
+
+	// The "drag all" handle: every file on the shelf in one drag.
+	const shelfAllPointerRef = useRef<{ x: number; y: number; dragging: boolean } | null>(null);
 	const handleShelfTileClick = (e: React.MouseEvent<HTMLDivElement>, item: ShelfItem) => {
 		e.stopPropagation();
 		const st = shelfPointerRef.current;
@@ -1823,6 +1903,15 @@ function App() {
 		// Only this tile's own drag suppresses the click; a stale flag from a
 		// previous tile's drag-out must not swallow it.
 		if (st && st.id === item.id && st.dragging) return;
+		if (e.ctrlKey || e.metaKey || e.shiftKey) {
+			setShelfSelected((prev) => {
+				const next = new Set(prev);
+				if (next.has(item.id)) next.delete(item.id);
+				else next.add(item.id);
+				return next;
+			});
+			return;
+		}
 		openShelfItem(item);
 	};
 
@@ -1992,6 +2081,20 @@ function App() {
 			setBloomMode(isOpen ? openingPanel() : restingModeRef.current);
 		}
 	};
+
+	// Items older than the chosen time (Settings > Notch > Shelf) leave on
+	// their own; checked each minute and when the notch opens.
+	useEffect(() => {
+		if (windowLabel !== "main" || shelfExpiry <= 0) return;
+		const sweep = () => {
+			const cutoff = Date.now() - shelfExpiry;
+			const stale = shelfItemsRef.current.filter((i) => i.timestamp < cutoff).map((i) => i.id);
+			if (stale.length > 0) removeShelfItemsRef.current(stale);
+		};
+		sweep();
+		const interval = setInterval(sweep, 60_000);
+		return () => clearInterval(interval);
+	}, [windowLabel, shelfExpiry, isOpen]);
 
 	// A full shelf never evicts silently: whatever fits is added and the rest
 	// is reported. Reads through a ref so the drop listener (mounted once) sees
@@ -4152,7 +4255,7 @@ function App() {
 		if (showMusicOnStatusHover) {
 			return 170 + (settingsVisualizerEnabled ? 30 : 0);
 		}
-		if (bloomMode === "status" && isHovered) {
+		if (bloomMode === "status" && isHovered && !bubbleHeld) {
 			const totalWidgets = statusWidgets.left.length + statusWidgets.right.length;
 			return Math.max(Math.min(200 + totalWidgets * 50, 380) - clock24hTrim, statusFitWidth);
 		}
@@ -4166,6 +4269,8 @@ function App() {
 
 		return w;
 	};
+
+	getDynamicWidthRef.current = getDynamicWidth;
 
 	const getDynamicHeight = () => {
 		if (!isExpanded || !isVisible || isHidden) {
@@ -4193,7 +4298,7 @@ function App() {
 		// plus room for the scrollbar once the tiles overflow it.
 		if (bloomMode === "shelf") {
 			if (shelfItems.length === 0) return 130;
-			return shelfOverflowing ? 208 : 198;
+			return (shelfOverflowing ? 208 : 198) + (shelfItems.length > 1 ? 26 : 0);
 		}
 		if (bloomMode === "command-center") return isOpen ? COMMAND_CENTER_HEIGHT : 36;
 		if (bloomMode === "devices") {
@@ -5999,6 +6104,64 @@ function App() {
 													<span>Drop files or selected text here</span>
 												</div>
 											) : (
+												<>
+												{shelfItems.length > 1 && (
+													<div className="shelf-toolbar">
+														<span className="shelf-toolbar-count">
+															{shelfSelected.size > 0
+																? `${shelfSelected.size} selected`
+																: `${shelfItems.length} items · Ctrl-click to pick`}
+														</span>
+														{shelfItems.some((i) => i.type === "file") && (
+															<div
+																className="shelf-toolbar-btn shelf-drag-all"
+																role="button"
+																tabIndex={0}
+																title={
+																	shelfSelected.size > 0
+																		? "Drag the selected items out together"
+																		: "Drag every file out together"
+																}
+																onPointerDown={(e) => {
+																	if (e.button !== 0) return;
+																	e.stopPropagation();
+																	shelfAllPointerRef.current = { x: e.clientX, y: e.clientY, dragging: false };
+																}}
+																onPointerMove={(e) => {
+																	const st = shelfAllPointerRef.current;
+																	if (!st || st.dragging) return;
+																	if (Math.hypot(e.clientX - st.x, e.clientY - st.y) < 5) return;
+																	const group =
+																		shelfSelected.size > 0
+																			? shelfItems.filter((i) => shelfSelected.has(i.id))
+																			: shelfItems;
+																	if (dragShelfOut(group)) st.dragging = true;
+																}}
+																onPointerUp={() => {
+																	shelfAllPointerRef.current = null;
+																}}
+																onClick={(e) => e.stopPropagation()}
+															>
+																<Layers size={12} strokeWidth={2.3} />
+																{shelfSelected.size > 0 ? "Drag selected" : "Drag all"}
+															</div>
+														)}
+														<button
+															className="shelf-toolbar-btn"
+															onClick={(e) => {
+																e.stopPropagation();
+																removeShelfItems(
+																	shelfSelected.size > 0
+																		? [...shelfSelected]
+																		: shelfItems.map((i) => i.id)
+																);
+																setShelfSelected(new Set());
+															}}
+														>
+															{shelfSelected.size > 0 ? "Remove" : "Clear"}
+														</button>
+													</div>
+												)}
 												<div
 													className={`shelf-items-grid ${shelfOverflowing ? "overflowing" : ""}`}
 													ref={shelfGridRef}
@@ -6042,7 +6205,8 @@ function App() {
 																		damping: 38,
 																		mass: 0.7
 																	}}
-																	className={`shelf-tile ${item.type === "text" || (!thumb && preview?.text) ? "is-text" : ""}`}
+																	className={`shelf-tile ${item.type === "text" || (!thumb && preview?.text) ? "is-text" : ""}${shelfSelected.has(item.id) ? " selected" : ""}`}
+																	aria-selected={shelfSelected.has(item.id)}
 																	style={{ "--kind": kind.color } as React.CSSProperties}
 																	title={
 																		item.type === "text" ? item.text?.slice(0, 1000) : item.path
@@ -6109,6 +6273,7 @@ function App() {
 														})}
 													</AnimatePresence>
 												</div>
+												</>
 											)}
 										</motion.div>
 									)}
@@ -6157,11 +6322,13 @@ function App() {
 							ref={shelfBubbleRef}
 							type="button"
 							className={`activity-bubble shelf-bubble ${isHovered ? "expanded" : ""}`}
+							onPointerEnter={() => setBubbleHeld("shelf")}
+							onPointerLeave={() => setBubbleHeld(null)}
 							aria-label={`Open shelf: ${shelfItems.length} item${shelfItems.length === 1 ? "" : "s"}`}
 							// Anchored at the pill's centre, offset past its left edge.
 							style={{ right: "50%" }}
 							initial={{ opacity: 0, scale: 0.4, x: 28, marginRight: getDynamicWidth() / 2 + 8 }}
-							animate={{ opacity: 1, scale: 1, x: 0, marginRight: getDynamicWidth() / 2 + 8 }}
+							animate={{ opacity: 1, scale: 1, x: 0, marginRight: bubbleOffset("shelf") }}
 							exit={{ opacity: 0, scale: 0.4, x: 28 }}
 							transition={{
 								type: "spring",
@@ -6189,11 +6356,13 @@ function App() {
 							ref={musicBubbleRef}
 							type="button"
 							className={`activity-bubble ${isHovered ? "expanded" : ""}`}
+							onPointerEnter={() => setBubbleHeld("music")}
+							onPointerLeave={() => setBubbleHeld(null)}
 							aria-label={mediaInfo.title ? `Open music: ${mediaInfo.title}` : "Open music"}
 							// Anchored at the pill's centre, offset past its right edge.
 							style={{ left: "50%" }}
 							initial={{ opacity: 0, scale: 0.4, x: -28, marginLeft: getDynamicWidth() / 2 + 8 }}
-							animate={{ opacity: 1, scale: 1, x: 0, marginLeft: getDynamicWidth() / 2 + 8 }}
+							animate={{ opacity: 1, scale: 1, x: 0, marginLeft: bubbleOffset("music") }}
 							exit={{ opacity: 0, scale: 0.4, x: -28 }}
 							transition={{
 								type: "spring",

@@ -5404,3 +5404,84 @@ img {
 		animation: none;
 	}
 }
+
+/* Shelf toolbar (two or more items): count, drag several out at once, clear. */
+.shelf-toolbar {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	margin: -4px 0 6px;
+	font-size: 11px;
+}
+
+.shelf-toolbar-count {
+	flex: 1;
+	min-width: 0;
+	opacity: 0.55;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.shelf-toolbar-btn {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 22px;
+	padding: 0 9px;
+	border: none;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--bloom-text, white) 10%, transparent);
+	color: var(--bloom-text, white);
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.12s ease;
+}
+
+.shelf-toolbar-btn:hover {
+	background: color-mix(in srgb, var(--bloom-text, white) 16%, transparent);
+}
+
+.shelf-drag-all {
+	cursor: grab;
+}
+
+.shelf-drag-all:active {
+	cursor: grabbing;
+}
+
+/* A picked tile (Ctrl or Shift-click): accent ring and a tick. */
+.shelf-tile.selected {
+	border-color: var(--bloom-accent, #0a84ff);
+	box-shadow:
+		0 0 0 2px var(--bloom-accent, #0a84ff),
+		0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.shelf-tile.selected::after {
+	content: "✓";
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	z-index: 3;
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: var(--bloom-accent, #0a84ff);
+	color: var(--bloom-on-accent, #fff);
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.shelf-tile.selected .shelf-tile-remove {
+	display: none;
+}
