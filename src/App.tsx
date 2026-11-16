@@ -1827,9 +1827,12 @@ function App() {
 		const gone = new Set(ids);
 		const next = shelfItemsRef.current.filter((i) => !gone.has(i.id));
 		setShelfItems(next);
+		// Emptied from inside the shelf (Clear, Remove, items expiring): close
+		// rather than swap to another page the user didn't ask for.
 		if (next.length === 0 && bloomModeRef.current === "shelf") {
 			clearShelfCollapse();
-			setBloomMode(isOpenRef.current ? openingPanel() : restingModeRef.current);
+			setIsOpen(false);
+			setBloomMode(restingModeRef.current);
 		}
 	};
 
@@ -1867,6 +1870,14 @@ function App() {
 				}
 				if (droppedOnSelf || result !== "Dropped") return;
 				setShelfSelected(new Set());
+				// The items went somewhere else and the pointer with them: close
+				// the notch rather than leave the shelf (or, once it's empty, the
+				// opening page) standing open.
+				if (bloomModeRef.current === "shelf") {
+					clearShelfCollapse();
+					setIsOpen(false);
+					setBloomMode(restingModeRef.current);
+				}
 				if (shelfRemoveOnDropRef.current) {
 					removeShelfItems(files.map((i) => i.id));
 					return;
